@@ -13,6 +13,19 @@ Revisar `$ARGUMENTS`:
 - Nombre de etapa exacto ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira", "improve") → forzar esa etapa, ir a Paso 4
 - Texto libre → ir a Paso 3 (detectar desde texto)
 
+## Paso 0 — Verificar inicialización del proyecto
+
+Intentar leer `.claude/workflow/config.json`.
+
+Si no existe, mostrar antes de cualquier otra cosa:
+```
+⚙️  Este proyecto no tiene config de workflow.
+Corré /wf-init para detectar el stack y generar el config automáticamente.
+(O continuá sin config — el workflow funciona igual, con menos contexto)
+```
+
+Preguntar: "¿Corremos `/wf-init` primero?"
+
 ## Paso 2 — Verificar estado activo
 
 Intentar leer `.claude/workflow/state.json`.
