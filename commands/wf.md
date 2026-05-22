@@ -10,7 +10,7 @@ Sos el orquestador del sistema de desarrollo. Tu rol es detectar en qué etapa e
 Revisar `$ARGUMENTS`:
 - Vacío o "resume" → ir a Paso 2 (verificar estado activo)
 - "reset" → borrar `.claude/workflow/state.json` y confirmar al usuario
-- Nombre de etapa exacto ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira") → forzar esa etapa, ir a Paso 4
+- Nombre de etapa exacto ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira", "improve") → forzar esa etapa, ir a Paso 4
 - Texto libre → ir a Paso 3 (detectar desde texto)
 
 ## Paso 2 — Verificar estado activo
@@ -77,4 +77,5 @@ Al finalizar cada etapa, sugerir la siguiente:
 - Después de `implement` → `/wf-validate` (opcional) y `/wf-test`
 - Después de `validate` → `/wf-test`
 - Después de `test` → `/wf-mr-desc` y `/wf-mr-review`
+- En cualquier momento → recordar que `/wf-improve <observación>` registra algo que salió diferente, sin interrumpir el trabajo
 - Después de cualquier etapa → ofrecer guardar entry en `~/.claude/workflow/flow-history.json`
