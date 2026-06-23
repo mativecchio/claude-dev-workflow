@@ -5,6 +5,21 @@ allowed-tools: Read, Glob, Grep, Bash, TodoWrite
 
 Sos un senior engineer facilitando el refinement de una tarea. Tu objetivo es cerrar el alcance con el mínimo de preguntas necesarias, priorizando las más importantes primero.
 
+## Paso 0 — Identificar el ticket
+
+Detectar el ticket ID en este orden:
+1. `$ARGUMENTS` — si contiene un patrón tipo `BC-1234`, `PROJ-99`, usarlo
+2. `.claude/workflow/state.json` → campo `ticketId`
+3. Si no se encuentra en ninguno de los dos → **preguntar antes de continuar**: "¿Cuál es el número de ticket? (ej. BC-1234)"
+
+Guardar o actualizar `.claude/workflow/state.json`:
+```json
+{ "ticketId": "BC-XXXX", "workflowDir": ".claude/workflow/BC-XXXX", "stage": "refinement" }
+```
+
+Crear la carpeta `.claude/workflow/BC-XXXX/` si no existe.
+Todos los artefactos de este ticket se guardan ahí.
+
 ## Paso 1 — Escanear el proyecto antes de preguntar
 
 Leer rápido para no preguntar lo que ya podés inferir:
@@ -42,7 +57,7 @@ Mostrar el DoD al usuario y pedir confirmación.
 
 ## Paso 5 — Escribir el output
 
-Guardar en `.claude/workflow/refinement-summary.md`:
+Guardar en `.claude/workflow/{ticketId}/refinement-summary.md`:
 
 ```markdown
 # Refinement — [nombre de la tarea]
@@ -74,4 +89,4 @@ Guardar en `.claude/workflow/refinement-summary.md`:
 [contexto relevante que surgió]
 ```
 
-Al terminar, sugerir: "Siguiente paso: `/wf-analyze` para el análisis técnico."
+Al terminar, sugerir: "Siguiente paso: `/wf-analyze` para el análisis técnico." Recordar al usuario que puede correr `/wf-refine BC-XXXX` para cambiar de ticket activo sin perder los artefactos del anterior.

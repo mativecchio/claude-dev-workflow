@@ -5,10 +5,16 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es preparar el análisis técnico y lanzar un agente especializado para explorarlo en profundidad sin contaminar el contexto principal.
 
+## Paso 0 — Identificar el ticket
+
+Leer `.claude/workflow/state.json`. Si falta `ticketId` → preguntar antes de continuar: "¿Cuál es el número de ticket? (ej. BC-1234)". Guardar en `state.json` y crear la carpeta `.claude/workflow/{ticketId}/` si no existe.
+
+La variable `{workflowDir}` = `.claude/workflow/{ticketId}` se usa en todos los pasos siguientes.
+
 ## Paso 1 — Recopilar contexto para el Agent
 
 Leer los siguientes archivos (van a ser parte del prompt del Agent):
-- `.claude/workflow/refinement-summary.md` → objetivo y DoD
+- `{workflowDir}/refinement-summary.md` → objetivo y DoD
 - `.claude/workflow/config.json` → stack, proyectos relacionados, DoD
 - `CLAUDE.md` o `README.md` → resumen del proyecto
 - Estructura top-level del proyecto (un `ls` rápido)
@@ -54,16 +60,14 @@ Basándote en los patrones existentes del codebase (no inventar convenciones nue
 
 ## Output requerido
 
-Escribir el plan completo en `.claude/workflow/plan.md` con esta estructura:
+Escribir DOS archivos en `{workflowDir}/`:
 
+**`plan.md`** — solo lo que el implementador necesita saber:
 ```markdown
 # Plan de Implementación — [nombre de la tarea]
 
 ## Feature hermana de referencia
 [path y descripción breve]
-
-## Solución técnica
-[descripción de la solución, decisiones clave]
 
 ## Archivos a modificar/crear
 | Archivo | Cambio | Razón |
@@ -79,14 +83,27 @@ Escribir el plan completo en `.claude/workflow/plan.md` con esta estructura:
 1. [paso 1]
 2. [paso 2]
 
-## Riesgos y consideraciones
+## Riesgos y dependencias
 - [riesgo 1]
 
 ## Deuda técnica detectada (no implementar)
 - [deuda 1]
 ```
 
-Cuando termines de escribir el plan, decir: "Plan escrito en .claude/workflow/plan.md"
+**`design-decisions.md`** — contexto para el reviewer del MR:
+```markdown
+# Decisiones de Diseño — [nombre de la tarea]
+
+## [Decisión 1]
+**Alternativas consideradas:** [A, B, C]
+**Elegida:** [A]
+**Por qué:** [razón]
+
+## [Decisión 2]
+...
+```
+
+Cuando termines, decir: "Plan escrito en {workflowDir}/plan.md y design-decisions.md"
 
 ---
 

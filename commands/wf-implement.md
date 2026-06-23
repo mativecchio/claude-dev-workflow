@@ -26,11 +26,19 @@ Seguir el flujo completo abajo.
 
 ---
 
+## Paso 0 — Identificar ticket y branch
+
+Leer `.claude/workflow/state.json`:
+- Si falta `ticketId` → preguntar: "¿Cuál es el número de ticket activo? (ej. BC-1234)"
+- Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" — guardar en `state.json`
+
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Leer el contexto del plan
 
 Leer:
-- `.claude/workflow/plan.md` → qué cambiar y en qué orden
-- `.claude/workflow/review-findings.md` → ajustes requeridos al plan
+- `{workflowDir}/plan.md` → qué cambiar y en qué orden
+- `{workflowDir}/review-findings.md` → ajustes requeridos al plan
 - `.claude/workflow/config.json` → DoD y stack
 
 Si no existe `plan.md`, decirle al usuario que primero corra `/wf-analyze` y `/wf-review-plan`.
@@ -81,7 +89,7 @@ Impacto: [qué cambia]
 
 ## Paso 5 — Registrar deuda técnica
 
-Si encontrás deuda técnica durante la implementación, agregar al final de `.claude/workflow/plan.md`:
+Si encontrás deuda técnica durante la implementación, agregar al final de `{workflowDir}/plan.md`:
 ```markdown
 ## Deuda técnica detectada (no implementada)
 - [descripción] — detectada en [archivo]

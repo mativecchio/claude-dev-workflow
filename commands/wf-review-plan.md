@@ -5,12 +5,17 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es verificar que el plan sea correcto y completo antes de tocar código. Este es el checkpoint más importante del sistema.
 
+## Paso 0 — Identificar ticket
+
+Leer `.claude/workflow/state.json`. Si falta `ticketId` → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)".
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Verificar que existe el plan
 
-Leer `.claude/workflow/plan.md`. Si no existe, decirle al usuario que primero corra `/wf-analyze`.
+Leer `{workflowDir}/plan.md`. Si no existe, decirle al usuario que primero corra `/wf-analyze`.
 
 También leer:
-- `.claude/workflow/refinement-summary.md` → criterios de aceptación y DoD
+- `{workflowDir}/refinement-summary.md` → criterios de aceptación y DoD
 - `.claude/workflow/config.json` → stack y contexto del proyecto
 
 ## Paso 2 — Lanzar el Agent de verificación
@@ -54,7 +59,7 @@ Sos un senior engineer revisando un plan de implementación antes de que empiece
 
 ## Output requerido
 
-Escribir en `.claude/workflow/review-findings.md`:
+Escribir en `{workflowDir}/review-findings.md`:
 
 ```markdown
 # Review del Plan — [nombre de la tarea]
@@ -75,13 +80,13 @@ Escribir en `.claude/workflow/review-findings.md`:
 [lista de cambios a hacer antes de implementar, o "Ninguno"]
 ```
 
-Cuando termines, decir: "Review escrito en .claude/workflow/review-findings.md"
+Cuando termines, decir: "Review escrito en {workflowDir}/review-findings.md"
 
 ---
 
 ## Paso 3 — CHECKPOINT DURO
 
-Leer `review-findings.md` y mostrar el resultado al usuario.
+Leer `{workflowDir}/review-findings.md` y mostrar el resultado al usuario.
 
 **Este es el checkpoint más importante del sistema. NUNCA pasar a implementación sin respuesta explícita.**
 
