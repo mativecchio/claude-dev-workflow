@@ -36,6 +36,13 @@ Si existe, mostrar:
 🔄 Última etapa completada: [etapa]
 ✅ Completadas: [lista]
 ```
+
+Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el ticketId ni es `develop`:
+```
+⚠️  Branch actual: [branch] — no parece ser el branch de [ticket]
+```
+No bloquear — solo informar.
+
 Preguntar: "¿Continuar desde aquí o resetear con `/wf reset`?"
 
 Si no existe, ir a Paso 3.

@@ -89,4 +89,15 @@ Guardar en `.claude/workflow/{ticketId}/refinement-summary.md`:
 [contexto relevante que surgió]
 ```
 
-Al terminar, sugerir: "Siguiente paso: `/wf-analyze` para el análisis técnico." Recordar al usuario que puede correr `/wf-refine BC-XXXX` para cambiar de ticket activo sin perder los artefactos del anterior.
+Al terminar, verificar el branch actual con `git branch --show-current`:
+
+- Si el branch es `develop` o no contiene el ticketId → sugerir crear el branch feature:
+  ```
+  🌿 Branch sugerido: git checkout -b {ticketId}-{slug} develop
+  ```
+  Donde `{slug}` es el título del ticket en kebab-case, máximo 4-5 palabras. Mostrar el comando exacto y preguntar: "¿Creo el branch?"
+  Si el usuario confirma → ejecutar `git checkout -b {branch} develop`.
+  
+- Si ya está en un branch que contiene el ticketId → no sugerir nada.
+
+Sugerir: "Siguiente paso: `/wf-analyze` para el análisis técnico." Recordar al usuario que puede correr `/wf-refine BC-XXXX` para cambiar de ticket activo sin perder los artefactos del anterior.
