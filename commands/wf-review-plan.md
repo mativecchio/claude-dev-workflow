@@ -5,9 +5,13 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es verificar que el plan sea correcto y completo antes de tocar código. Este es el checkpoint más importante del sistema.
 
-## Paso 0 — Identificar ticket
+## Paso 0 — Identificar ticket activo
 
-Leer `.claude/workflow/state.json`. Si falta `ticketId` → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)".
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+
+`{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
 ## Paso 1 — Verificar que existe el plan

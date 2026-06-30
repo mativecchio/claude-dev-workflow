@@ -5,9 +5,17 @@ allowed-tools: Read, Edit, Write, Bash, Glob, Grep, TodoWrite
 
 Tu rol es revisar los tests existentes, identificar gaps y escribir los que falten. Al final, checklist pre-MR.
 
+## Paso 0 — Identificar ticket activo
+
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+
+`{ticketId}` = `activeTicket`
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Revisar tests existentes
 
-Leer `.claude/workflow/plan.md` para saber qué archivos se modificaron.
+Leer `{workflowDir}/plan.md` para saber qué archivos se modificaron.
 
 Para cada módulo modificado:
 - Buscar el archivo de test correspondiente

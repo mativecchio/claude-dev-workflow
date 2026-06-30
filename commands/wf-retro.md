@@ -5,12 +5,20 @@ allowed-tools: Read, Write, Edit, Bash, Glob, TodoRead
 
 Tu rol es analizar cómo fue el ciclo de desarrollo, extraer aprendizajes y proponer mejoras concretas al sistema de workflow.
 
+## Paso 0 — Identificar ticket activo
+
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+
+`{ticketId}` = `activeTicket`
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Recopilar datos de la sesión
 
 Leer:
-- `.claude/workflow/state.json` → etapas recorridas
-- `.claude/workflow/plan.md` → qué se implementó y desvíos registrados
-- `.claude/workflow/review-findings.md` → hallazgos del plan review
+- `{workflowDir}/state.json` → etapas recorridas
+- `{workflowDir}/plan.md` → qué se implementó y desvíos registrados
+- `{workflowDir}/review-findings.md` → hallazgos del plan review
 - `~/.claude/workflow/flow-history.json` → histórico de sesiones anteriores (si existe)
 
 ## Paso 2 — Análisis de la sesión

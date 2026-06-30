@@ -26,18 +26,24 @@ Corré /wf-init para detectar el stack y generar el config automáticamente.
 
 Preguntar: "¿Corremos `/wf-init` primero?"
 
-## Paso 2 — Verificar estado activo
+## Paso 2 — Dashboard de tickets
 
-Intentar leer `.claude/workflow/state.json`.
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Escanear todos los archivos `.claude/workflow/*/state.json` para listar tickets.
 
-Si existe, mostrar:
+Mostrar dashboard:
 ```
-📍 Workflow activo: [ticket]
-🔄 Última etapa completada: [etapa]
-✅ Completadas: [lista]
+📋 Tickets:
+  BC-XXXX  [stage]   ✅ [completadas]   🎯 ← activo
+  BC-YYYY  [stage]   ✅ [completadas]
 ```
 
-Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el ticketId ni es `develop`:
+Si `$ARGUMENTS` contiene un ticket ID (ej. "BC-1522"):
+1. Cambiar activeTicket: guardar `{ "activeTicket": "BC-1522" }` en `.claude/workflow/state.json`
+2. Confirmar: "🎯 Activo ahora: BC-1522"
+3. Leer `{workflowDir}/state.json` y mostrar etapa actual
+
+Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el activeTicket ni es `develop`:
 ```
 ⚠️  Branch actual: [branch] — no parece ser el branch de [ticket]
 ```
@@ -45,7 +51,7 @@ No bloquear — solo informar.
 
 Preguntar: "¿Continuar desde aquí o resetear con `/wf reset`?"
 
-Si no existe, ir a Paso 3.
+Si no existe ningún `state.json`, ir a Paso 3.
 
 ## Paso 3 — Detectar etapa desde `$ARGUMENTS` o contexto
 
@@ -78,10 +84,16 @@ Luego leer el archivo `~/.claude/commands/wf-[comando].md` y ejecutar sus instru
 
 ## Paso 5 — Actualizar estado
 
-Al iniciar la etapa, escribir/actualizar `.claude/workflow/state.json`:
+Al iniciar una etapa para un ticket:
+
+1. Actualizar `.claude/workflow/state.json` (solo el activo):
+```json
+{ "activeTicket": "BC-XXXX" }
+```
+
+2. Actualizar `.claude/workflow/{ticketId}/state.json` (estado del ticket):
 ```json
 {
-  "ticket": "[descripción o ID del ticket]",
   "stage": "[etapa actual]",
   "completed": ["[etapas ya completadas]"],
   "started_at": "[timestamp ISO]"

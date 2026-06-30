@@ -5,6 +5,14 @@ allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 
 Tu rol es preparar el contexto y lanzar una revisión completa del MR en un agente con contexto limpio.
 
+## Paso 0 — Identificar ticket activo
+
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+
+`{ticketId}` = `activeTicket`
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Obtener el diff
 
 Intentar en orden:
@@ -27,8 +35,8 @@ Si el diff es muy grande (>500 líneas), mostrar el `--stat` al usuario y pregun
 ## Paso 2 — Recopilar contexto
 
 Leer:
-- `.claude/workflow/plan.md` → contexto de lo que se implementó
-- `.claude/workflow/refinement-summary.md` → criterios de aceptación
+- `{workflowDir}/plan.md` → contexto de lo que se implementó
+- `{workflowDir}/refinement-summary.md` → criterios de aceptación
 - `CLAUDE.md` o `README.md` → stack y convenciones
 - `.claude/workflow/config.json` → stack del proyecto
 

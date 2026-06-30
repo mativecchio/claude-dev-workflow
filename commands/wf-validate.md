@@ -5,9 +5,13 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite, TodoRead
 
 Tu rol es correr validaciones automáticas sobre el diff de la implementación. El usuario elige qué validadores activar.
 
-## Paso 0 — Identificar ticket
+## Paso 0 — Identificar ticket activo
 
-Leer `.claude/workflow/state.json`. Si falta `ticketId` → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)".
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+
+`{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
 ## Paso 1 — Selección de validadores

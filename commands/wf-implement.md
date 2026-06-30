@@ -26,13 +26,16 @@ Seguir el flujo completo abajo.
 
 ---
 
-## Paso 0 — Identificar ticket y branch
+## Paso 0 — Identificar ticket activo y branch
 
-Leer `.claude/workflow/state.json`:
-- Si falta `ticketId` → preguntar: "¿Cuál es el número de ticket activo? (ej. BC-1234)"
-- Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" — guardar en `state.json`
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket activo? (ej. BC-1234)"
+Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 
+`{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
+
+Leer `{workflowDir}/state.json`. Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" y guardar en `{workflowDir}/state.json`.
 
 ## Paso 1 — Leer el contexto del plan
 

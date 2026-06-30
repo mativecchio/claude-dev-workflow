@@ -5,12 +5,20 @@ allowed-tools: Read, Bash, Glob, TodoWrite
 
 Tu rol es generar una descripción de MR clara y útil para los revisores, basada en el contexto del plan y el diff real.
 
+## Paso 0 — Identificar ticket activo
+
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+
+`{ticketId}` = `activeTicket`
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
 ## Paso 1 — Recopilar contexto
 
 Leer:
-- `.claude/workflow/plan.md` → solución técnica y decisiones tomadas
-- `.claude/workflow/refinement-summary.md` → objetivo y criterios de aceptación
-- `.claude/workflow/review-findings.md` → si hubo ajustes importantes al plan
+- `{workflowDir}/plan.md` → solución técnica y decisiones tomadas
+- `{workflowDir}/refinement-summary.md` → objetivo y criterios de aceptación
+- `{workflowDir}/review-findings.md` → si hubo ajustes importantes al plan
 
 Obtener el diff resumido:
 ```bash

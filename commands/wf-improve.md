@@ -13,7 +13,8 @@ Cuando `$ARGUMENTS` tiene texto, registrar la observación sin interrumpir el tr
 
 ### Paso 1 — Detectar contexto actual
 
-Leer `.claude/workflow/state.json` para saber en qué etapa se está.
+Leer `.claude/workflow/state.json` → `activeTicket`.
+Leer `.claude/workflow/{activeTicket}/state.json` → `stage` actual.
 
 ### Paso 2 — Clasificar la observación
 
@@ -56,10 +57,12 @@ Revisión completa de todo lo acumulado durante la sesión.
 
 ### Paso 1 — Recopilar todo
 
+Leer `.claude/workflow/state.json` → `activeTicket`.
+
 Leer:
 - `.claude/workflow/improvement-log.md` → observaciones acumuladas
-- `.claude/workflow/state.json` → etapas recorridas
-- `.claude/workflow/plan.md` → para entender qué se implementó
+- `.claude/workflow/{activeTicket}/state.json` → etapas recorridas
+- `.claude/workflow/{activeTicket}/plan.md` → para entender qué se implementó
 - `~/.claude/workflow/flow-history.json` → si hay 3+ entries, cruzar patrones
 
 ### Paso 2 — Mostrar el análisis

@@ -5,11 +5,17 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es preparar el análisis técnico y lanzar un agente especializado para explorarlo en profundidad sin contaminar el contexto principal.
 
-## Paso 0 — Identificar el ticket
+## Paso 0 — Identificar ticket activo
 
-Leer `.claude/workflow/state.json`. Si falta `ticketId` → preguntar antes de continuar: "¿Cuál es el número de ticket? (ej. BC-1234)". Guardar en `state.json` y crear la carpeta `.claude/workflow/{ticketId}/` si no existe.
+Leer `.claude/workflow/state.json` → campo `activeTicket`.
+Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 
-La variable `{workflowDir}` = `.claude/workflow/{ticketId}` se usa en todos los pasos siguientes.
+`{ticketId}` = `activeTicket`
+`{workflowDir}` = `.claude/workflow/{ticketId}`
+
+Crear `{workflowDir}/` si no existe.
+Leer `{workflowDir}/state.json` para el estado actual del ticket.
 
 ## Paso 1 — Recopilar contexto para el Agent
 

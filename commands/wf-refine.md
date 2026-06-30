@@ -9,16 +9,21 @@ Sos un senior engineer facilitando el refinement de una tarea. Tu objetivo es ce
 
 Detectar el ticket ID en este orden:
 1. `$ARGUMENTS` — si contiene un patrón tipo `BC-1234`, `PROJ-99`, usarlo
-2. `.claude/workflow/state.json` → campo `ticketId`
-3. Si no se encuentra en ninguno de los dos → **preguntar antes de continuar**: "¿Cuál es el número de ticket? (ej. BC-1234)"
-
-Guardar o actualizar `.claude/workflow/state.json`:
-```json
-{ "ticketId": "BC-XXXX", "workflowDir": ".claude/workflow/BC-XXXX", "stage": "refinement" }
-```
+2. `.claude/workflow/state.json` → campo `activeTicket`
+3. Si no se encuentra en ninguno → **preguntar antes de continuar**: "¿Cuál es el número de ticket? (ej. BC-1234)"
 
 Crear la carpeta `.claude/workflow/BC-XXXX/` si no existe.
 Todos los artefactos de este ticket se guardan ahí.
+
+Guardar el ticket activo en `.claude/workflow/state.json`:
+```json
+{ "activeTicket": "BC-XXXX" }
+```
+
+Guardar el estado del ticket en `.claude/workflow/BC-XXXX/state.json`:
+```json
+{ "stage": "refinement", "completed": [], "started_at": "[timestamp ISO]" }
+```
 
 ## Paso 1 — Escanear el proyecto antes de preguntar
 
