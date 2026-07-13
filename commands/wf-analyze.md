@@ -63,6 +63,7 @@ Basándote en los patrones existentes del codebase (no inventar convenciones nue
 - Breaking changes en contratos
 - Dependencias entre subtareas
 - Deuda técnica que hay que registrar pero NO implementar ahora
+- Si hay 2+ efectos/observers que leen y escriben el mismo storage/estado compartido, documentar el orden de ejecución esperado y los posibles casos de carrera entre ellos
 
 ## Output requerido
 
