@@ -15,19 +15,22 @@ Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-12
 
 ## Paso 1 — Obtener el diff
 
-Intentar en orden:
+Usar siempre el punto real donde el branch divergió de su base, no la base directo — `[base]..HEAD` se rompe si la base (`develop`/`main`) avanzó por un pull/fast-forward después de crear el feature branch, mostrando cambios de terceros como si fueran del MR.
 
-**Opción 1 — Branch actual vs main/master:**
+**Opción 1 — Branch actual vs base (develop/main/master):**
 ```bash
-git log --oneline main..HEAD | head -20
-git diff main..HEAD --stat
-git diff main..HEAD
+BASE=develop  # o main/master, según el proyecto
+MB=$(git merge-base HEAD "$BASE")
+git log --oneline "$MB"..HEAD | head -20
+git diff "$MB"..HEAD --stat
+git diff "$MB"..HEAD
 ```
 
 **Opción 2 — Si `$ARGUMENTS` tiene un branch específico:**
 ```bash
-git diff [base-branch]..[feature-branch] --stat
-git diff [base-branch]..[feature-branch]
+MB=$(git merge-base [feature-branch] [base-branch])
+git diff "$MB"..[feature-branch] --stat
+git diff "$MB"..[feature-branch]
 ```
 
 Si el diff es muy grande (>500 líneas), mostrar el `--stat` al usuario y preguntar si quiere continuar o acotar el scope.

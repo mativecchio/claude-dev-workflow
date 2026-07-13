@@ -43,6 +43,11 @@ Si `$ARGUMENTS` contiene un ticket ID (ej. "BC-1522"):
 2. Confirmar: "🎯 Activo ahora: BC-1522"
 3. Leer `{workflowDir}/state.json` y mostrar etapa actual
 
+**Ticket retroactivo (código ya implementado, sin plan.md):** si al activar un ticket nuevo no existe `{workflowDir}/plan.md` pero el branch actual ya tiene commits con cambios de código (no solo el branch vacío recién creado), es un ticket armado *después* de la implementación — no fuerces `refine`/`analyze`/`review-plan`. En su lugar:
+- Preguntar: "No hay plan.md y ya hay código implementado en este branch — ¿salteamos refine/analyze e implementamos/validamos directo?"
+- Si confirma, guardar el `stage` inicial como `"implement"` con `"completed": ["implement"]` y agregar un campo `"notes"` en `{workflowDir}/state.json` resumiendo en 2-3 líneas qué se hizo y por qué no hay plan formal (esto reemplaza a refinement-summary.md/plan.md como contexto mínimo para las etapas siguientes).
+- Comandos que dependen de `plan.md`/`refinement-summary.md` (`wf-validate`, `wf-mr-desc`, `wf-mr-review`) deben caer a leer ese campo `"notes"` de `{workflowDir}/state.json` cuando esos archivos no existan, en vez de bloquear o asumir que faltan por error.
+
 Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el activeTicket ni es `develop`:
 ```
 ⚠️  Branch actual: [branch] — no parece ser el branch de [ticket]

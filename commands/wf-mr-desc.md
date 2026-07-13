@@ -20,10 +20,12 @@ Leer:
 - `{workflowDir}/refinement-summary.md` → objetivo y criterios de aceptación
 - `{workflowDir}/review-findings.md` → si hubo ajustes importantes al plan
 
-Obtener el diff resumido:
+Obtener el diff resumido (contra el merge-base con la base, no la base directo — `main..HEAD` se rompe si la base avanzó por fast-forward después de crear el branch):
 ```bash
-git diff main..HEAD --stat
-git log --oneline main..HEAD
+BASE=develop  # o main/master, según el proyecto
+MB=$(git merge-base HEAD "$BASE")
+git diff "$MB"..HEAD --stat
+git log --oneline "$MB"..HEAD
 ```
 
 ## Paso 2 — Generar la descripción

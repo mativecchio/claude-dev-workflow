@@ -33,12 +33,16 @@ Esperar respuesta antes de continuar.
 
 ## Paso 2 — Obtener el diff
 
+Diffear contra el punto real donde el branch divergió de su base (`develop`/`main`/`master`), no contra `HEAD~1` (solo captura el último commit) ni contra la base directo (`develop..HEAD`), que se rompe si la base avanzó después de crear el branch (ej. alguien corrió `git pull --ff-only` sobre `develop` en el medio — el diff naive termina mostrando cambios de terceros como si fueran del feature).
+
 ```bash
-git diff HEAD~1 HEAD --stat
-git diff HEAD~1 HEAD
+BASE=develop  # o main/master, según el proyecto
+MB=$(git merge-base HEAD "$BASE")
+git diff "$MB"..HEAD --stat
+git diff "$MB"..HEAD
 ```
 
-Si no hay commits recientes, usar:
+Si no hay commits sobre la base (todo el cambio está en working tree sin commitear), usar:
 ```bash
 git diff --stat
 git diff
