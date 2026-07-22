@@ -66,7 +66,12 @@ Por ejemplo: "El flujo de X ahora hace Y cuando Z" en lugar de "Se modificó arc
 
 ## Paso 3 — Mostrar y ajustar
 
-Mostrar la descripción generada al usuario y preguntar:
-**"¿Querés ajustar algo antes de copiarla?"**
+Mostrar la descripción generada al usuario. En vez de una pregunta abierta, ofrecer directamente las dos salidas y mostrar ya mismo cuáles son los pasos siguientes:
 
-Si el usuario pide cambios, aplicarlos hasta que esté conforme.
+```
+¿Ajustamos algo o seguimos?
+a) Ajustar algo en la descripción
+b) Está lista — siguiente: `/wf-mr-review` para la revisión final del MR
+```
+
+Si el usuario pide cambios (a), aplicarlos hasta que esté conforme y volver a ofrecer las mismas dos opciones. Si elige seguir (b), no repreguntar — pasar directo a sugerir `/wf-mr-review`.

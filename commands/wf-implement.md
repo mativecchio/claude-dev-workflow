@@ -57,9 +57,11 @@ Mostrar resumen del plan al usuario:
   2. [módulo/grupo 2]
 ```
 
-Preguntar: **"¿Arrancamos?"**
+**Saltear el checkpoint "¿Arrancamos?" (ir directo a Paso 3) cuando aplique cualquiera de estos dos casos** — ya hay una confirmación explícita del usuario, no hace falta pedir otra:
+- El usuario invocó `/wf-implement` directamente (escribió el comando) — eso ya es la confirmación de arrancar.
+- Se llega desde `wf-validate` con una lista de findings ya decidida item por item (ver picker de `wf-validate` Paso 4) — la decisión de qué implementar ya se tomó ahí.
 
-Esperar confirmación antes de tocar cualquier archivo.
+**Preguntar "¿Arrancamos?" solo cuando se llega de forma indirecta** (enrutado desde `/wf` u otro comando) y todavía no hubo ninguna acción explícita del usuario pidiendo implementar. Esperar confirmación antes de tocar cualquier archivo en ese caso.
 
 ## Paso 3 — Implementar por grupos
 
@@ -80,6 +82,24 @@ Preguntar: "¿Continúo?" — solo si el usuario configuró checkpoints detallad
 - Respetar: naming, estructura de imports, estilo de error handling, i18n si aplica
 - Si detectás un helper existente que el plan no contempló → usarlo y documentar el desvío
 - Si hay un cambio necesario que el plan no contempló → informar antes de hacerlo
+
+## Paso 3.5 — Heurística: test-primero para guards de validación
+
+Si el grupo que estás por implementar agrega o modifica un **guard de validación** (código que chequea si un valor es válido/seguro antes de usarlo — ej. `isValidDate`, sanitización, parseo defensivo, chequeo de null/formato), evaluar los 3 criterios:
+
+1. El valor cruza un límite de datos que no controlás (sessionStorage/localStorage escrito por otro repo, respuesta de API externa, input de usuario libre, query params).
+2. Ya existe o estás agregando un helper de validación (`isValidDate`, `sanitize`, `parse`, etc.) — señal de que "input corrupto" es un modo de falla conocido, no hipotético.
+3. El valor se usa en **más de un lugar** (grep del state/prop/variable da 2+ call sites/consumidores).
+
+**Si se cumplen 2 de los 3:** antes de escribir el fix, grepear **todos** los call sites del valor (no solo el que motivó el cambio) y listarlos:
+```
+🔎 Call sites de [valor] sin guard: [archivo:línea, archivo:línea, ...]
+```
+Escribir un test que fuerce el input corrupto/inválido por **cada** call site de la lista (o confirmar explícitamente cuáles quedan fuera de alcance y por qué) antes de dar la implementación por terminada — no solo para el primer lugar donde se detectó el problema.
+
+**Por qué:** un guard agregado en un solo lugar (ej. al hidratar desde sessionStorage) deja el mismo valor sin validar en otros consumidores (ej. validación de formulario, props a componentes hijos) — bug real detectado en BC-1529 vía `/wf-mr-review`, dos rondas después de la implementación, en vez de en esta etapa.
+
+Si no se cumplen 2 de los 3 criterios (valor interno controlado, un solo call site), seguir el flujo normal sin este paso extra.
 
 ## Paso 4 — Registrar desvíos
 

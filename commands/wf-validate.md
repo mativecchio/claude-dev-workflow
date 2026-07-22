@@ -124,8 +124,17 @@ Sos un senior engineer haciendo una revisión de calidad sobre código recién i
 Mostrar resultado y sugerir: "Siguiente: `/wf-test`"
 
 **Si REQUIERE CAMBIOS:**
-Mostrar el feedback estructurado y preguntar:
-**"¿Volvemos a `/wf-implement` con este feedback o escalamos a vos?"**
+Mostrar el feedback estructurado completo, y para cada finding de "❌ Falló" (y opcionalmente cada "⚠️ Warning" si el usuario quiere revisarlos también) ofrecer un picker individual:
+```
+[N]. [archivo:línea] — [resumen del problema] (severidad: [alta/media])
+    ¿Qué hacemos?
+    a) Implementar el fix
+    b) Ignorar (con motivo)
+    c) Marcar como deuda técnica (registrar en plan.md, no implementar ahora)
+```
+Esperar la decisión de cada item (se puede responder todo junto, ej. "1a, 2c, 3b") antes de pasar a `/wf-implement`. No asumir "implementar todo" por default.
+
+Pasar a `/wf-implement` **solo con la lista ya decidida** (los items marcados "a"), para que ese comando salte su checkpoint de inicio (ver `wf-implement` Paso 2) — la decisión de qué implementar ya se tomó acá, no hace falta repreguntar "¿Arrancamos?".
 
 Llevar cuenta de iteraciones. Si se llega a 3 sin aprobar, escalar:
 **"⚠️ Se alcanzaron 3 iteraciones sin aprobar. Revisión manual requerida antes de continuar."**

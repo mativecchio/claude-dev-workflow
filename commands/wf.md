@@ -48,13 +48,16 @@ Si `$ARGUMENTS` contiene un ticket ID (ej. "BC-1522"):
 - Si confirma, guardar el `stage` inicial como `"implement"` con `"completed": ["implement"]` y agregar un campo `"notes"` en `{workflowDir}/state.json` resumiendo en 2-3 líneas qué se hizo y por qué no hay plan formal (esto reemplaza a refinement-summary.md/plan.md como contexto mínimo para las etapas siguientes).
 - Comandos que dependen de `plan.md`/`refinement-summary.md` (`wf-validate`, `wf-mr-desc`, `wf-mr-review`) deben caer a leer ese campo `"notes"` de `{workflowDir}/state.json` cuando esos archivos no existan, en vez de bloquear o asumir que faltan por error.
 
-Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el activeTicket ni es `develop`:
+Verificar branch actual con `git branch --show-current`. Si el branch NO contiene el activeTicket ni es la rama base del proyecto (`develop`/`main`/`master`, la que use el repo):
 ```
 ⚠️  Branch actual: [branch] — no parece ser el branch de [ticket]
 ```
-No bloquear — solo informar.
+No bloquear — informar y ofrecer acción concreta, no solo advertir:
+- Si `{workflowDir}/state.json` ya tiene un campo `branch` guardado de una sesión anterior → ofrecer `git checkout [branch guardado]` (si existe local o remoto).
+- Si no hay branch guardado y es la primera vez que se activa este ticket → ofrecer crear uno nuevo: `git checkout -b {ticketId}-{slug} [rama base]`, con `{slug}` = título del ticket en kebab-case (mismo patrón que usa `wf-refine` Paso 5). Preguntar antes de ejecutar.
+- Si el usuario prefiere seguir en el branch actual tal cual → continuar sin forzar nada.
 
-Preguntar: "¿Continuar desde aquí o resetear con `/wf reset`?"
+Preguntar: "¿Continuar desde aquí, cambiar de branch, o resetear con `/wf reset`?"
 
 Si no existe ningún `state.json`, ir a Paso 3.
 
