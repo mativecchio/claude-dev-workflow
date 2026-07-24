@@ -79,6 +79,7 @@ Evaluar en orden de importancia:
 ### 3. Efectos secundarios
 - ¿Hay contratos (API, tipos, eventos) que se modifican y tienen consumidores?
 - ¿Hay migraciones que pueden afectar datos existentes?
+- ¿El diff toca un estado/storage/contrato compartido con algún `related_project` (config.json)? Si sí: ¿el plan/diff documenta qué se verificó contra el código fuente real de ese proyecto (grep/read de su `path` local), o es una asunción sin confirmar? Un diff correcto en la lógica de *este* repo puede seguir estando roto si el otro lado del contrato (sistema externo) hace algo distinto a lo asumido — no se puede aprobar ese punto solo mirando este diff.
 
 ## Output requerido
 
@@ -99,6 +100,7 @@ Evaluar en orden de importancia:
 
 ### 🔗 Efectos secundarios
 - [contratos modificados y consumidores afectados]
+- [si aplica: riesgo no verificable contra un related_project — qué se asumió sin confirmar contra su código fuente real]
 
 ### ❓ Preguntas al autor
 - [pregunta 1]

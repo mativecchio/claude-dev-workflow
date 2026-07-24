@@ -55,6 +55,11 @@ Sos un senior engineer revisando un plan de implementación antes de que empiece
 - ¿Los contratos que se modifican tienen consumidores que se rompen?
 - ¿El orden de implementación es correcto o genera dependencias circulares?
 
+### Contratos con proyectos relacionados
+- Si el plan toca un estado/storage/contrato compartido con algún `related_project` (config.json), ¿el plan documenta qué se verificó contra el código fuente real de ese proyecto (archivo:línea), o asume el comportamiento sin haberlo revisado?
+- Si el `related_project` tiene `path` local y el plan lo trata como "no se puede confirmar, es externo" sin haber grepeado ese path, marcarlo como hallazgo — el path existe y es verificable, no es una caja negra real.
+- ¿El plan cruzó `~/.claude/workflow/flow-history.json` buscando bugs previos en el mismo punto de integración? Si hay una entry anterior con el mismo `related_project` en `key_findings`/`anomalies` y el plan no la menciona, marcarlo como hallazgo — es una lección ya aprendida que se está ignorando.
+
 ## Clasificar hallazgos
 
 **🔴 Bloqueante** — el plan va a fallar o romper algo si se ejecuta así  

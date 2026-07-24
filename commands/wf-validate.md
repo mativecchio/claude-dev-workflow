@@ -89,6 +89,10 @@ Sos un senior engineer haciendo una revisión de calidad sobre código recién i
 - ¿Hay datos sensibles expuestos en logs o responses?
 - ¿Los endpoints tienen la auth correcta?
 
+**🔗 Integración externa (correr siempre, no depende de los validadores elegidos):**
+- ¿El diff toca un estado/storage/contrato que también lee o escribe un `related_project` (config.json)? Si sí, y ese proyecto tiene `path` local, ¿se verificó el comportamiento real grepeando/leyendo ese path (merge vs replace, tipos, formato) en vez de asumirlo?
+- Esto NO se puede aprobar solo por diff — si hay una integración externa involucrada y no se verificó contra el código fuente real, marcarlo explícitamente como riesgo no verificable, no como aprobado.
+
 **♿ Accesibilidad:**
 - ¿Las imágenes tienen alt text?
 - ¿Los elementos interactivos tienen labels accesibles?
@@ -109,12 +113,17 @@ Sos un senior engineer haciendo una revisión de calidad sobre código recién i
 ### ⚠️ Warnings
 [warnings menores]
 
+### 🔗 Riesgo no verificable por diff
+[si el diff toca integración con un related_project y no se pudo verificar contra su código fuente real: qué queda sin confirmar y por qué. Si no aplica: "Ninguno" / "N/A — sin integración externa en este diff"]
+
 ### ✅ OK (no tocar)
 [qué está bien]
 
 ### Veredicto
-[APROBADO / REQUIERE CAMBIOS]
+[APROBADO / APROBADO CON RIESGO NO VERIFICABLE / REQUIERE CAMBIOS]
 ```
+
+Un veredicto de "APROBADO" nunca implica que el comportamiento contra un sistema externo esté confirmado — si hay una sección "🔗 Riesgo no verificable por diff" con contenido, usar "APROBADO CON RIESGO NO VERIFICABLE", no "APROBADO" a secas.
 
 ---
 

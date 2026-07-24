@@ -103,4 +103,10 @@ Otros:
 - [ ] Breaking changes documentados
 ```
 
+Si el ticket toca un estado/storage/contrato compartido con algún `related_project` (config.json) — revisar `plan.md`/`review-findings.md`/`validation-*.md` para confirmarlo — agregar al checklist:
+```
+- [ ] Validado manualmente en browser/entorno real contra el sistema externo real ([related_project]), no solo tests unitarios/mocks
+```
+Esto no lo puede tildar el propio agente: es un gate que requiere confirmación explícita del usuario, porque ningún test in-repo ni revisión de diff puede verificar el comportamiento real de un sistema fuera de este repo.
+
 Al terminar, sugerir: "Siguiente: `/wf-mr-desc` para la descripción del MR y `/wf-mr-review` para la revisión final."

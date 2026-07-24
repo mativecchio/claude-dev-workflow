@@ -65,6 +65,17 @@ Basándote en los patrones existentes del codebase (no inventar convenciones nue
 - Deuda técnica que hay que registrar pero NO implementar ahora
 - Si hay 2+ efectos/observers que leen y escriben el mismo storage/estado compartido, documentar el orden de ejecución esperado y los posibles casos de carrera entre ellos
 
+### 5. Verificar contratos con proyectos relacionados (si aplica)
+Si el plan toca un estado, storage, o contrato que también lee/escribe otro proyecto listado en `related_projects` (config.json) — ej. sessionStorage compartido, un campo que otro repo también persiste, un endpoint consumido por otro front — **no asumir el comportamiento**: si ese proyecto tiene un `path` local, usar Grep/Read para inspeccionar su código fuente real (cómo escribe/lee esa estructura: merge o replace, qué tipos, qué formato) antes de diseñar la solución. Tratar el proyecto externo como caja negra solo si su `path` no existe en disco o no es accesible. Registrar en el plan qué se confirmó así (con archivo:línea del repo externo) o qué quedó como riesgo sin verificar.
+
+Antes de asumir un riesgo como "no se puede confirmar, es un repo externo", correr algo como:
+```bash
+grep -rln "<clave o símbolo relevante>" <path del related_project>
+```
+
+### 6. Cruzar con el histórico de sesiones
+Leer `~/.claude/workflow/flow-history.json` si existe. Buscar entries cuyo `key_findings`/`anomalies` mencionen los mismos `related_projects` o el mismo tipo de integración que este ticket toca. Si hay coincidencias, citarlas explícitamente en el plan (sección de riesgos) — son bugs ya conocidos en ese punto de integración, no hace falta redescubrirlos.
+
 ## Output requerido
 
 Escribir DOS archivos en `{workflowDir}/`:
@@ -82,6 +93,9 @@ Escribir DOS archivos en `{workflowDir}/`:
 
 ## Contrato de API (si aplica)
 [endpoint, método, request/response]
+
+## Contratos con proyectos relacionados (si aplica)
+[qué se verificó contra el código fuente real de cada related_project tocado, con archivo:línea — o "sin contratos compartidos" si no aplica]
 
 ## Infraestructura
 - [ ] [env var / migración / feature flag]
