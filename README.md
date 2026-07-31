@@ -161,6 +161,8 @@ Crear `.claude/workflow/config.json` en la raíz del proyecto:
 
 Los comandos leen este archivo para adaptar el DoD, conocer proyectos relacionados y entender el stack.
 
+Si un cambio toca estado compartido con un `related_project` (ej. un objeto en sessionStorage que también lee un repo externo), `wf-analyze` grepea el path local de ese proyecto para confirmar el comportamiento real en vez de asumirlo, y `wf-review-plan`/`wf-validate`/`wf-mr-review` bloquean el "APROBADO" si esa verificación no se hizo.
+
 ### Agentes con contexto de proyecto
 
 Para sobrescribir un agente global con contexto específico del proyecto, crear `.claude/agents/rn-architect.md` (o el que corresponda) en el proyecto. Claude Code usará el local en lugar del global.
@@ -169,25 +171,40 @@ Para sobrescribir un agente global con contexto específico del proyecto, crear 
 
 ## Estado del workflow
 
-El workflow activo se persiste en `.claude/workflow/` dentro del proyecto:
+Soporta múltiples tickets en paralelo. El estado raíz solo guarda cuál está activo; cada ticket tiene su propia carpeta:
 
 ```
 .claude/workflow/
-├── state.json              ← etapa actual, progreso
-├── refinement-summary.md   ← output de /wf-refine
-├── plan.md                 ← output de /wf-analyze
-└── review-findings.md      ← output de /wf-review-plan
+├── state.json                    ← { "activeTicket": "BC-XXXX" }
+├── BC-XXXX/
+│   ├── state.json                ← etapa actual, progreso, branch guardado
+│   ├── refinement-summary.md     ← output de /wf-refine
+│   ├── plan.md                   ← output de /wf-analyze
+│   └── review-findings.md        ← output de /wf-review-plan
+└── BC-YYYY/
+    └── state.json
 ```
 
-Para retomar un workflow después de cerrar Claude:
+`/wf` sin argumentos muestra un dashboard con todos los tickets activos y su etapa:
 ```
-/wf resume
+📋 Tickets:
+  BC-XXXX  [stage]   ✅ [completadas]   🎯 ← activo
+  BC-YYYY  [stage]   ✅ [completadas]
 ```
 
-Para empezar de cero:
+Para cambiar de ticket activo:
+```
+/wf BC-YYYY
+```
+
+Para empezar de cero (borra `state.json` raíz):
 ```
 /wf reset
 ```
+
+**Ticket retroactivo:** si activás un ticket que ya tiene commits de código en el branch pero no `plan.md` (ticket armado después de implementar), `/wf` ofrece saltear refine/analyze/review-plan en vez de forzar el flujo completo — pide confirmación y arranca directo en `implement`/`validate`.
+
+**Branch mismatch:** si el branch actual no corresponde al ticket activo, `/wf` no solo avisa — ofrece `git checkout` al branch guardado de una sesión previa, o crear uno nuevo (`{ticketId}-{slug}` desde la rama base), con confirmación antes de ejecutar.
 
 ---
 
