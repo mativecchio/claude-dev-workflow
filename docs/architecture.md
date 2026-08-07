@@ -35,6 +35,7 @@ Multi-ticket: the root state only tracks which ticket is active, everything else
 | Per-ticket state | `.claude/workflow/{ticketId}/state.json` | Stage, progress, saved branch, optional `notes` (retroactive tickets) |
 | Cross-session artifacts | `.claude/workflow/{ticketId}/plan.md`, `refinement-summary.md`, `review-findings.md` | Handoff between stages, scoped to one ticket |
 | Historical log | `~/.claude/workflow/flow-history.json` | Cross-project, used by retrospective and by contract-risk checks in `wf-analyze` |
+| Telemetry | `~/.claude/workflow/events.jsonl` | Append-only, cross-project, never pruned |
 
 Every subcommand's "Paso 0" reads `activeTicket` from the root file, then reads/writes its per-ticket state under `.claude/workflow/{ticketId}/`.
 
@@ -85,6 +86,25 @@ Each stage has checkpoints at different risk levels:
 | `wf-test` | After gap analysis — confirms before writing tests; adds manual-verification item for unverified external-project risk |
 
 Before adding a validation guard for a value, `wf-implement` greps all call sites of that value first — a guard added to only one of several call sites is a common miss (e.g. BC-1529's `isValidDate` gap, present in 4 places but found across two review rounds instead of one).
+
+## Telemetry (hook layer)
+
+`hooks/wf-telemetry.sh` is installed to `~/.claude/hooks/` and registered in `~/.claude/settings.json` on four events. It appends to `~/.claude/workflow/events.jsonl`. Design and event schema: `docs/brainstorm-metricas-y-complejidad.md`.
+
+| Hook | Mode | Captures |
+|---|---|---|
+| `UserPromptSubmit` | `prompt` | `/wf-*` invocation → `stage_start`, or `stage_reentry` with `iteration_n` if the stage was already visited this session |
+| `PostToolUse` | `tool` | per-stage `tool_calls`; `plan_edit` when `plan.md` is written at `review-plan` or later (plan churn) |
+| `Stop` | `stop` | per-stage `turns` |
+| `SessionEnd` | `session-end` | flushes `stage_end` with `turns`, `tool_calls`, `duration_s` |
+
+Per-session scratch state lives in `~/.claude/workflow/sessions/{session_id}.json` and is deleted on `SessionEnd`.
+
+This layer is mechanical only — it cannot know *why* a stage was re-entered. Semantic events (`finding`, `complexity_estimate`, `scope_drift`) are emitted by the `wf-*` commands themselves and carry `"source": "command"`. The `source` field is what makes it possible to detect gaps: a hook-recorded `stage_reentry` with no command-recorded `finding` explaining it means the cause was lost.
+
+The script never blocks: missing `jq`, missing `state.json`, or malformed input all exit 0 silently. Losing an event is acceptable; interrupting a work session is not.
+
+Non-stage commands (`/wf`, `/wf-init`, `/wf-jira`, `/wf-improve`) emit nothing.
 
 ## Project-level overrides
 

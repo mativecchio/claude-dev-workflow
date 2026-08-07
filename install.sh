@@ -10,6 +10,8 @@ CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 AGENTS_DIR="$CLAUDE_DIR/agents"
 WORKFLOW_DIR="$CLAUDE_DIR/workflow"
+HOOKS_DIR="$CLAUDE_DIR/hooks"
+SETTINGS="$CLAUDE_DIR/settings.json"
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 
 echo "📦 Instalando claude-workflow desde $REPO_DIR..."
@@ -41,6 +43,43 @@ fi
 if [ ! -f "$WORKFLOW_DIR/flow-history.json" ]; then
   echo '{"entries": []}' > "$WORKFLOW_DIR/flow-history.json"
   echo "  ✓ flow-history.json inicializado"
+fi
+
+# --- Telemetría (docs/brainstorm-metricas-y-complejidad.md §3.2) -------------
+echo "→ Instalando hooks de telemetría..."
+mkdir -p "$HOOKS_DIR"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh"
+touch "$WORKFLOW_DIR/events.jsonl"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "  ⚠ jq no está instalado — los hooks van a salir sin registrar nada."
+  echo "    Instalar con: brew install jq"
+else
+  # Registrar los hooks en settings.json preservando los que ya existan.
+  # Idempotente: primero se descarta cualquier entrada previa de wf-telemetry.
+  [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+
+  if jq -e . "$SETTINGS" >/dev/null 2>&1; then
+    TMP="$(mktemp)"
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" '
+      def strip:
+        map(.hooks |= map(select((.command // "") | contains("wf-telemetry.sh") | not)))
+        | map(select((.hooks | length) > 0));
+      def add($mode):
+        . + [{hooks: [{type: "command", command: ($h + " " + $mode)}]}];
+
+      .hooks                    //= {}
+      | .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit |= (strip | add("prompt"))
+      | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip | add("tool"))
+      | .hooks.Stop             //= [] | .hooks.Stop             |= (strip | add("stop"))
+      | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip | add("session-end"))
+    ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
+    echo "  ✓ Hooks registrados en $SETTINGS (hooks existentes preservados)"
+  else
+    echo "  ⚠ $SETTINGS no es JSON válido — hooks NO registrados."
+    echo "    Corregir el archivo y volver a correr install.sh"
+  fi
 fi
 
 # Agregar sección de workflow al CLAUDE.md global (idempotente)
