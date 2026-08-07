@@ -157,7 +157,7 @@ Append-only. Una línea = un evento. JSONL para poder appendear desde un hook de
 |---|---|
 | `stage_start` | `{}` |
 | `stage_end` | `{turns, tool_calls, duration_s}` |
-| `stage_reentry` | `{reason?, iteration_n}` |
+| `stage_reentry` | `{iteration_n, scope, reason?}` — `scope` es `ticket` (contador persistido en el `state.json` del ticket) o `session` (fallback, se pierde al cerrar la sesión) |
 | `complexity_estimate` | ver §5 |
 | `finding` | `{category, severity, stage_origin, stage_detected, detected_by, summary}` |
 | `finding_decision` | `{finding_ref, decision}` — `implement`\|`ignore`\|`tech-debt` |

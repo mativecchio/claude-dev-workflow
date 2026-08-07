@@ -44,20 +44,49 @@ CWD="$(jget '.cwd')"
 
 STATE_FILE="$SESSIONS_DIR/${SESSION_ID}.json"
 
-# Nombre de proyecto: raíz del repo git si existe, si no el basename del cwd.
-project_name() {
+repo_root() {
   local root
   root="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)"
-  [ -n "$root" ] && basename "$root" || basename "$CWD"
+  [ -n "$root" ] && printf '%s' "$root" || printf '%s' "$CWD"
 }
+
+project_name() { basename "$(repo_root)"; }
 
 # Ticket activo del proyecto (puede no existir todavía).
 active_ticket() {
-  local root f
-  root="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)"
-  [ -z "$root" ] && root="$CWD"
-  f="$root/.claude/workflow/state.json"
+  local f
+  f="$(repo_root)/.claude/workflow/state.json"
   [ -f "$f" ] && jq -r '.activeTicket // empty' "$f" 2>/dev/null
+}
+
+# Incrementa el contador de entradas a una etapa en el state.json del TICKET,
+# no en el de la sesión — así el conteo sobrevive cerrar y reabrir Claude Code.
+# Imprime el contador resultante (1 = primera entrada); vacío si no hay ticket.
+#
+# Escribe de forma conservadora: nunca pisa un state.json corrupto ni descarta
+# campos que manejan los comandos (stage, branch, notes, subtasks).
+bump_ticket_stage() {
+  local stage="$1" ticket dir f tmp
+  ticket="$(active_ticket)"
+  [ -z "$ticket" ] && return 0
+
+  dir="$(repo_root)/.claude/workflow/$ticket"
+  f="$dir/state.json"
+  mkdir -p "$dir" 2>/dev/null || return 0
+  [ -f "$f" ] || echo '{}' > "$f" 2>/dev/null
+  jq -e . "$f" >/dev/null 2>&1 || return 0
+
+  tmp="$(mktemp)" || return 0
+  if jq --arg s "$stage" \
+       '.iterations //= {} | .iterations[$s] = ((.iterations[$s] // 0) + 1)' \
+       "$f" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+    mv "$tmp" "$f" 2>/dev/null
+  else
+    rm -f "$tmp" 2>/dev/null
+    return 0
+  fi
+
+  jq -r --arg s "$stage" '.iterations[$s] // empty' "$f" 2>/dev/null
 }
 
 # Orden de etapas — define la distancia de fuga (§2.2).
@@ -123,7 +152,7 @@ close_open_stage() {
 # ---------------------------------------------------------------------------
 
 handle_prompt() {
-  local prompt cmd stage st seen n
+  local prompt cmd stage st seen n scope
   prompt="$(jget '.prompt')"
 
   # Sólo nos interesa un slash command de workflow al inicio del prompt.
@@ -154,14 +183,23 @@ handle_prompt() {
     st="$(printf '%s' "$st" | jq -c 'del(.stage)')"
   fi
 
-  seen="$(printf '%s' "$st" | jq -c '.stages_seen // []')"
-  n="$(printf '%s' "$seen" | jq --arg s "$stage" '[.[] | select(. == $s)] | length')"
+  # Conteo persistente en el ticket. Si no hay ticket activo todavía, se cae al
+  # conteo por sesión, que se pierde al cerrarla — de ahí el campo `scope`:
+  # marca qué tan confiable es este número al analizar los datos después.
+  scope="ticket"
+  n="$(bump_ticket_stage "$stage")"
+  if [ -z "$n" ]; then
+    scope="session"
+    seen="$(printf '%s' "$st" | jq -c '.stages_seen // []')"
+    n=$(( $(printf '%s' "$seen" | jq --arg s "$stage" \
+            '[.[] | select(. == $s)] | length') + 1 ))
+  fi
 
-  if [ "$n" -gt 0 ]; then
+  if [ "$n" -gt 1 ] 2>/dev/null; then
     emit "$stage" "stage_reentry" \
-      "$(jq -cn --argjson n "$((n + 1))" '{iteration_n:$n}')"
+      "$(jq -cn --argjson n "$n" --arg sc "$scope" '{iteration_n:$n, scope:$sc}')"
   else
-    emit "$stage" "stage_start" '{}'
+    emit "$stage" "stage_start" "$(jq -cn --arg sc "$scope" '{scope:$sc}')"
   fi
 
   printf '%s' "$st" | jq -c \

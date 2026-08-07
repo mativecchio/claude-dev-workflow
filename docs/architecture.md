@@ -93,12 +93,14 @@ Before adding a validation guard for a value, `wf-implement` greps all call site
 
 | Hook | Mode | Captures |
 |---|---|---|
-| `UserPromptSubmit` | `prompt` | `/wf-*` invocation → `stage_start`, or `stage_reentry` with `iteration_n` if the stage was already visited this session |
+| `UserPromptSubmit` | `prompt` | `/wf-*` invocation → `stage_start`, or `stage_reentry` with `iteration_n` |
 | `PostToolUse` | `tool` | per-stage `tool_calls`; `plan_edit` when `plan.md` is written at `review-plan` or later (plan churn) |
 | `Stop` | `stop` | per-stage `turns` |
 | `SessionEnd` | `session-end` | flushes `stage_end` with `turns`, `tool_calls`, `duration_s` |
 
-Per-session scratch state lives in `~/.claude/workflow/sessions/{session_id}.json` and is deleted on `SessionEnd`.
+Stage entry counts are persisted to the **ticket's** `state.json` under `iterations`, so a ticket re-analyzed days later still counts as a re-entry — session-scoped counting would undercount exactly the long-running tickets that matter most. The hook merges that key with `jq` and refuses to write if the file doesn't parse, so command-managed fields (`stage`, `branch`, `notes`, `subtasks`) are never lost.
+
+With no `activeTicket`, or an unparseable ticket state, it falls back to session-scoped counting and stamps `"scope": "session"` on the event — the count is still emitted, but marked as unreliable rather than silently wrong. Turn and tool-call counters remain per-session in `~/.claude/workflow/sessions/{session_id}.json`, deleted on `SessionEnd`.
 
 This layer is mechanical only — it cannot know *why* a stage was re-entered. Semantic events (`finding`, `complexity_estimate`, `scope_drift`) are emitted by the `wf-*` commands themselves and carry `"source": "command"`. The `source` field is what makes it possible to detect gaps: a hook-recorded `stage_reentry` with no command-recorded `finding` explaining it means the cause was lost.
 
