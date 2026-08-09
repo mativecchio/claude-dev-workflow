@@ -14,6 +14,8 @@ Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "validate"` en `{workflowDir}/state.json` y appendear `"validate"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`).
+
 ## Paso 1 — Selección de validadores
 
 Preguntar al usuario qué validadores activar:

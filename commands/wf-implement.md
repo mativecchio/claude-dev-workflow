@@ -37,6 +37,8 @@ Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 
 Leer `{workflowDir}/state.json`. Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" y guardar en `{workflowDir}/state.json`.
 
+**Registrar la entrada a la etapa:** escribir `"stage": "implement"` en `{workflowDir}/state.json` y appendear `"implement"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`, `approved`).
+
 ## Paso 1 — Leer el contexto del plan
 
 Leer:

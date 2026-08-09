@@ -20,9 +20,14 @@ Preguntar: "¿Tenés un issue key de Jira o querés crear un ticket desde una de
 
 ## Paso 2 — Enriquecer con contexto del proyecto
 
+Resolver el ticket activo: leer `.claude/workflow/state.json` → `activeTicket`.
+`{workflowDir}` = `.claude/workflow/{activeTicket}`. Si no hay ticket activo, saltear este paso y generar el ticket solo con `$ARGUMENTS`.
+
 Leer si existen:
-- `.claude/workflow/refinement-summary.md` → si ya se hizo el refinement, usarlo
-- `.claude/workflow/plan.md` → si ya existe el plan técnico, incluir notas técnicas
+- `{workflowDir}/refinement-summary.md` → si ya se hizo el refinement, usarlo
+- `{workflowDir}/plan.md` → si ya existe el plan técnico, incluir notas técnicas
+
+`/wf-jira` no es una etapa del ciclo: no registra `stage` ni emite telemetría.
 
 ## Paso 3 — Generar el ticket
 

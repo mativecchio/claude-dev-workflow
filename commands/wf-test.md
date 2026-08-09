@@ -13,6 +13,8 @@ Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-12
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "test"` en `{workflowDir}/state.json` y appendear `"test"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`).
+
 ## Paso 1 — Revisar tests existentes
 
 Leer `{workflowDir}/plan.md` para saber qué archivos se modificaron.

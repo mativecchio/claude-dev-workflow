@@ -13,6 +13,8 @@ Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-12
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "mr-review"` en `{workflowDir}/state.json` y appendear `"mr-review"` a `completed` si no estaba, preservando los demás campos.
+
 ## Paso 1 — Obtener el diff
 
 Usar siempre el punto real donde el branch divergió de su base, no la base directo — `[base]..HEAD` se rompe si la base (`develop`/`main`) avanzó por un pull/fast-forward después de crear el feature branch, mostrando cambios de terceros como si fueran del MR.

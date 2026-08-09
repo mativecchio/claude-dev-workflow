@@ -17,6 +17,8 @@ Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 Crear `{workflowDir}/` si no existe.
 Leer `{workflowDir}/state.json` para el estado actual del ticket.
 
+**Registrar la entrada a la etapa:** escribir `"stage": "analyze"` en `{workflowDir}/state.json` y appendear `"analyze"` a `completed` si no estaba, **preservando los demás campos** (`branch`, `notes`, `iterations`, `subtasks`). Sin esto el `stage` queda congelado en el de la etapa anterior y el gate de `review-plan` no puede confiar en él.
+
 ## Paso 1 — Recopilar contexto para el Agent
 
 Leer los siguientes archivos (van a ser parte del prompt del Agent):
@@ -74,7 +76,9 @@ grep -rln "<clave o símbolo relevante>" <path del related_project>
 ```
 
 ### 6. Cruzar con el histórico de sesiones
-Leer `~/.claude/workflow/flow-history.json` si existe. Buscar entries cuyo `key_findings`/`anomalies` mencionen los mismos `related_projects` o el mismo tipo de integración que este ticket toca. Si hay coincidencias, citarlas explícitamente en el plan (sección de riesgos) — son bugs ya conocidos en ese punto de integración, no hace falta redescubrirlos.
+Leer `~/.claude/workflow/flow-history.json`. **Si el array `entries` está vacío, saltear este paso sin comentario** — es el estado normal hasta que la Fase 4 de `docs/plan-harness-migration.md` empiece a poblarlo, y no significa nada sobre este ticket.
+
+Si hay entries, buscar aquellas cuyo `key_findings`/`anomalies` mencionen los mismos `related_projects` o el mismo tipo de integración que este ticket toca. Si hay coincidencias, citarlas explícitamente en el plan (sección de riesgos) — son bugs ya conocidos en ese punto de integración, no hace falta redescubrirlos.
 
 ## Output requerido
 

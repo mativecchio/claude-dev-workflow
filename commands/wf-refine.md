@@ -22,8 +22,10 @@ Guardar el ticket activo en `.claude/workflow/state.json`:
 
 Guardar el estado del ticket en `.claude/workflow/BC-XXXX/state.json`:
 ```json
-{ "stage": "refinement", "completed": [], "started_at": "[timestamp ISO]" }
+{ "stage": "refine", "completed": [], "started_at": "[timestamp ISO]" }
 ```
+
+> El valor de `stage` es `refine`, no `refinement`. El vocabulario de etapas es único y lo define `hooks/wf-telemetry.sh` (`stage_index`): `refine`, `analyze`, `review-plan`, `implement`, `validate`, `test`, `mr-desc`, `mr-review`, `retro`. Cualquier otro valor rompe en silencio el conteo de iteraciones y el ruteo de `/wf`.
 
 ## Paso 1 — Escanear el proyecto antes de preguntar
 

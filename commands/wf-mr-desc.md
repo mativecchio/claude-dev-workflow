@@ -13,6 +13,8 @@ Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-12
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "mr-desc"` en `{workflowDir}/state.json` y appendear `"mr-desc"` a `completed` si no estaba, preservando los demás campos.
+
 ## Paso 1 — Recopilar contexto
 
 Leer:

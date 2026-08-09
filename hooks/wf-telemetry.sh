@@ -90,6 +90,12 @@ bump_ticket_stage() {
 }
 
 # Orden de etapas — define la distancia de fuga (§2.2).
+#
+# mr-desc y retro NO forman parte del eje: no son etapas donde se origine ni se
+# detecte un defecto (una describe el MR, la otra cierra el ciclo). Van a 0 igual
+# que un valor desconocido, pero explícitamente, para que un 0 en los datos no se
+# confunda con "el vocabulario de stage se rompió" — que es lo que pasaba cuando
+# wf-refine escribía "refinement" en vez de "refine".
 stage_index() {
   case "$1" in
     refine)      echo 1 ;;
@@ -99,6 +105,8 @@ stage_index() {
     validate)    echo 5 ;;
     test)        echo 6 ;;
     mr-review)   echo 7 ;;
+    mr-desc)     echo 0 ;;  # fuera del eje, a propósito
+    retro)       echo 0 ;;  # fuera del eje, a propósito
     *)           echo 0 ;;
   esac
 }

@@ -14,6 +14,8 @@ Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "review-plan"` en `{workflowDir}/state.json` y appendear `"review-plan"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`). Escribir también `"approved": false` — la aprobación de esta etapa es explícita y arranca siempre en falso (ver Paso 3).
+
 ## Paso 1 — Verificar que existe el plan
 
 Leer `{workflowDir}/plan.md`. Si no existe, decirle al usuario que primero corra `/wf-analyze`.
@@ -58,7 +60,7 @@ Sos un senior engineer revisando un plan de implementación antes de que empiece
 ### Contratos con proyectos relacionados
 - Si el plan toca un estado/storage/contrato compartido con algún `related_project` (config.json), ¿el plan documenta qué se verificó contra el código fuente real de ese proyecto (archivo:línea), o asume el comportamiento sin haberlo revisado?
 - Si el `related_project` tiene `path` local y el plan lo trata como "no se puede confirmar, es externo" sin haber grepeado ese path, marcarlo como hallazgo — el path existe y es verificable, no es una caja negra real.
-- ¿El plan cruzó `~/.claude/workflow/flow-history.json` buscando bugs previos en el mismo punto de integración? Si hay una entry anterior con el mismo `related_project` en `key_findings`/`anomalies` y el plan no la menciona, marcarlo como hallazgo — es una lección ya aprendida que se está ignorando.
+- ¿El plan cruzó `~/.claude/workflow/flow-history.json` buscando bugs previos en el mismo punto de integración? **Este chequeo solo aplica si el archivo tiene `entries` con contenido.** Si el array está vacío —su estado por defecto hasta que la Fase 4 lo pueble— no es un hallazgo: no hay historial que ignorar. Marcar como hallazgo únicamente cuando existe una entry con el mismo `related_project` en `key_findings`/`anomalies` y el plan no la menciona.
 
 ## Clasificar hallazgos
 
@@ -108,4 +110,9 @@ Mostrar el veredicto y preguntar:
 
 ## Paso 4 — Siguiente paso (solo con aprobación)
 
-Solo si el usuario confirma explícitamente: "Siguiente: `/wf-implement`"
+Solo si el usuario confirma explícitamente:
+
+1. Escribir `"approved": true` en `{workflowDir}/state.json`. Este campo es el registro de que el checkpoint duro se cumplió — no es decorativo: es lo que va a consultar el gate mecánico de la Fase 2 para permitir edición de código.
+2. Decir: "Siguiente: `/wf-implement`"
+
+Si el usuario no confirma, `approved` queda en `false`. No escribirlo "por si acaso" ni anticipar la aprobación.

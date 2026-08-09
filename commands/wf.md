@@ -5,14 +5,6 @@ allowed-tools: Read, Glob, Bash, TodoWrite, TodoRead
 
 Sos el orquestador del sistema de desarrollo. Tu rol es detectar en qué etapa está el usuario y enrutarlo al comando correcto.
 
-## Paso 1 — Argumentos especiales
-
-Revisar `$ARGUMENTS`:
-- Vacío o "resume" → ir a Paso 2 (verificar estado activo)
-- "reset" → borrar `.claude/workflow/state.json` y confirmar al usuario
-- Nombre de etapa exacto ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira", "improve") → forzar esa etapa, ir a Paso 4
-- Texto libre → ir a Paso 3 (detectar desde texto)
-
 ## Paso 0 — Verificar inicialización del proyecto
 
 Intentar leer `.claude/workflow/config.json`.
@@ -25,6 +17,14 @@ Corré /wf-init para detectar el stack y generar el config automáticamente.
 ```
 
 Preguntar: "¿Corremos `/wf-init` primero?"
+
+## Paso 1 — Argumentos especiales
+
+Revisar `$ARGUMENTS`:
+- Vacío o "resume" → ir a Paso 2 (verificar estado activo)
+- "reset" → borrar `.claude/workflow/state.json` y confirmar al usuario
+- Nombre de etapa exacto ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira", "improve") → forzar esa etapa, ir a Paso 4
+- Texto libre → ir a Paso 3 (detectar desde texto)
 
 ## Paso 2 — Dashboard de tickets
 
