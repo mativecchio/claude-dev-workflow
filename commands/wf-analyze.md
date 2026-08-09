@@ -5,19 +5,16 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es preparar el análisis técnico y lanzar un agente especializado para explorarlo en profundidad sin contaminar el contexto principal.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+```bash
+~/.claude/scripts/wf-lib.sh context          # ticket, dir, base, stage, branch
+~/.claude/scripts/wf-lib.sh enter-stage analyze
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
+`context` crea el directorio del ticket y devuelve `{ticketId}` y `{workflowDir}`. `enter-stage` registra la entrada preservando `branch`, `notes`, `iterations` y `subtasks`, y valida el nombre de la etapa contra el vocabulario único del sistema.
 
-Crear `{workflowDir}/` si no existe.
-Leer `{workflowDir}/state.json` para el estado actual del ticket.
-
-**Registrar la entrada a la etapa:** escribir `"stage": "analyze"` en `{workflowDir}/state.json` y appendear `"analyze"` a `completed` si no estaba, **preservando los demás campos** (`branch`, `notes`, `iterations`, `subtasks`). Sin esto el `stage` queda congelado en el de la etapa anterior y el gate de `review-plan` no puede confiar en él.
+Si `context` falla no hay ticket activo: preguntar "¿Cuál es el número de ticket? (ej. BC-1234)", escribir `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json` y reintentar.
 
 ## Paso 1 — Recopilar contexto para el Agent
 

@@ -60,12 +60,19 @@ Generar el config con lo detectado y mostrárselo al usuario antes de escribir:
 📦 Stack detectado: [stack]
 🧪 Test runner: [jest/pytest/pest/none]
 🔍 Linter: [eslint/none]
+🌿 Rama base: [develop/main/master]
 
 📋 Config propuesto:
 
 {
   "stack": "[stack detectado]",
+  "base_branch": "[rama base detectada]",
   "related_projects": [],
+  "checks": {
+    "lint": "[comando real del proyecto]",
+    "types": "[comando real, si aplica]",
+    "test": "[comando real]"
+  },
   "dod_checklist": [
     "Tests escritos y pasando",
     "[ítems detectados del proyecto]"
@@ -75,6 +82,12 @@ Generar el config con lo detectado y mostrárselo al usuario antes de escribir:
 
 ¿Lo ajustamos o lo escribimos así?
 ```
+
+**`base_branch`** — detectar con `git branch -a`: la que exista entre `develop`, `main`, `master`. Si hay varias, preguntar cuál es la de integración. Sin este campo, cada comando que necesita un diff tiene que adivinarla.
+
+**`checks`** — el cambio de mayor impacto de este config. Son los comandos **reales** del proyecto, sacados de los scripts de `package.json`, del `Makefile`, o del CI: no inventar `npm run lint` si el script no existe. Verificar que cada uno corra antes de escribirlo.
+
+Lo que entra acá deja de depender del criterio de un agente: `/wf-validate` los corre antes de gastar un Agent, y `/wf-test` los usa como corrida final. Un ítem del `dod_checklist` que se pueda expresar como comando debería vivir en `checks`, no en la lista de prosa.
 
 Preguntar una sola cosa si algo no quedó claro:
 - Si no se detectó el stack → "¿Qué stack es este proyecto?"

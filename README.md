@@ -150,18 +150,26 @@ Crear `.claude/workflow/config.json` en la raíz del proyecto:
 ```json
 {
   "stack": "React Native + TypeScript",
+  "base_branch": "develop",
   "related_projects": ["nombre-del-backend"],
+  "checks": {
+    "lint": "npm run lint",
+    "types": "tsc --noEmit",
+    "test": "npm test"
+  },
   "dod_checklist": [
     "Tests escritos y pasando",
-    "Sin console.log",
-    "i18n keys agregadas",
-    "Linter sin errores"
+    "i18n keys agregadas"
   ],
   "tech_debt_log": "docs/tech-debt.md"
 }
 ```
 
-Los comandos leen este archivo para adaptar el DoD, conocer proyectos relacionados y entender el stack.
+Los comandos leen este archivo para adaptar el DoD, conocer proyectos relacionados y entender el stack. `/wf-init` lo genera detectando todo esto del proyecto.
+
+**`checks` vs `dod_checklist`.** Todo ítem del DoD que se pueda expresar como comando debería vivir en `checks`. `/wf-validate` los corre **antes** de lanzar un agente: si el linter falla, no tiene sentido gastar un agente opinando sobre lo mismo, y con posibilidad de falso positivo. `dod_checklist` queda para lo que realmente requiere criterio.
+
+**`base_branch`.** Antes cada comando la resolvía por su cuenta y `/wf-refine` tenía `develop` hardcodeado, lo que rompía en cualquier repo sobre `main`.
 
 Si un cambio toca estado compartido con un `related_project` (ej. un objeto en sessionStorage que también lee un repo externo), `wf-analyze` grepea el path local de ese proyecto para confirmar el comportamiento real en vez de asumirlo, y `wf-review-plan`/`wf-validate`/`wf-mr-review` bloquean el "APROBADO" si esa verificación no se hizo.
 
@@ -245,8 +253,10 @@ claude-workflow/
 │   ├── python/         ← python-architect
 │   ├── laravel/        ← laravel-architect
 │   └── shared/         ← typescript-architect, backend-api
+├── scripts/            ← wf-lib, wf-diff, wf-checks (los invocan los comandos)
 ├── tests/
-│   └── test-install.sh ← valida install.sh contra un HOME sandbox
+│   ├── test-install.sh ← valida install.sh contra un HOME sandbox
+│   └── test-scripts.sh ← valida los scripts y el gate contra un repo temporal
 ├── config/
 │   └── workflow.json   ← template de config global (repo_path)
 └── docs/

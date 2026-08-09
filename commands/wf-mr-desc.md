@@ -5,15 +5,14 @@ allowed-tools: Read, Bash, Glob, TodoWrite
 
 Tu rol es generar una descripción de MR clara y útil para los revisores, basada en el contexto del plan y el diff real.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage mr-desc
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-**Registrar la entrada a la etapa:** escribir `"stage": "mr-desc"` en `{workflowDir}/state.json` y appendear `"mr-desc"` a `completed` si no estaba, preservando los demás campos.
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Recopilar contexto
 
@@ -22,12 +21,10 @@ Leer:
 - `{workflowDir}/refinement-summary.md` → objetivo y criterios de aceptación
 - `{workflowDir}/review-findings.md` → si hubo ajustes importantes al plan
 
-Obtener el diff resumido (contra el merge-base con la base, no la base directo — `main..HEAD` se rompe si la base avanzó por fast-forward después de crear el branch):
+Obtener el diff resumido:
 ```bash
-BASE=develop  # o main/master, según el proyecto
-MB=$(git merge-base HEAD "$BASE")
-git diff "$MB"..HEAD --stat
-git log --oneline "$MB"..HEAD
+~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh --log
 ```
 
 ## Paso 2 — Generar la descripción

@@ -5,16 +5,14 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite, TodoRead
 
 Tu rol es correr validaciones automáticas sobre el diff de la implementación. El usuario elige qué validadores activar.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage validate
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-**Registrar la entrada a la etapa:** escribir `"stage": "validate"` en `{workflowDir}/state.json` y appendear `"validate"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`).
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Selección de validadores
 
@@ -33,22 +31,26 @@ Preguntar al usuario qué validadores activar:
 
 Esperar respuesta antes de continuar.
 
-## Paso 2 — Obtener el diff
-
-Diffear contra el punto real donde el branch divergió de su base (`develop`/`main`/`master`), no contra `HEAD~1` (solo captura el último commit) ni contra la base directo (`develop..HEAD`), que se rompe si la base avanzó después de crear el branch (ej. alguien corrió `git pull --ff-only` sobre `develop` en el medio — el diff naive termina mostrando cambios de terceros como si fueran del feature).
+## Paso 2 — Checks determinísticos (antes que cualquier agente)
 
 ```bash
-BASE=develop  # o main/master, según el proyecto
-MB=$(git merge-base HEAD "$BASE")
-git diff "$MB"..HEAD --stat
-git diff "$MB"..HEAD
+~/.claude/scripts/wf-checks.sh
 ```
 
-Si no hay commits sobre la base (todo el cambio está en working tree sin commitear), usar:
+Corre lint, types y tests del `config.json`. **Si alguno falla, parar acá:** mostrar qué falló y volver a `/wf-implement`. No lanzar el Agent.
+
+El motivo es económico y de precisión: un linter responde "¿hay console.log?" de forma exacta y gratis, mientras que un agente opina sobre lo mismo con posibilidad de falso positivo. El agente queda para lo que solo él puede hacer — arquitectura, contratos externos, seguridad.
+
+Exit 2 significa que el proyecto no tiene `checks` configurados: informarlo una vez, sugerir agregarlos con `/wf-init`, y continuar.
+
+## Paso 2.5 — Obtener el diff
+
 ```bash
-git diff --stat
-git diff
+~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh
 ```
+
+Resuelve solo el merge-base contra la rama base del proyecto, y el caso de trabajo sin commitear. No hace falta razonar sobre el rango.
 
 ## Paso 3 — Lanzar Agent de validación
 

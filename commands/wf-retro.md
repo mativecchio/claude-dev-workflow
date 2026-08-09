@@ -5,15 +5,14 @@ allowed-tools: Read, Write, Edit, Bash, Glob, TodoRead
 
 Tu rol es analizar cómo fue el ciclo de desarrollo, extraer aprendizajes y proponer mejoras concretas al sistema de workflow.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage retro
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-**Registrar la entrada a la etapa:** escribir `"stage": "retro"` en `{workflowDir}/state.json` y appendear `"retro"` a `completed` si no estaba, preservando los demás campos.
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Recopilar datos de la sesión
 

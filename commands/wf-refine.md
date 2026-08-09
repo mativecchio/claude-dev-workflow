@@ -98,12 +98,20 @@ Guardar en `.claude/workflow/{ticketId}/refinement-summary.md`:
 
 Al terminar, verificar el branch actual con `git branch --show-current`:
 
-- Si el branch es `develop` o no contiene el ticketId → sugerir crear el branch feature:
+La rama base sale del proyecto, no se asume:
+```bash
+BASE=$(~/.claude/scripts/wf-lib.sh base)
+```
+
+- Si el branch actual es la base o no contiene el ticketId → sugerir crear el branch feature:
   ```
-  🌿 Branch sugerido: git checkout -b {ticketId}-{slug} develop
+  🌿 Branch sugerido: git checkout -b {ticketId}-{slug} $BASE
   ```
   Donde `{slug}` es el título del ticket en kebab-case, máximo 4-5 palabras. Mostrar el comando exacto y preguntar: "¿Creo el branch?"
-  Si el usuario confirma → ejecutar `git checkout -b {branch} develop`.
+  Si el usuario confirma → ejecutarlo y guardar el branch:
+  ```bash
+  ~/.claude/scripts/wf-lib.sh set-state branch '"{ticketId}-{slug}"'
+  ```
   
 - Si ya está en un branch que contiene el ticketId → no sugerir nada.
 

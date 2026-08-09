@@ -129,6 +129,30 @@ Projects can override global agents by placing agent files in `.claude/agents/`.
     └── review-findings.md
 ```
 
+## Shared scripts
+
+Installed to `~/.claude/scripts/`; commands invoke them by fixed path. Each replaces prose that was duplicated across commands and re-interpreted on every run.
+
+| Script | Replaces | Notes |
+|---|---|---|
+| `wf-lib.sh` | The "Paso 0 — Identificar ticket activo" block, copied verbatim in 8 commands | `context`, `enter-stage`, `set-state`, `base`. `enter-stage` validates against the single stage vocabulary — an invalid stage fails loudly instead of silently breaking the iteration count (H12) |
+| `wf-diff.sh` | The merge-base explanation, duplicated in 4 commands | Also handles the uncommitted-working-tree case, and `--weight` for review load (prod vs tests counted separately) |
+| `wf-checks.sh` | DoD items that a command can answer exactly | Runs `checks` from `config.json`. `/wf-validate` runs it *before* spawning an agent — a linter answers "any console.log?" exactly and for free |
+
+`wf_base` is the clearest case for why this matters: it used to be different prose in four files, one of which hardcoded `develop` regardless of the project's actual base branch.
+
+## The review-plan gate
+
+`hooks/wf-gate.sh` (`PreToolUse`) is the first mechanism in the system that can block. `wf-review-plan.md` says "NUNCA pasar a implementación sin respuesta explícita" — that's an instruction, obeyed nearly always. The hook enforces it: while a ticket sits at `stage: review-plan` without `approved: true`, edits to code are recorded or refused.
+
+It deliberately breaks `wf-telemetry.sh`'s "never interrupt" principle, so its blast radius is contained by design — hooks live in the global `settings.json` and run in *every* project:
+
+1. Exits silently when the repo has no `.claude/workflow/state.json`.
+2. Fails **open** on any error (no `jq`, corrupt JSON, no git). Blocking because of a bug is worse than not blocking.
+3. Ships in `observe` mode: emits `gate_would_block` to `events.jsonl` without preventing anything. `WF_GATE=enforce` turns on blocking; `off` disables it.
+
+Artifacts of the workflow itself (`.claude/**`, `docs/**`, `*.md`) are always allowed — adjusting the plan during its own review is the work of that stage, not an escape from it.
+
 ## Install circuit
 
 `install.sh` copies repo → `~/.claude/`. The reverse direction does not exist, so anything edited under `~/.claude/` is lost on the next install. Two commands used to edit there (`/wf-retro`, `/wf-improve`), which is how `wf-commit.md` and `wf-deploy.md` ended up installed with no source in the repo.

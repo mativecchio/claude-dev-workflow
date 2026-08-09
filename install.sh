@@ -11,6 +11,7 @@ COMMANDS_DIR="$CLAUDE_DIR/commands"
 AGENTS_DIR="$CLAUDE_DIR/agents"
 WORKFLOW_DIR="$CLAUDE_DIR/workflow"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
+SCRIPTS_DIR="$CLAUDE_DIR/scripts"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 
@@ -60,6 +61,15 @@ if [ "${1:-}" = "--check" ]; then
     fi
   done
 
+  for s in "$REPO_DIR/scripts/"*.sh; do
+    [ -e "$s" ] || continue
+    b="$(basename "$s")"
+    if [ ! -f "$SCRIPTS_DIR/$b" ] || ! diff -q "$s" "$SCRIPTS_DIR/$b" >/dev/null 2>&1; then
+      echo "  ✗ script difiere o falta: $b"
+      DIVERGENCIAS=$((DIVERGENCIAS + 1))
+    fi
+  done
+
   if [ "$DIVERGENCIAS" -eq 0 ]; then
     echo "✅ Sin divergencias — el repo y lo instalado coinciden"
     exit 0
@@ -81,6 +91,14 @@ mkdir -p "$WORKFLOW_DIR"
 echo "→ Copiando comandos..."
 cp "$REPO_DIR/commands/"*.md "$COMMANDS_DIR/"
 echo "  ✓ $(ls "$REPO_DIR/commands/"*.md | wc -l | tr -d ' ') comandos instalados en $COMMANDS_DIR"
+
+# Copiar scripts (wf-lib, wf-diff, wf-checks): los comandos los invocan por
+# path fijo, así que tienen que estar instalados antes de que corra cualquiera.
+echo "→ Copiando scripts..."
+mkdir -p "$SCRIPTS_DIR"
+cp "$REPO_DIR/scripts/"*.sh "$SCRIPTS_DIR/"
+chmod +x "$SCRIPTS_DIR/"*.sh
+echo "  ✓ $(ls "$REPO_DIR/scripts/"*.sh | wc -l | tr -d ' ') scripts instalados en $SCRIPTS_DIR"
 
 # Copiar agentes
 echo "→ Copiando agentes..."
@@ -142,10 +160,10 @@ IMPEOF
 fi
 
 # --- Telemetría (docs/brainstorm-metricas-y-complejidad.md §3.2) -------------
-echo "→ Instalando hooks de telemetría..."
+echo "→ Instalando hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh"
 touch "$WORKFLOW_DIR/events.jsonl"
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -158,20 +176,24 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" '
-      def strip:
-        map(.hooks |= map(select((.command // "") | contains("wf-telemetry.sh") | not)))
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" '
+      def strip($needle):
+        map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
-      def add($mode):
-        . + [{hooks: [{type: "command", command: ($h + " " + $mode)}]}];
+      def add($cmd):
+        . + [{hooks: [{type: "command", command: $cmd}]}];
 
       .hooks                    //= {}
-      | .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit |= (strip | add("prompt"))
-      | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip | add("tool"))
-      | .hooks.Stop             //= [] | .hooks.Stop             |= (strip | add("stop"))
-      | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip | add("session-end"))
+      | .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit |= (strip("wf-telemetry.sh") | add($h + " prompt"))
+      | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip("wf-telemetry.sh") | add($h + " tool"))
+      | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop"))
+      | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end"))
+      | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))
     ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
     echo "  ✓ Hooks registrados en $SETTINGS (hooks existentes preservados)"
+    echo "    wf-gate.sh queda en modo observe: registra qué habría bloqueado,"
+    echo "    sin impedir nada. Activar con WF_GATE=enforce cuando los eventos"
+    echo "    gate_would_block confirmen que dispara donde corresponde."
   else
     echo "  ⚠ $SETTINGS no es JSON válido — hooks NO registrados."
     echo "    Corregir el archivo y volver a correr install.sh"

@@ -5,15 +5,14 @@ allowed-tools: Read, Edit, Write, Bash, Glob, Grep, TodoWrite
 
 Tu rol es revisar los tests existentes, identificar gaps y escribir los que falten. Al final, checklist pre-MR.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage test
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-**Registrar la entrada a la etapa:** escribir `"stage": "test"` en `{workflowDir}/state.json` y appendear `"test"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`).
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Revisar tests existentes
 
@@ -71,16 +70,15 @@ Informar la evaluación al usuario y preguntar si quiere que se escriban los E2E
 
 ## Paso 5 — Correr los tests
 
+Durante la escritura, correr solo lo que estás tocando (adaptar al stack: `npm test -- --testPathPattern=X`, `pytest tests/X -v`, `php artisan test --filter=X`).
+
+Al terminar, la corrida completa sale del config del proyecto:
+
 ```bash
-# Adaptar al stack del proyecto
-npm test -- --testPathPattern=[archivo]
-# o
-pytest tests/[archivo] -v
-# o
-php artisan test --filter=[clase]
+~/.claude/scripts/wf-checks.sh
 ```
 
-Si algún test falla, diagnosticar y corregir antes de continuar.
+Si algún test falla, diagnosticar y corregir antes de continuar. Este es el mismo gate que corre `/wf-validate`: si pasa acá, no vuelve a ser un problema allá.
 
 ## Paso 6 — Checklist pre-MR
 

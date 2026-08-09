@@ -5,16 +5,19 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 
 Tu rol es verificar que el plan sea correcto y completo antes de tocar código. Este es el checkpoint más importante del sistema.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage review-plan
+~/.claude/scripts/wf-lib.sh set-state approved false
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
+`approved` arranca siempre en falso: la aprobación de esta etapa es explícita y se escribe recién en el Paso 4.
 
-**Registrar la entrada a la etapa:** escribir `"stage": "review-plan"` en `{workflowDir}/state.json` y appendear `"review-plan"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`). Escribir también `"approved": false` — la aprobación de esta etapa es explícita y arranca siempre en falso (ver Paso 3).
+**Este campo no es decorativo.** El hook `wf-gate.sh` lo lee en cada `Edit`/`Write`: mientras el ticket esté en `review-plan` sin aprobar, el gate registra el intento (modo `observe`) o lo bloquea (modo `enforce`). El checkpoint de este comando dejó de ser solo una instrucción.
+
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Verificar que existe el plan
 
@@ -112,7 +115,11 @@ Mostrar el veredicto y preguntar:
 
 Solo si el usuario confirma explícitamente:
 
-1. Escribir `"approved": true` en `{workflowDir}/state.json`. Este campo es el registro de que el checkpoint duro se cumplió — no es decorativo: es lo que va a consultar el gate mecánico de la Fase 2 para permitir edición de código.
+1. Registrar la aprobación:
+   ```bash
+   ~/.claude/scripts/wf-lib.sh set-state approved true
+   ```
+   Esto es lo que destraba el gate: hasta acá, cualquier `Edit`/`Write` sobre código quedaba registrado como intento de saltear el checkpoint.
 2. Decir: "Siguiente: `/wf-implement`"
 
 Si el usuario no confirma, `approved` queda en `false`. No escribirlo "por si acaso" ni anticipar la aprobación.

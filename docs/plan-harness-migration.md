@@ -138,7 +138,11 @@ El núcleo. Implementa la tabla de §2.
 
 **Ahorro estimado:** ~150 líneas de prosa repetida (8 × 13 + 4 × 12).
 
-**Verificación:** smoke test que corra `wf-lib.sh`, `wf-diff.sh` y `wf-checks.sh` contra un ticket de prueba en un repo temporal, más `install.sh --check` entre cada comando migrado.
+**Resultado real: +119 / −102, neto +17 líneas.** La estimación no se cumplió. Lo que se borró de prosa repetida se consumió explicando qué hace cada script y por qué (más el `approved` del gate y los campos nuevos de `wf-init`, que son capacidad nueva, no reemplazo).
+
+La conclusión importante no es el número sino qué justifica la fase: **no era el conteo de líneas.** Es que la regla pasa a existir en un solo lugar y deja de depender de que el modelo la interprete igual las 8 veces. `wf_base` es el caso claro: antes era prosa distinta en 4 archivos, uno de ellos con `develop` hardcodeado (H4); ahora es una función con fallback verificado por test. El conteo de líneas era una métrica conveniente, no la razón.
+
+**Verificación:** `tests/test-scripts.sh` — 34 checks contra un repo git temporal, incluyendo el caso que motivó `wf-diff` (base que avanza después de crear el branch) y los seis caminos de fail-open del gate.
 
 ---
 

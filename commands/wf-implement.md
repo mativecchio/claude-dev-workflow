@@ -26,18 +26,19 @@ Seguir el flujo completo abajo.
 
 ---
 
-## Paso 0 — Identificar ticket activo y branch
+## Paso 0 — Contexto del ticket y branch
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket activo? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
+```bash
+~/.claude/scripts/wf-lib.sh context          # ticket, dir, base, stage, branch
+~/.claude/scripts/wf-lib.sh enter-stage implement
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
+Si el `branch` del state está vacío, preguntar "¿En qué branch estás trabajando?" y guardarlo:
+```bash
+~/.claude/scripts/wf-lib.sh set-state branch '"[nombre]"'
+```
 
-Leer `{workflowDir}/state.json`. Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" y guardar en `{workflowDir}/state.json`.
-
-**Registrar la entrada a la etapa:** escribir `"stage": "implement"` en `{workflowDir}/state.json` y appendear `"implement"` a `completed` si no estaba, preservando los demás campos (`branch`, `notes`, `iterations`, `subtasks`, `approved`).
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Leer el contexto del plan
 

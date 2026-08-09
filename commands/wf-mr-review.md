@@ -5,37 +5,32 @@ allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 
 Tu rol es preparar el contexto y lanzar una revisión completa del MR en un agente con contexto limpio.
 
-## Paso 0 — Identificar ticket activo
+## Paso 0 — Contexto del ticket
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage mr-review
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-**Registrar la entrada a la etapa:** escribir `"stage": "mr-review"` en `{workflowDir}/state.json` y appendear `"mr-review"` a `completed` si no estaba, preservando los demás campos.
+Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
 
 ## Paso 1 — Obtener el diff
 
-Usar siempre el punto real donde el branch divergió de su base, no la base directo — `[base]..HEAD` se rompe si la base (`develop`/`main`) avanzó por un pull/fast-forward después de crear el feature branch, mostrando cambios de terceros como si fueran del MR.
-
-**Opción 1 — Branch actual vs base (develop/main/master):**
 ```bash
-BASE=develop  # o main/master, según el proyecto
-MB=$(git merge-base HEAD "$BASE")
-git log --oneline "$MB"..HEAD | head -20
-git diff "$MB"..HEAD --stat
-git diff "$MB"..HEAD
+~/.claude/scripts/wf-diff.sh --log
+~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh
 ```
 
-**Opción 2 — Si `$ARGUMENTS` tiene un branch específico:**
-```bash
-MB=$(git merge-base [feature-branch] [base-branch])
-git diff "$MB"..[feature-branch] --stat
-git diff "$MB"..[feature-branch]
-```
+Si `$ARGUMENTS` trae un branch específico, agregar `--branch [rama]` a cada llamada.
 
-Si el diff es muy grande (>500 líneas), mostrar el `--stat` al usuario y preguntar si quiere continuar o acotar el scope.
+El script resuelve el merge-base contra la rama base del proyecto. Esto importa: `[base]..HEAD` se rompe si la base avanzó por un pull o fast-forward después de crear el feature branch, y termina mostrando cambios de terceros como si fueran del MR.
+
+Si el diff es muy grande (>500 líneas), mostrar el `--stat` al usuario y preguntar si quiere continuar o acotar el scope. Para dimensionarlo bien:
+```bash
+~/.claude/scripts/wf-diff.sh --weight
+```
+`weight_prod` es lo que importa — `weight_tests` va aparte, porque un MR de 300 líneas donde 220 son tests no es un MR grande, es uno bien cubierto.
 
 ## Paso 2 — Recopilar contexto
 
