@@ -13,6 +13,8 @@ Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-12
 `{ticketId}` = `activeTicket`
 `{workflowDir}` = `.claude/workflow/{ticketId}`
 
+**Registrar la entrada a la etapa:** escribir `"stage": "retro"` en `{workflowDir}/state.json` y appendear `"retro"` a `completed` si no estaba, preservando los demás campos.
+
 ## Paso 1 — Recopilar datos de la sesión
 
 Leer:
@@ -83,9 +85,22 @@ Si hay mejoras propuestas al workflow, preguntar:
 **"¿Querés que aplique alguna de estas mejoras a los comandos del sistema?"**
 
 Si el usuario acepta una mejora:
-1. Identificar el archivo en `~/.claude/commands/wf-*.md` que corresponde
-2. Mostrar el cambio propuesto antes de aplicarlo
-3. Pedir confirmación final
-4. Aplicar con Edit tool
 
-Recordar al usuario que para persistir los cambios en el repo fuente: editar el archivo correspondiente en la carpeta de `claude-workflow` y hacer commit.
+1. **Resolver el repo fuente.** Leer `repo_path` de `~/.claude/workflow/config.json`.
+   - Si existe y el directorio está presente → `{repoPath}` es el target de edición.
+   - Si no → avisar: "No hay `repo_path` en el config global. Correr `install.sh` del repo para configurarlo." y editar `~/.claude/commands/` solo como fallback, dejando constancia de que el cambio se va a perder en la próxima instalación.
+2. Identificar el archivo en **`{repoPath}/commands/wf-*.md`** — nunca en `~/.claude/commands/`, que es un destino de instalación, no la fuente.
+3. Mostrar el cambio propuesto antes de aplicarlo.
+4. Pedir confirmación final.
+5. Aplicar con Edit tool sobre el archivo del repo.
+6. **Asentar la evidencia** en `~/.claude/workflow/improvements.md` (formato en el encabezado del archivo). Regla §0 del brainstorm: si no se puede escribir la evidencia —`archivo:línea` o la consulta concreta sobre `events.jsonl`— el cambio no se aplica.
+7. **Reinstalar** para que el cambio tome efecto:
+   ```bash
+   "{repoPath}/install.sh"
+   ```
+8. Verificar que quedó sincronizado:
+   ```bash
+   "{repoPath}/install.sh" --check
+   ```
+
+Recordar al usuario que el cambio quedó en el working tree del repo, sin commitear.

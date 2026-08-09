@@ -14,7 +14,9 @@ Both layers only load context when invoked — no baseline token cost.
 ### Slash commands (skill-style)
 Run in the main conversation context. Used for stages that need multi-turn dialogue and accumulated session context.
 
-`/wf`, `/wf-refine`, `/wf-implement`, `/wf-test`, `/wf-retro`, `/wf-mr-desc`, `/wf-jira`
+`/wf`, `/wf-init`, `/wf-refine`, `/wf-implement`, `/wf-test`, `/wf-commit`, `/wf-deploy`, `/wf-retro`, `/wf-improve`, `/wf-mr-desc`, `/wf-jira`
+
+`/wf-deploy` is toolchain-agnostic: it detects CI vs local from what's present in the repo and reads the branch model from `config.json`. When a project lacks CI, protected branches, versioning, or a documented rollback, it names the specific risk and offers to set it up before deploying. Projects with a specific toolchain override it with a local `.claude/commands/wf-deploy.md` — see `docs/examples/wf-deploy-fastlane.md`.
 
 ### Slash commands (agent-style)
 Run in the main context, but internally spawn a subagent via the `Agent` tool for isolated execution. The subagent writes output to `.claude/workflow/` files; the command reads and presents the result.
@@ -36,6 +38,8 @@ Multi-ticket: the root state only tracks which ticket is active, everything else
 | Cross-session artifacts | `.claude/workflow/{ticketId}/plan.md`, `refinement-summary.md`, `review-findings.md` | Handoff between stages, scoped to one ticket |
 | Historical log | `~/.claude/workflow/flow-history.json` | Cross-project, used by retrospective and by contract-risk checks in `wf-analyze` |
 | Telemetry | `~/.claude/workflow/events.jsonl` | Append-only, cross-project, never pruned |
+| Workflow changelog | `~/.claude/workflow/improvements.md` | Every change applied to the workflow, with its evidence (brainstorm §0) |
+| Source-of-truth pointer | `~/.claude/workflow/config.json` → `repo_path` | Where `/wf-retro` and `/wf-improve` write their changes |
 
 Every subcommand's "Paso 0" reads `activeTicket` from the root file, then reads/writes its per-ticket state under `.claude/workflow/{ticketId}/`.
 
@@ -124,6 +128,22 @@ Projects can override global agents by placing agent files in `.claude/agents/`.
     ├── plan.md
     └── review-findings.md
 ```
+
+## Install circuit
+
+`install.sh` copies repo → `~/.claude/`. The reverse direction does not exist, so anything edited under `~/.claude/` is lost on the next install. Two commands used to edit there (`/wf-retro`, `/wf-improve`), which is how `wf-commit.md` and `wf-deploy.md` ended up installed with no source in the repo.
+
+The circuit is now closed in three places:
+
+| Mechanism | What it guarantees |
+|---|---|
+| `repo_path` in the global config, merged on every install (not skipped when the file exists) | `/wf-retro` and `/wf-improve` know where the source lives and edit there, then reinstall |
+| `install.sh --check` | Reports drift without writing: differing files, missing files, and `wf-*` installed with no source in the repo |
+| The `CLAUDE.md` block is regenerated between its markers on every install | The global command list can't go stale forever. Content outside the markers is never touched |
+
+Every workflow change is recorded in `~/.claude/workflow/improvements.md` with its evidence. Per brainstorm §0: no evidence, no change.
+
+`tests/test-install.sh` exercises all three against a sandbox `HOME`, so the real `~/.claude` is never touched: clean install, drift detection, `repo_path` merged into a pre-existing config, `CLAUDE.md` regenerated without disturbing content outside the markers, and third-party hooks in `settings.json` surviving reinstall.
 
 ## Adding new agents
 

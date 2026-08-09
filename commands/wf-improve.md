@@ -102,10 +102,17 @@ Cambio propuesto: agregar en Paso 2 "Si el plan incluye endpoints nuevos, verifi
 Para cada propuesta, pedir confirmación antes de aplicar:
 **"¿Aplico este cambio?"**
 
-- Fixes de código → aplicar con `Edit` tool
-- Mejoras al workflow → editar el archivo en `~/.claude/commands/wf-*.md` con `Edit` tool
+- **Fixes de código** → aplicar con `Edit` tool sobre el proyecto actual.
+- **Mejoras al workflow** → editar **`{repoPath}/commands/wf-*.md`**, donde `{repoPath}` sale de `repo_path` en `~/.claude/workflow/config.json`. Nunca editar `~/.claude/commands/`: es un destino de instalación, y todo cambio hecho ahí se pierde en el próximo `install.sh` (así se perdieron `wf-commit.md` y `wf-deploy.md`, que quedaron instalados sin origen en el repo).
 
-Recordar al usuario que los cambios al workflow también deben reflejarse en el repo fuente (`~/claude-workflow/commands/`) para que persistan en el próximo `install.sh`.
+  Si no hay `repo_path` configurado, avisar y pedir correr `install.sh` del repo antes de aplicar mejoras al workflow.
+
+Después de aplicar una mejora al workflow:
+1. Asentar la evidencia en `~/.claude/workflow/improvements.md` — regla §0: sin evidencia citable, el cambio no se aplica.
+2. Reinstalar: `"{repoPath}/install.sh"`
+3. Verificar: `"{repoPath}/install.sh" --check`
+
+El cambio queda en el working tree del repo, sin commitear.
 
 ### Paso 5 — Limpiar el log
 

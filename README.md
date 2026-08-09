@@ -51,6 +51,8 @@ También podés invocar cada comando directamente si ya sabés qué necesitás:
 | `/wf-implement` | Para implementar (también sirve para bugs/debug) |
 | `/wf-validate` | Post-implementación, antes de los tests |
 | `/wf-test` | Para escribir tests y hacer el checklist pre-MR |
+| `/wf-commit` | Para generar el mensaje de commit con contexto del ticket |
+| `/wf-deploy` | Para commit+push, release branch y deploy |
 | `/wf-mr-desc` | Para generar la descripción del MR |
 | `/wf-mr-review` | Para hacer code review de un MR |
 | `/wf-retro` | Al cerrar un ticket, para extraer aprendizajes |
@@ -210,14 +212,21 @@ Para empezar de cero (borra `state.json` raíz):
 
 ## Mejora continua
 
-El sistema se mejora a sí mismo vía `/wf-retro`:
+El sistema se mejora a sí mismo vía `/wf-retro` y `/wf-improve`:
 
 1. Analiza la sesión (retrabajo, fricción, iteraciones)
 2. Cruza con el histórico en `~/.claude/workflow/flow-history.json`
 3. Propone cambios concretos a los comandos
 4. Aplica los cambios con tu aprobación
 
-Los cambios se aplican en `~/.claude/commands/`. Para persistirlos en el repo fuente, editar el archivo correspondiente en `~/claude-workflow/commands/` y hacer commit.
+**El repo es la fuente de verdad.** Los cambios se aplican sobre `{repo_path}/commands/`, se asientan con su evidencia en `~/.claude/workflow/improvements.md`, y recién ahí se reinstalan. `repo_path` lo escribe `install.sh` en el config global.
+
+Nunca editar `~/.claude/commands/` directo: es un destino de instalación y todo cambio hecho ahí se pierde en la próxima corrida de `install.sh`.
+
+Para verificar que el repo y lo instalado coinciden:
+```bash
+~/claude-workflow/install.sh --check
+```
 
 ---
 
@@ -226,16 +235,23 @@ Los cambios se aplican en `~/.claude/commands/`. Para persistirlos en el repo fu
 ```
 claude-workflow/
 ├── README.md
-├── install.sh
-├── commands/           ← 11 comandos wf-*
+├── install.sh          ← instala; `--check` reporta divergencias sin escribir
+├── commands/           ← 15 comandos wf-*
+├── hooks/
+│   └── wf-telemetry.sh ← captura mecánica del ciclo → events.jsonl
 ├── agents/
 │   ├── react-native/   ← rn-architect, rn-debugger, rn-performance, rn-testing, rn-uiux, rn-bridge
 │   ├── react/          ← react-architect
 │   ├── python/         ← python-architect
 │   ├── laravel/        ← laravel-architect
 │   └── shared/         ← typescript-architect, backend-api
+├── tests/
+│   └── test-install.sh ← valida install.sh contra un HOME sandbox
 ├── config/
-│   └── workflow.json   ← template de config global
+│   └── workflow.json   ← template de config global (repo_path)
 └── docs/
-    └── architecture.md ← diseño del sistema
+    ├── architecture.md ← diseño del sistema
+    ├── brainstorm-metricas-y-complejidad.md
+    ├── plan-harness-migration.md   ← migración a capa de harness (en curso)
+    └── examples/       ← overrides por proyecto de referencia
 ```
