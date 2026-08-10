@@ -278,17 +278,21 @@ To verify that the repo and the installed copy match:
 
 `install.sh` stamps `installed_version` into the global config, which is what makes it possible to tell "the repo moved and I didn't reinstall" from "I'm up to date" without any network call.
 
-**You get told automatically.** A `SessionStart` hook prints one short block when — and only when — there's something to do:
+**You get told automatically**, at the top of any `/wf-*` command:
 
 ```
-⬆️  Workflow update available
-  claude-workflow v0.5.0 is in the repo, v0.4.0 is installed
-  → ~/claude-workflow/install.sh
+$ /wf-analyze
+⬆️  claude-workflow v0.5.2 available (v0.5.0 installed)
+   → ~/claude-workflow/install.sh
+
+ticket=MA-812  stage=analyze  base=development
 ```
 
 It reports two independent situations, because they need different fixes: the repo is ahead of what's installed (you edited or pulled and didn't reinstall), and origin is ahead of the repo (someone pushed and you haven't pulled).
 
-This hook runs in **every** project on the machine, so it's built to be invisible: it never makes a network call on the session-start path (the `git fetch` runs in the background at most once a day, and the hook only ever reports from cache), and it exits silently on any error — no git, no config, unreadable cache. Disable it with `WF_VERSION_CHECK=off`.
+It never makes a network call on that path — the `git fetch` is spawned in the background at most once a day, and only cached results are read, so a slow or unreachable remote can never hold up a command. It prints nothing when there's nothing to do, stays silent on every error, and honors `WF_VERSION_CHECK=off`.
+
+> This started as a `SessionStart` hook, so it would show up in every project. That doesn't work: the hook fires — verified with a logging probe — but its stdout never reaches the terminal. The tradeoff is deliberate: you only see the notice while actually using the workflow, and in exchange it's a notice you can actually see.
 
 For the full picture on demand:
 ```bash
@@ -308,8 +312,7 @@ claude-workflow/
 ├── commands/           ← 15 wf-* commands
 ├── hooks/
 │   ├── wf-telemetry.sh ← mechanical capture of the cycle → events.jsonl
-│   ├── wf-gate.sh      ← the review-plan checkpoint, as a mechanism
-│   └── wf-version.sh   ← SessionStart: warns when a newer version exists
+│   └── wf-gate.sh      ← the review-plan checkpoint, as a mechanism
 ├── agents/
 │   ├── react-native/   ← rn-architect, rn-debugger, rn-performance, rn-testing, rn-uiux, rn-bridge
 │   ├── react/          ← react-architect

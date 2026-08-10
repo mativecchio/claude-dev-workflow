@@ -12,6 +12,18 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.5.2 — 2026-08-10
+
+### Changed
+- The update notice moved out of a `SessionStart` hook and into `wf_version_notice` in `wf-lib.sh`, printed by `context` at the top of every stage command.
+
+  **Why: the hook was verified not to work.** A logging probe confirmed it fires on session start, but its stdout never reaches the terminal — so the notice existed and nobody could see it. The alternative, letting it land in the model's context and trusting the model to mention it, is the prose-as-mechanism pattern this whole migration removes. The tradeoff is deliberate: no coverage outside the workflow, in exchange for a notice that is actually visible.
+
+  It keeps the hook's containment rules: no network call on the path, no output unless there is something to do, silent and exit 0 on every error, `WF_VERSION_CHECK=off` to disable.
+
+### Removed
+- `hooks/wf-version.sh`. Reinstalling deletes the file and strips its `SessionStart` registration from `settings.json` — a `SessionStart` hook belonging to anyone else is left untouched.
+
 ## 0.5.1 — 2026-08-10
 
 Findings from reviewing 0.5.0 before merging it to `main`.

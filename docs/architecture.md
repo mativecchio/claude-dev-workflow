@@ -216,7 +216,11 @@ Every workflow change is recorded in `~/.claude/workflow/improvements.md` with i
 | `installed_version` ≠ `VERSION` | edited or pulled the repo, never reinstalled | no |
 | `HEAD` behind `@{u}` | someone pushed, never pulled | yes |
 
-`hooks/wf-version.sh` (`SessionStart`) reports both. Like `wf-gate.sh` it runs in every project on the machine, so it carries the same containment discipline, plus one more: **no network call on the session-start path**. The `git fetch` is spawned in the background at most once a day and the hook only ever reads the cached result, so a slow or absent remote can never delay a session. It prints nothing unless there is an action to take, exits silently on any error, and honors `WF_VERSION_CHECK=off`.
+`wf_version_notice` in `wf-lib.sh` reports both, printed by `context` at the top of every stage command.
+
+It was a `SessionStart` hook first, which would have covered every project on the machine. That doesn't work, and the failure is worth recording: **the hook fires — confirmed with a logging probe — but its stdout never reaches the terminal.** A notice nobody sees is not a notice, and depending on the model to relay what it read in context is the prose-as-mechanism pattern this system exists to remove. Moving it into `context` costs coverage outside the workflow and buys a notice that is actually visible.
+
+It keeps the containment rules the hook had: no network call on the path (the `git fetch` is backgrounded at most once a day and only cached results are read), no output unless there is an action to take, silent and exit 0 on every error — including a `repo_path` that no longer exists.
 
 `install.sh --check` reports the same two signals on demand, and there it *does* fetch synchronously — an explicit check can afford to wait.
 

@@ -130,6 +130,40 @@ eq "project without a workflow: stays out" "0" \
    "$(echo "{\"tool_name\":\"Edit\",\"cwd\":\"$NOWF\",\"tool_input\":{\"file_path\":\"$NOWF/x.js\"}}" | \
       WF_GATE=enforce bash "$G" >/dev/null 2>&1; echo $?)"
 
+echo "═══ update notice (wf-lib) ═══"
+# Lives here rather than in a hook because a SessionStart hook fires but its
+# stdout never reaches the terminal — an unseen notice is not a notice.
+VH="$(mktemp -d)"; mkdir -p "$VH/.claude/workflow"
+FAKE="$(mktemp -d)"; git init -q "$FAKE"; echo "9.9.9" > "$FAKE/VERSION"
+jq -n --arg p "$FAKE" '{repo_path:$p, installed_version:"0.0.1"}' > "$VH/.claude/workflow/config.json"
+
+OUT="$(HOME="$VH" "$S/wf-lib.sh" version-notice 2>&1)"
+has "warns when installed is behind the repo" "v9.9.9 available (v0.0.1 installed)" "$OUT"
+
+jq '.installed_version="9.9.9"' "$VH/.claude/workflow/config.json" > "$VH/c" && mv "$VH/c" "$VH/.claude/workflow/config.json"
+OUT="$(HOME="$VH" "$S/wf-lib.sh" version-notice 2>&1)"
+eq "silent when up to date"          "" "$OUT"
+
+OUT="$(HOME="$VH" WF_VERSION_CHECK=off "$S/wf-lib.sh" version-notice 2>&1)"
+eq "silent when disabled"            "" "$OUT"
+
+# Fail-silent: this runs at the top of every stage command, so a broken global
+# config must never produce noise, let alone a non-zero exit.
+echo 'not json' > "$VH/.claude/workflow/config.json"
+OUT="$(HOME="$VH" "$S/wf-lib.sh" version-notice 2>&1)"; RC=$?
+eq "silent on corrupt global config"  "" "$OUT"
+eq "exit 0 on corrupt global config"  "0" "$RC"
+
+OUT="$(HOME="$VH/nope" "$S/wf-lib.sh" version-notice 2>&1)"
+eq "silent with no global config"     "" "$OUT"
+
+# repo_path pointing somewhere that no longer exists is a real case: the repo
+# gets moved or deleted, and every stage command would start erroring.
+jq -n '{repo_path:"/nonexistent/repo", installed_version:"0.0.1"}' > "$VH/.claude/workflow/config.json"
+OUT="$(HOME="$VH" "$S/wf-lib.sh" version-notice 2>&1)"
+eq "silent when repo_path is gone"    "" "$OUT"
+rm -rf "$VH" "$FAKE"
+
 echo ""
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"

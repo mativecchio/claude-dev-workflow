@@ -84,6 +84,74 @@ wf_language() {
 }
 
 # ---------------------------------------------------------------------------
+# Update notice
+# ---------------------------------------------------------------------------
+#
+# This lived in a SessionStart hook first. The hook fired correctly — verified
+# with a logging probe — but its stdout never reached the terminal, so the whole
+# point was lost: an update notice nobody sees is not a notice. Worse, relying on
+# it meant depending on the model to relay what it saw in context, which is the
+# prose-as-mechanism pattern this system moves away from.
+#
+# Here it runs inside `context`, so it lands in a Bash result the user actually
+# reads, and costs nothing in projects that never invoke the workflow.
+#
+# Same discipline as before: never a network call on this path (the fetch is
+# spawned in the background at most once a day and only cached results are read),
+# never any output unless there is an action to take, and silent on every error.
+wf_version_notice() {
+  [ "${WF_VERSION_CHECK:-on}" = "off" ] && return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local cfg="$HOME/.claude/workflow/config.json"
+  local cache="$HOME/.claude/workflow/.version-check"
+  local repo installed current now last behind msg=""
+  [ -f "$cfg" ] || return 0
+
+  repo="$(jq -r '.repo_path // empty' "$cfg" 2>/dev/null)"
+  [ -n "$repo" ] && [ -d "$repo/.git" ] || return 0
+
+  installed="$(jq -r '.installed_version // empty' "$cfg" 2>/dev/null)"
+  current="$(tr -d '[:space:]' < "$repo/VERSION" 2>/dev/null)"
+
+  if [ -n "$current" ] && [ -n "$installed" ] && [ "$current" != "$installed" ]; then
+    msg="⬆️  claude-workflow v$current available (v$installed installed)
+   → $repo/install.sh"
+  fi
+
+  now="$(date +%s)"; last=0
+  [ -f "$cache" ] && last="$(jq -r '.last_fetch // 0' "$cache" 2>/dev/null)"
+  case "$last" in ''|*[!0-9]*) last=0 ;; esac
+
+  behind=0
+  [ -f "$cache" ] && behind="$(jq -r '.behind // 0' "$cache" 2>/dev/null)"
+  case "$behind" in ''|*[!0-9]*) behind=0 ;; esac
+
+  if [ $(( now - last )) -gt 86400 ]; then
+    (
+      git -C "$repo" fetch --quiet origin 2>/dev/null
+      b="$(git -C "$repo" rev-list --count HEAD..@{u} 2>/dev/null)"
+      case "$b" in ''|*[!0-9]*) b=0 ;; esac
+      tmp="$(mktemp)" || exit 0
+      if jq -cn --argjson last "$now" --argjson behind "$b" \
+           '{last_fetch:$last, behind:$behind}' > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$cache" 2>/dev/null || rm -f "$tmp"
+      else rm -f "$tmp"; fi
+    ) >/dev/null 2>&1 &
+  fi
+
+  if [ "$behind" -gt 0 ]; then
+    [ -n "$msg" ] && msg="$msg
+"
+    msg="$msg⬆️  $behind commit(s) behind origin
+   → git -C $repo pull && $repo/install.sh"
+  fi
+
+  [ -n "$msg" ] || return 0
+  printf '%s\n\n' "$msg"
+}
+
+# ---------------------------------------------------------------------------
 # Ticket state
 # ---------------------------------------------------------------------------
 
@@ -158,7 +226,12 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
     enter-stage) wf_enter_stage "$2" ;;
+    version-notice) wf_version_notice ;;
     context)
+      # Printed before the ticket lookup on purpose: a stale install is worth
+      # knowing about even in a project with no active ticket, where the lookup
+      # below exits 1.
+      wf_version_notice
       # Everything a command needs at startup, in one call.
       t="$(wf_ticket)" || { echo "❌ No active ticket in $(wf_workflow_root)/state.json" >&2; exit 1; }
       printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\n' \

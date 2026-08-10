@@ -210,8 +210,12 @@ fi
 # --- Telemetry (docs/brainstorm-metrics-and-complexity.md §3.2) --------------
 echo "→ Installing hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-version.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-version.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh"
+# 0.5.1 shipped a SessionStart hook for the update notice. It fired, but its
+# stdout never reached the terminal, so the notice moved into wf-lib.sh
+# `context`. Remove the leftover from any machine that installed that version.
+rm -f "$HOOKS_DIR/wf-version.sh"
 touch "$WORKFLOW_DIR/events.jsonl"
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -224,7 +228,7 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg v "$HOOKS_DIR/wf-version.sh" '
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" '
       def strip($needle):
         map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
@@ -237,7 +241,9 @@ else
       | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop"))
       | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end"))
       | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))
-      | .hooks.SessionStart     //= [] | .hooks.SessionStart     |= (strip("wf-version.sh")   | add($v))
+      | if has("hooks") and (.hooks | has("SessionStart"))
+        then .hooks.SessionStart |= strip("wf-version.sh") else . end
+      | if (.hooks.SessionStart // null) == [] then del(.hooks.SessionStart) else . end
     ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
     echo "  ✓ Hooks registered in $SETTINGS (existing hooks preserved)"
     echo "    wf-gate.sh stays in observe mode: it records what it would have"
