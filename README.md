@@ -161,6 +161,7 @@ Create `.claude/workflow/config.json` at the project root:
 {
   "stack": "React Native + TypeScript",
   "base_branch": "develop",
+  "language": "en",
   "related_projects": ["backend-project-name"],
   "checks": {
     "lint": "npm run lint",
@@ -180,6 +181,8 @@ The commands read this file to adapt the DoD, know about related projects and un
 `/wf-init` also offers to generate an **`AGENTS.md`** at the root. It isn't redundant with `config.json`: the latter is this system's format, while `AGENTS.md` is the one other tools read (Cursor, Codex, Copilot). The commands come from `checks`, so both files point at the same real commands.
 
 **`checks` vs `dod_checklist`.** Every DoD item that can be expressed as a command should live in `checks`. `/wf-validate` runs them **before** launching an agent: if the linter fails, there's no point spending an agent to opine on the same thing, with a chance of a false positive on top. `dod_checklist` is left for what genuinely requires judgment.
+
+**`language`.** The language the commands address you in (`en` by default; set `"es"` for Spanish). It governs only what's spoken on screen — **everything written to disk is always in English**, regardless of this value: commit messages, plan.md, code, docs. The two are separate on purpose: a conversation has one reader, while a file gets read by other people and other tools long after the session ends.
 
 **`base_branch`.** Each command used to resolve it on its own, and `/wf-refine` had `develop` hardcoded, which broke in any repo on `main`.
 
