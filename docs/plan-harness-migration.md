@@ -152,9 +152,11 @@ La conclusión importante no es el número sino qué justifica la fase: **no era
 
 1. **Validador de runtime** — nuevo ítem `7. 📱 Runtime` en el picker de `wf-validate.md` Paso 1. Para cambios de UI/navegación: levantar la app vía MCP de Metro, navegar a la pantalla afectada, leer estado y network, screenshot. Hipótesis: las races que §"orden de ejecución esperado" de `wf-analyze` intenta cubrir preguntándole al usuario se detectan mejor observando el runtime que razonando sobre el diff.
 2. ~~**Un worktree por ticket**~~ — **movido fuera de este plan.** Choca con el dashboard multi-ticket: `wf.md` Paso 2 escanea `.claude/workflow/*/state.json` para listar todos los tickets, y con un worktree por ticket cada uno ve solo su propia carpeta. No es un detalle de implementación — obliga a decidir si el estado se muda a `~/.claude/workflow/{proyecto}/`, lo que toca también las Fases 2 y 4. Requiere su propio plan.
-3. **Routing de modelo por etapa** — `model: sonnet` en las invocaciones de Agent de `wf-mr-desc`, `wf-jira`, `wf-commit`; Opus en `analyze`/`review-plan`/`validate`/`mr-review`.
+3. ~~**Routing de modelo por etapa**~~ — **no aplica.** El punto asumía que `wf-mr-desc`, `wf-jira` y `wf-commit` invocaban Agents a los que ponerles `model: sonnet`. No lo hacen: `grep -l "Agent tool" commands/*.md` devuelve exactamente `wf-analyze`, `wf-review-plan`, `wf-validate` y `wf-mr-review`, y esos cuatro son justamente los de juicio que conviene dejar en Opus. Los otros tres corren en el contexto principal, donde el modelo lo elige el usuario en la sesión, no el comando. No hay nada que rutear.
 4. **Delegar el review genérico** — `wf-mr-review.md` pasa a armar contexto + invocar `/code-review`, y conserva como propio solo el chequeo de contratos con `related_projects`, que ningún reviewer genérico hace.
 5. **`AGENTS.md`** — `wf-init` genera también `AGENTS.md` con stack y convenciones, además de `config.json`.
+
+**Resultado de la fase:** 1, 4 y 5 implementados. 2 movido a su propio plan. 3 descartado por no ser aplicable. De los tres implementados, solo el 4 tiene fundamento sólido (`/code-review` existe y se mantiene solo); 1 y 5 siguen siendo hipótesis con criterio de descarte declarado.
 
 ---
 

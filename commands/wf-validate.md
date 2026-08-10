@@ -26,10 +26,13 @@ Preguntar al usuario qué validadores activar:
 3. ⚡ Performance — re-renders innecesarios, queries N+1, operaciones costosas
 4. 🔒 Seguridad — inputs no sanitizados, auth, datos expuestos
 5. ♿ Accesibilidad — a11y básica (solo para cambios de UI)
-6. ✅ Todos
+6. 📱 Runtime — levantar la app y verificar el flujo real
+7. ✅ Todos
 ```
 
 Esperar respuesta antes de continuar.
+
+**Sobre el 6 (Runtime):** ofrecerlo proactivamente cuando el diff toca UI, navegación o estado compartido — son los casos donde leer el diff no alcanza. Requiere que la app esté corriendo y que haya MCP disponible (`metro` para React Native, `claude-in-chrome` para web). Si no hay ninguno, decirlo y seguir sin ese validador en vez de fingir que se validó.
 
 ## Paso 2 — Checks determinísticos (antes que cualquier agente)
 
@@ -130,6 +133,51 @@ Sos un senior engineer haciendo una revisión de calidad sobre código recién i
 Un veredicto de "APROBADO" nunca implica que el comportamiento contra un sistema externo esté confirmado — si hay una sección "🔗 Riesgo no verificable por diff" con contenido, usar "APROBADO CON RIESGO NO VERIFICABLE", no "APROBADO" a secas.
 
 ---
+
+## Paso 3.5 — Validación de runtime (solo si se eligió el validador 6)
+
+**Corre en el contexto principal, no dentro del Agent.** Los subagentes no tienen garantizado el acceso a las tools MCP, y esta validación depende de ellas. Ejecutarla acá, después de que vuelva el Agent, y sumar los hallazgos al output.
+
+El resto de los validadores razonan sobre el diff. Este observa la app funcionando, que es la única forma de detectar cierta clase de defecto: un orden de ejecución entre efectos, un estado que queda inconsistente al volver a una pantalla, una request que se dispara dos veces. `wf-analyze` intenta cubrir eso preguntándole al usuario el orden esperado — acá se mira directamente.
+
+**React Native (MCP `metro`):**
+```
+1. mcp__metro__list_devices        → confirmar que hay un target conectado
+2. mcp__metro__get_bundle_errors   → si hay errores de bundle, parar y reportar
+3. mcp__metro__list_routes / get_current_route → ubicar la pantalla afectada por el diff
+4. mcp__metro__open_deeplink o tap_element → navegar hasta ella
+5. mcp__metro__take_screenshot     → evidencia visual del estado final
+6. Según el tipo de cambio:
+   - estado:     mcp__metro__get_redux_state, get_redux_actions
+   - red:        mcp__metro__get_network_requests, get_response_body
+   - errores:    mcp__metro__get_errors, get_console_logs
+   - re-renders: mcp__metro__get_react_renders
+   - a11y:       mcp__metro__audit_accessibility
+```
+
+**Web (MCP `claude-in-chrome`):** navegar a la ruta afectada, `read_console_messages` y `read_network_requests`, screenshot del estado final.
+
+**Qué buscar**, en orden:
+1. ¿El flujo que cambió se completa sin error?
+2. ¿El estado queda consistente al salir y volver a la pantalla?
+3. ¿Hay requests duplicadas, o que se disparan cuando no deberían?
+4. ¿Hay errores o warnings nuevos en consola respecto de antes del cambio?
+
+**Reglas:**
+- Si la app no está corriendo, pedirle al usuario que la levante. **No** intentar buildear desde acá.
+- Si no se pudo verificar, decirlo explícitamente. Un "no se pudo levantar la app" es un resultado honesto; dar por validado lo que no se observó, no.
+- No tocar elementos que disparen diálogos nativos o modales de confirmación: bloquean la sesión de automatización.
+
+**Salida**, para sumar al output del Paso 3:
+```markdown
+### 📱 Runtime
+- **Flujo verificado:** [qué se navegó, con qué datos]
+- **Observado:** [estado, requests, errores — con evidencia concreta]
+- **Screenshot:** [path]
+- **No verificable:** [qué quedó sin poder observarse y por qué]
+```
+
+> **Hipótesis explícita** (`docs/plan-harness-migration.md` Fase 3): este validador no está fundamentado en datos. La apuesta es que las races y los defectos de estado se detectan mejor observando el runtime que razonando sobre el diff. Si a los 15-20 tickets no aparece esa diferencia, se saca.
 
 ## Paso 4 — Decisión post-validación
 

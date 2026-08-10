@@ -23,6 +23,10 @@ Run in the main context, but internally spawn a subagent via the `Agent` tool fo
 
 `/wf-analyze`, `/wf-review-plan`, `/wf-validate`, `/wf-mr-review`
 
+These four are the only commands that spawn an `Agent` — the rest run entirely in the main context. That's also why per-stage model routing isn't a thing here: the commands that would benefit from a cheaper model have no Agent to route, and the four that do are the judgment-heavy ones.
+
+`/wf-mr-review` delegates the generic pass (correctness bugs, simplification, reuse, efficiency) to `/code-review high` before spawning its own agent, and keeps for itself only what a generic reviewer can't do: contrast against `plan.md` and the acceptance criteria, `related_projects` contracts verified against the other repo's real source, project conventions, and registered tech debt.
+
 ### Language agents
 Invoked by workflow commands (or directly by the user) for domain-specific decisions. They have no project-specific context by default — that lives in per-project `.claude/agents/` overrides.
 
@@ -88,6 +92,14 @@ Each stage has checkpoints at different risk levels:
 | `wf-implement` | Before each file group (high-risk changes) — skipped on explicit invocation or when arriving with a pre-decided finding list from `wf-validate` |
 | `wf-validate` | After each iteration — per-finding picker (implement/ignore/tech-debt) instead of all-or-nothing; also blocks on unverified shared-state risk |
 | `wf-test` | After gap analysis — confirms before writing tests; adds manual-verification item for unverified external-project risk |
+
+### Runtime validation
+
+`wf-validate` option 6 (`📱 Runtime`) is the only validator that doesn't reason about the diff — it observes the app running, via the `metro` MCP for React Native or `claude-in-chrome` for web. It runs in the **main context**, not inside the Agent, because subagents have no guaranteed MCP access.
+
+It exists for a class of defect a diff can't show: an ordering between effects, state left inconsistent on returning to a screen, a request fired twice. `wf-analyze` approximates this by asking the user for the expected execution order; this looks directly.
+
+Declared as a hypothesis (`docs/plan-harness-migration.md` Fase 3), not grounded in data. If it doesn't surface defects the other validators miss within 15-20 tickets, it comes out. When no MCP is available, it reports that it couldn't verify rather than passing silently.
 
 Before adding a validation guard for a value, `wf-implement` greps all call sites of that value first — a guard added to only one of several call sites is a common miss (e.g. BC-1529's `isValidDate` gap, present in 4 places but found across two review rounds instead of one).
 
@@ -168,6 +180,10 @@ The circuit is now closed in three places:
 Every workflow change is recorded in `~/.claude/workflow/improvements.md` with its evidence. Per brainstorm §0: no evidence, no change.
 
 `tests/test-install.sh` exercises all three against a sandbox `HOME`, so the real `~/.claude` is never touched: clean install, drift detection, `repo_path` merged into a pre-existing config, `CLAUDE.md` regenerated without disturbing content outside the markers, and third-party hooks in `settings.json` surviving reinstall.
+
+## `AGENTS.md`
+
+`/wf-init` offers to generate an `AGENTS.md` at the project root alongside `config.json`. They're not redundant: `config.json` is this system's format, `AGENTS.md` is what other tools read (Cursor, Codex, Copilot). The commands section is generated from `checks`, so both stay on the same real commands — an `AGENTS.md` with invented commands is worse than none. If the file already exists, `/wf-init` offers to update it rather than overwrite.
 
 ## Adding new agents
 

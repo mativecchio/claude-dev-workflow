@@ -106,6 +106,33 @@ Si el usuario confirma (o ajusta):
 _Registrar observaciones durante la sesión con `/wf-improve <observación>`_
 ```
 
+4. **`AGENTS.md` en la raíz del proyecto.** `config.json` es específico de este sistema; `AGENTS.md` es el formato que leen otras herramientas (Cursor, Codex, Copilot). Preguntar antes de crearlo, y si ya existe, ofrecer actualizarlo en vez de pisarlo.
+
+```markdown
+# [Nombre del proyecto]
+
+[Una línea: qué es.]
+
+## Stack
+[stack detectado]
+
+## Comandos
+- Instalar: `[comando]`
+- Tests: `[comando de checks.test]`
+- Lint: `[comando de checks.lint]`
+- Types: `[comando de checks.types]`
+- Build: `[comando]`
+
+## Convenciones
+[Lo que se detectó del proyecto: estructura de carpetas, patrón de tests,
+manejo de estado, i18n. Solo lo verificado en el codebase, no lo supuesto.]
+
+## Rama base
+`[base_branch]`
+```
+
+Mantener `AGENTS.md` corto y verificado: los comandos tienen que ser los reales, los mismos de `checks`. Un `AGENTS.md` con comandos inventados es peor que no tenerlo.
+
 Confirmar:
 ```
 ✅ Proyecto inicializado
@@ -113,6 +140,7 @@ Confirmar:
 Archivos creados:
 - .claude/workflow/config.json
 - .claude/workflow/improvement-log.md
+- AGENTS.md [si se confirmó]
 
 Listo para usar. Arrancá con /wf cuando tengas una tarea.
 ```

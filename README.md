@@ -49,7 +49,7 @@ También podés invocar cada comando directamente si ya sabés qué necesitás:
 | `/wf-analyze` | Cuando necesitás el plan técnico |
 | `/wf-review-plan` | Para verificar el plan antes de codear |
 | `/wf-implement` | Para implementar (también sirve para bugs/debug) |
-| `/wf-validate` | Post-implementación, antes de los tests |
+| `/wf-validate` | Post-implementación, antes de los tests (incluye validador de runtime vía MCP) |
 | `/wf-test` | Para escribir tests y hacer el checklist pre-MR |
 | `/wf-commit` | Para generar el mensaje de commit con contexto del ticket |
 | `/wf-deploy` | Para commit+push, release branch y deploy |
@@ -78,6 +78,16 @@ También podés invocar cada comando directamente si ya sabés qué necesitás:
      ↓
 /wf-retro    → (opcional) retrospectiva → mejora el workflow
 ```
+
+### Validación de runtime
+
+`/wf-validate` ofrece un validador `📱 Runtime` además de los que razonan sobre el diff. Levanta la app por MCP (`metro` para React Native, `claude-in-chrome` para web), navega a la pantalla afectada y observa estado, network y consola.
+
+Es para lo que un diff no muestra: un orden entre efectos, un estado que queda inconsistente al volver a una pantalla, una request que se dispara dos veces. Requiere la app corriendo — si no hay MCP disponible, lo dice en vez de dar por validado lo que no observó.
+
+### Code review
+
+`/wf-mr-review` delega el pase genérico a `/code-review high` (bugs, simplificación, reuso, eficiencia) y se queda con lo que ningún reviewer genérico puede hacer: contraste contra el `plan.md` y los criterios de aceptación, contratos con `related_projects` verificados contra el código real del otro repo, y convenciones del proyecto.
 
 ### Modo debug
 
@@ -166,6 +176,8 @@ Crear `.claude/workflow/config.json` en la raíz del proyecto:
 ```
 
 Los comandos leen este archivo para adaptar el DoD, conocer proyectos relacionados y entender el stack. `/wf-init` lo genera detectando todo esto del proyecto.
+
+`/wf-init` también ofrece generar un **`AGENTS.md`** en la raíz. No es redundante con `config.json`: este último es el formato de este sistema, `AGENTS.md` es el que leen otras herramientas (Cursor, Codex, Copilot). Los comandos salen de `checks`, así que ambos archivos apuntan a los mismos comandos reales.
 
 **`checks` vs `dod_checklist`.** Todo ítem del DoD que se pueda expresar como comando debería vivir en `checks`. `/wf-validate` los corre **antes** de lanzar un agente: si el linter falla, no tiene sentido gastar un agente opinando sobre lo mismo, y con posibilidad de falso positivo. `dod_checklist` queda para lo que realmente requiere criterio.
 
