@@ -73,6 +73,35 @@ check "--check exits 1"                  "[ $RC -eq 1 ]"
 check "detects the orphan"               "echo \"\$OUT\" | grep -q 'orphan.*wf-invented'"
 check "detects the divergent file"       "echo \"\$OUT\" | grep -q 'differs: wf-test.md'"
 
+echo "═══ CASE 7 — versioning ═══"
+rm -f "$C/commands/wf-invented.md"
+HOME="$SB" "$REPO/install.sh" >/dev/null 2>&1
+V="$(cat "$REPO/VERSION" | tr -d '[:space:]')"
+check "installed_version stamped"        "[ \"\$(jq -r '.installed_version' $C/workflow/config.json)\" = \"$V\" ]"
+check "dead 'preferences' key removed"   "[ \"\$(jq -r '.preferences // \"gone\"' $C/workflow/config.json)\" = \"gone\" ]"
+check "dead 'projects' key removed"      "[ \"\$(jq -r '.projects // \"gone\"' $C/workflow/config.json)\" = \"gone\" ]"
+check "version hook installed"           "[ -x $C/hooks/wf-version.sh ]"
+check "version hook registered"          "jq -e '[.hooks.SessionStart[].hooks[].command] | map(select(contains(\"wf-version\"))) | length == 1' $C/settings.json >/dev/null"
+check "--check reports the version"      "HOME=$SB $REPO/install.sh --check 2>&1 | grep -q 'version: repo $V'"
+
+# The hook runs in every project on the machine, so silence in the normal case
+# is the requirement, not a nicety.
+OUT="$(HOME="$SB" "$C/hooks/wf-version.sh" 2>&1)"
+check "hook silent when up to date"      "[ -z \"\$OUT\" ]"
+OUT="$(HOME="$SB" WF_VERSION_CHECK=off "$C/hooks/wf-version.sh" 2>&1)"
+check "hook silent when disabled"        "[ -z \"\$OUT\" ]"
+
+jq '.installed_version="0.0.1"' "$C/workflow/config.json" > "$C/c.tmp" && mv "$C/c.tmp" "$C/workflow/config.json"
+OUT="$(HOME="$SB" "$C/hooks/wf-version.sh" 2>&1)"
+check "hook warns on stale install"      "echo \"\$OUT\" | grep -q 'v0.0.1 is installed'"
+
+# Fail-silent: a broken global config must never produce noise at session start.
+echo 'not json' > "$C/workflow/config.json"
+OUT="$(HOME="$SB" "$C/hooks/wf-version.sh" 2>&1)"
+check "hook silent on corrupt config"    "[ -z \"\$OUT\" ]"
+OUT="$(HOME="$SB/nonexistent" "$C/hooks/wf-version.sh" 2>&1)"
+check "hook silent with no config"       "[ -z \"\$OUT\" ]"
+
 echo ""
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"

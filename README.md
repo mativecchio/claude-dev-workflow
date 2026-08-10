@@ -272,15 +272,44 @@ To verify that the repo and the installed copy match:
 
 ---
 
+## Versions
+
+`VERSION` holds the current one, `CHANGELOG.md` records what changed in each. Versioning is semver applied to the *workflow contract* — commands, config schema, and the scripts commands call — so a major bump means an existing project's `config.json` needs attention.
+
+`install.sh` stamps `installed_version` into the global config, which is what makes it possible to tell "the repo moved and I didn't reinstall" from "I'm up to date" without any network call.
+
+**You get told automatically.** A `SessionStart` hook prints one short block when — and only when — there's something to do:
+
+```
+⬆️  Workflow update available
+  claude-workflow v0.5.0 is in the repo, v0.4.0 is installed
+  → ~/claude-workflow/install.sh
+```
+
+It reports two independent situations, because they need different fixes: the repo is ahead of what's installed (you edited or pulled and didn't reinstall), and origin is ahead of the repo (someone pushed and you haven't pulled).
+
+This hook runs in **every** project on the machine, so it's built to be invisible: it never makes a network call on the session-start path (the `git fetch` runs in the background at most once a day, and the hook only ever reports from cache), and it exits silently on any error — no git, no config, unreadable cache. Disable it with `WF_VERSION_CHECK=off`.
+
+For the full picture on demand:
+```bash
+~/claude-workflow/install.sh --check     # files, version, and status vs origin
+```
+
+---
+
 ## Repo structure
 
 ```
 claude-workflow/
 ├── README.md
+├── VERSION             ← current version, stamped into the global config on install
+├── CHANGELOG.md        ← what changed in each release
 ├── install.sh          ← installs; `--check` reports divergences without writing
 ├── commands/           ← 15 wf-* commands
 ├── hooks/
-│   └── wf-telemetry.sh ← mechanical capture of the cycle → events.jsonl
+│   ├── wf-telemetry.sh ← mechanical capture of the cycle → events.jsonl
+│   ├── wf-gate.sh      ← the review-plan checkpoint, as a mechanism
+│   └── wf-version.sh   ← SessionStart: warns when a newer version exists
 ├── agents/
 │   ├── react-native/   ← rn-architect, rn-debugger, rn-performance, rn-testing, rn-uiux, rn-bridge
 │   ├── react/          ← react-architect

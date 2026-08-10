@@ -205,6 +205,23 @@ The circuit is now closed in three places:
 
 Every workflow change is recorded in `~/.claude/workflow/improvements.md` with its evidence. Per brainstorm §0: no evidence, no change.
 
+### Versioning
+
+`VERSION` + `CHANGELOG.md` + a git tag per release. Semver applies to the **workflow contract**: the commands, the config schema, and the scripts commands invoke by fixed path. A major bump means an existing project's `config.json` needs attention.
+
+`install.sh` stamps `installed_version` into the global config. That single field is what separates the two failure modes the file comparison can't tell apart:
+
+| Signal | Means | Needs network |
+|---|---|---|
+| `installed_version` ≠ `VERSION` | edited or pulled the repo, never reinstalled | no |
+| `HEAD` behind `@{u}` | someone pushed, never pulled | yes |
+
+`hooks/wf-version.sh` (`SessionStart`) reports both. Like `wf-gate.sh` it runs in every project on the machine, so it carries the same containment discipline, plus one more: **no network call on the session-start path**. The `git fetch` is spawned in the background at most once a day and the hook only ever reads the cached result, so a slow or absent remote can never delay a session. It prints nothing unless there is an action to take, exits silently on any error, and honors `WF_VERSION_CHECK=off`.
+
+`install.sh --check` reports the same two signals on demand, and there it *does* fetch synchronously — an explicit check can afford to wait.
+
+Note this is distinct from `improvements.md`: that records individual workflow changes with their evidence and lives per-machine; `CHANGELOG.md` records releases and lives in the repo.
+
 `tests/test-install.sh` exercises all three against a sandbox `HOME`, so the real `~/.claude` is never touched: clean install, drift detection, `repo_path` merged into a pre-existing config, `CLAUDE.md` regenerated without disturbing content outside the markers, and third-party hooks in `settings.json` surviving reinstall.
 
 ## `AGENTS.md`

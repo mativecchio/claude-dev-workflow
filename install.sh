@@ -14,6 +14,8 @@ HOOKS_DIR="$CLAUDE_DIR/hooks"
 SCRIPTS_DIR="$CLAUDE_DIR/scripts"
 SETTINGS="$CLAUDE_DIR/settings.json"
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
+VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
+[ -n "$VERSION" ] || VERSION="0.0.0"
 
 # --- --check mode: report divergences without writing anything -------------
 # The repo is the source of truth. /wf-retro and /wf-improve edit the repo and
@@ -70,7 +72,33 @@ if [ "${1:-}" = "--check" ]; then
     fi
   done
 
+  # Version state. The file comparison above answers "is what I edited
+  # installed?"; this answers "is what I have the newest there is?" — a repo
+  # that was never pulled looks perfectly in sync to every check above.
+  V_REPO="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
+  V_INST="$(jq -r '.installed_version // "unknown"' "$WORKFLOW_DIR/config.json" 2>/dev/null)"
+  echo ""
+  echo "🏷  version: repo $V_REPO / installed $V_INST"
+  if [ -n "$V_REPO" ] && [ "$V_REPO" != "$V_INST" ]; then
+    echo "  ✗ installed version does not match the repo"
+    DIVERGENCES=$((DIVERGENCES + 1))
+  fi
+
+  if [ -d "$REPO_DIR/.git" ] && command -v git >/dev/null 2>&1; then
+    git -C "$REPO_DIR" fetch --quiet origin 2>/dev/null || true
+    BEHIND="$(git -C "$REPO_DIR" rev-list --count HEAD..@{u} 2>/dev/null || echo 0)"
+    AHEAD="$(git -C "$REPO_DIR" rev-list --count @{u}..HEAD 2>/dev/null || echo 0)"
+    case "$BEHIND" in ''|*[!0-9]*) BEHIND=0 ;; esac
+    case "$AHEAD"  in ''|*[!0-9]*) AHEAD=0 ;; esac
+    if [ "$BEHIND" -gt 0 ]; then
+      echo "  ⬆️  $BEHIND commit(s) behind origin — git pull && ./install.sh"
+    fi
+    [ "$AHEAD" -gt 0 ] && echo "  ⬇️  $AHEAD local commit(s) not pushed"
+    [ "$BEHIND" -eq 0 ] && [ "$AHEAD" -eq 0 ] && echo "  ✓ in sync with origin"
+  fi
+
   if [ "$DIVERGENCES" -eq 0 ]; then
+    echo ""
     echo "✅ No divergences — the repo and the installed copy match"
     exit 0
   fi
@@ -115,9 +143,19 @@ fi
 
 if command -v jq >/dev/null 2>&1 && jq -e . "$WORKFLOW_DIR/config.json" >/dev/null 2>&1; then
   TMP="$(mktemp)"
-  if jq --arg p "$REPO_DIR" '.repo_path = $p' "$WORKFLOW_DIR/config.json" > "$TMP" 2>/dev/null; then
+  # `installed_version` is what lets a session tell "the repo moved and you
+  # didn't reinstall" from "you're up to date" without touching the network.
+  #
+  # `projects` and `preferences` are dropped: they were dead from the start and
+  # nothing has ever read them. `preferences.language` in particular became
+  # actively misleading once `language` turned into a real per-project key, so a
+  # stale global copy would read like it controls something. It doesn't.
+  if jq --arg p "$REPO_DIR" --arg v "$VERSION" \
+       '.repo_path = $p | .installed_version = $v | del(.projects, .preferences)' \
+       "$WORKFLOW_DIR/config.json" > "$TMP" 2>/dev/null; then
     mv "$TMP" "$WORKFLOW_DIR/config.json"
     echo "  ✓ repo_path points to $REPO_DIR"
+    echo "  ✓ installed version: $VERSION"
   else
     rm -f "$TMP"
     echo "  ⚠ Could not write repo_path into the global config"
@@ -162,8 +200,8 @@ fi
 # --- Telemetry (docs/brainstorm-metrics-and-complexity.md §3.2) --------------
 echo "→ Installing hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-version.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-version.sh"
 touch "$WORKFLOW_DIR/events.jsonl"
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -176,7 +214,7 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" '
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg v "$HOOKS_DIR/wf-version.sh" '
       def strip($needle):
         map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
@@ -189,6 +227,7 @@ else
       | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop"))
       | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end"))
       | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))
+      | .hooks.SessionStart     //= [] | .hooks.SessionStart     |= (strip("wf-version.sh")   | add($v))
     ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
     echo "  ✓ Hooks registered in $SETTINGS (existing hooks preserved)"
     echo "    wf-gate.sh stays in observe mode: it records what it would have"
