@@ -212,6 +212,21 @@ Fase 0 (circuito de instalación)
 | Regla "no toques archivos fuera del plan" | Sería política nueva sin evidencia |
 | Worktree por ticket | Obliga a mover el estado fuera del repo para no romper el dashboard multi-ticket. Plan propio |
 
+### TODO — pasar el repo a inglés
+
+Convención del usuario: código, comentarios, commits y documentación en inglés; la conversación en español. El repo hoy no la cumple.
+
+| Archivo | Estado |
+|---|---|
+| `docs/architecture.md` | ✅ inglés |
+| `README.md` | ❌ español |
+| `docs/plan-harness-migration.md` | ❌ español |
+| `docs/brainstorm-metricas-y-complejidad.md` | ❌ español |
+| `commands/wf-*.md` | ❌ español — **caso aparte**: son el prompt que consume el modelo, no doc para humanos. Traducirlos es un diff sobre el sistema entero y merece su propia decisión |
+| Commits `ebf5973`..`1eda637` | ❌ español, ya pusheados — reescribirlos exige force-push sobre una rama publicada |
+
+No se hace ahora para no mezclar traducción con cambios de comportamiento. Todo contenido **nuevo** va en inglés desde ya.
+
 ## 6. Riesgos
 
 | Riesgo | Mitigación |
@@ -221,4 +236,6 @@ Fase 0 (circuito de instalación)
 | El gate se construye sobre `stage`, un campo hoy desactualizado (H11) y con vocabulario roto (H12) | H12 y H11 son prerequisitos explícitos, en la Fase 1, antes de escribir una línea del gate |
 | Los scripts se rompen en un proyecto sin `jq` o sin git | Mismo principio que `wf-telemetry.sh`: degradar a fallback, nunca romper. Excepto `wf-gate.sh`, donde fallar **abierto** es lo correcto — bloquear por error es peor que no bloquear |
 | Fase 2 toca los comandos a la vez → regresión difícil de aislar | Migrar comando por comando, verificando con `install.sh --check` y el smoke test entre cada uno |
-| El experimento de H1 no concluye nada (ninguno de los tres hooks captura el ruteo) | Aceptable: significaría que el ruteo por `/wf` no es observable con los hooks disponibles, y la Fase 4 se limita al uso directo de comandos, documentando el sesgo en vez de ocultarlo |
+| El experimento de H1 no concluye nada (ninguno de los tres hooks captura el ruteo) | ✅ **Resuelto** — ninguno de los tres capturaba, pero apareció una cuarta vía (`PreToolUse` sobre `Bash` + `enter-stage`). Ver Fase 1 punto 3 |
+| **`exit 2` podría no bloquear nada.** Los tests solo prueban que el script devuelve 2, no que el harness lo honre. Si no lo honra, el gate es decorativo | ✅ **Verificado end-to-end (2026-08-10)** — con un ticket en `review-plan` sin aprobar, un `Write` a un path no excluido fue rechazado por el harness, con el stderr del hook como error del tool. El gate bloquea de verdad |
+| **La Fase 4 no tiene datos sobre los que reportar.** Al 2026-08-10 `events.jsonl` está vacío: el hook se instaló ese mismo día y `/wf` no emite nada por diseño | Se puede construir `wf-stats.sh` igual, pero hay que asumir que no dice nada útil hasta acumular etapas reales. Conectar `wf-retro`/`wf-improve` a los datos recién tiene sentido después de eso |

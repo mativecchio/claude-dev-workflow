@@ -163,6 +163,10 @@ It deliberately breaks `wf-telemetry.sh`'s "never interrupt" principle, so its b
 2. Fails **open** on any error (no `jq`, corrupt JSON, no git). Blocking because of a bug is worse than not blocking.
 3. Ships in `observe` mode: emits `gate_would_block` to `events.jsonl` without preventing anything. `WF_GATE=enforce` turns on blocking; `off` disables it.
 
+**Blocking is verified, not assumed** (2026-08-10). The unit tests only prove the script returns 2; whether the harness *honors* that was an open question. Confirmed end to end: with a ticket at `stage: review-plan` and `approved: false`, a `Write` to a non-excluded path was refused by the harness with the hook's stderr surfaced as the tool error. So `enforce` is a real gate, not a decorative one.
+
+It stays in `observe` regardless until real `gate_would_block` events show it fires where intended and nowhere else — the risk was never that it fails to block, it's that it blocks the wrong thing across every project on the machine.
+
 Artifacts of the workflow itself (`.claude/**`, `docs/**`, `*.md`) are always allowed — adjusting the plan during its own review is the work of that stage, not an escape from it.
 
 ## Install circuit
