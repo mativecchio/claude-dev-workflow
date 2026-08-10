@@ -1,76 +1,78 @@
 ---
-description: "Genera la descripción del MR/PR orientada a revisores técnicos. Sin título al inicio, contexto primero, no repite el diff."
+description: "Generates the MR/PR description aimed at technical reviewers. No title at the top, context first, doesn't repeat the diff."
 allowed-tools: Read, Bash, Glob, TodoWrite
 ---
 
-Tu rol es generar una descripción de MR clara y útil para los revisores, basada en el contexto del plan y el diff real.
+Your role is to generate a clear, useful MR description for reviewers, based on the plan's context and the real diff.
 
-## Paso 0 — Contexto del ticket
+## Step 0 — Ticket context
 
 ```bash
 ~/.claude/scripts/wf-lib.sh context
 ~/.claude/scripts/wf-lib.sh enter-stage mr-desc
 ```
 
-Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-## Paso 1 — Recopilar contexto
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — the MR description, plan.md, code, docs — is always in English.
 
-Leer:
-- `{workflowDir}/plan.md` → solución técnica y decisiones tomadas
-- `{workflowDir}/refinement-summary.md` → objetivo y criterios de aceptación
-- `{workflowDir}/review-findings.md` → si hubo ajustes importantes al plan
+## Step 1 — Gather context
 
-Obtener el diff resumido:
+Read:
+- `{workflowDir}/plan.md` → technical solution and decisions taken
+- `{workflowDir}/refinement-summary.md` → objective and acceptance criteria
+- `{workflowDir}/review-findings.md` → whether there were significant adjustments to the plan
+
+Get the summarized diff:
 ```bash
 ~/.claude/scripts/wf-diff.sh --stat
 ~/.claude/scripts/wf-diff.sh --log
 ```
 
-## Paso 2 — Generar la descripción
+## Step 2 — Generate the description
 
-**Principios:**
-- No empezar con el título
-- Empezar con el contexto: por qué existe este MR
-- No listar archivos modificados (los revisores pueden ver el diff)
-- No repetir el diff ni el log de commits
-- Agrupar los cambios por comportamiento/flujo, no por archivo
-- Mencionar decisiones técnicas no obvias y su razón
+**Principles:**
+- Don't start with the title
+- Start with the context: why this MR exists
+- Don't list modified files (reviewers can see the diff)
+- Don't repeat the diff or the commit log
+- Group changes by behavior/flow, not by file
+- Mention non-obvious technical decisions and their rationale
 
-**Estructura:**
+**Structure:**
 
 ```markdown
-## Contexto
-[Por qué existe este cambio. El problema que resuelve o la feature que agrega. 
-2-4 líneas máximo.]
+## Context
+[Why this change exists. The problem it solves or the feature it adds.
+2-4 lines maximum.]
 
-## Objetivo
-[Qué hace este MR en una oración.]
+## Objective
+[What this MR does, in one sentence.]
 
-## Cambios realizados
-[Describir la solución agrupando por comportamiento, no por archivo.
-Por ejemplo: "El flujo de X ahora hace Y cuando Z" en lugar de "Se modificó archivo.ts".]
+## Changes made
+[Describe the solution grouped by behavior, not by file.
+For example: "The X flow now does Y when Z" instead of "Modified file.ts".]
 
-### Decisiones técnicas
-[Solo si hay algo no obvio: por qué se eligió este approach, trade-offs considerados.]
+### Technical decisions
+[Only if there's something non-obvious: why this approach was chosen, trade-offs considered.]
 
-### Infraestructura (si aplica)
-- [ ] Variables de entorno nuevas: `[NOMBRE]`
-- [ ] Migraciones: [descripción]
-- [ ] Feature flags: [descripción]
+### Infrastructure (if applicable)
+- [ ] New environment variables: `[NAME]`
+- [ ] Migrations: [description]
+- [ ] Feature flags: [description]
 
 ## Testing
-[Qué se testeó y cómo. Mencionar casos edge cubiertos si son relevantes.]
+[What was tested and how. Mention covered edge cases if they're relevant.]
 ```
 
-## Paso 3 — Mostrar y ajustar
+## Step 3 — Show and adjust
 
-Mostrar la descripción generada al usuario. En vez de una pregunta abierta, ofrecer directamente las dos salidas y mostrar ya mismo cuáles son los pasos siguientes:
+Show the generated description to the user. Instead of an open question, offer the two exits directly and show right away what the next steps are:
 
 ```
-¿Ajustamos algo o seguimos?
-a) Ajustar algo en la descripción
-b) Está lista — siguiente: `/wf-mr-review` para la revisión final del MR
+Adjust anything, or move on?
+a) Adjust something in the description
+b) It's ready — next: `/wf-mr-review` for the final MR review
 ```
 
-Si el usuario pide cambios (a), aplicarlos hasta que esté conforme y volver a ofrecer las mismas dos opciones. Si elige seguir (b), no repreguntar — pasar directo a sugerir `/wf-mr-review`.
+If the user asks for changes (a), apply them until they're satisfied and offer the same two options again. If they choose to move on (b), don't ask again — go straight to suggesting `/wf-mr-review`.

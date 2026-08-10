@@ -1,25 +1,25 @@
 #!/bin/bash
 #
-# wf-telemetry — captura mecánica del ciclo de desarrollo.
+# wf-telemetry — mechanical capture of the development cycle.
 #
-# Implementa la capa de hooks descrita en docs/brainstorm-metricas-y-complejidad.md §3.2.
-# Appendea eventos a ~/.claude/workflow/events.jsonl.
+# Implements the hook layer described in docs/brainstorm-metrics-and-complexity.md §3.2.
+# Appends events to ~/.claude/workflow/events.jsonl.
 #
-# Uso (desde ~/.claude/settings.json):
+# Usage (from ~/.claude/settings.json):
 #   wf-telemetry.sh prompt   < hook JSON   # UserPromptSubmit
 #   wf-telemetry.sh tool     < hook JSON   # PostToolUse
 #   wf-telemetry.sh stop     < hook JSON   # Stop
 #   wf-telemetry.sh session-end < hook JSON  # SessionEnd
 #
-# PRINCIPIO INVIOLABLE: este script nunca bloquea ni rompe el flujo del usuario.
-# Cualquier error se traga y sale 0. Perder un evento es aceptable;
-# interrumpir una sesión de trabajo no lo es.
+# INVIOLABLE PRINCIPLE: this script never blocks or breaks the user's flow.
+# Any error is swallowed and it exits 0. Losing an event is acceptable;
+# interrupting a work session is not.
 
 WF_DIR="$HOME/.claude/workflow"
 EVENTS="$WF_DIR/events.jsonl"
 SESSIONS_DIR="$WF_DIR/sessions"
 
-# Sin jq no hay telemetría, pero tampoco hay ruido.
+# Without jq there's no telemetry, but there's no noise either.
 command -v jq >/dev/null 2>&1 || exit 0
 
 mkdir -p "$SESSIONS_DIR" 2>/dev/null || exit 0
@@ -52,19 +52,19 @@ repo_root() {
 
 project_name() { basename "$(repo_root)"; }
 
-# Ticket activo del proyecto (puede no existir todavía).
+# The project's active ticket (it may not exist yet).
 active_ticket() {
   local f
   f="$(repo_root)/.claude/workflow/state.json"
   [ -f "$f" ] && jq -r '.activeTicket // empty' "$f" 2>/dev/null
 }
 
-# Incrementa el contador de entradas a una etapa en el state.json del TICKET,
-# no en el de la sesión — así el conteo sobrevive cerrar y reabrir Claude Code.
-# Imprime el contador resultante (1 = primera entrada); vacío si no hay ticket.
+# Increments the entry counter for a stage in the TICKET's state.json, not the
+# session's — that way the count survives closing and reopening Claude Code.
+# Prints the resulting counter (1 = first entry); empty if there's no ticket.
 #
-# Escribe de forma conservadora: nunca pisa un state.json corrupto ni descarta
-# campos que manejan los comandos (stage, branch, notes, subtasks).
+# It writes conservatively: it never overwrites a corrupt state.json nor drops
+# fields the commands manage (stage, branch, notes, subtasks).
 bump_ticket_stage() {
   local stage="$1" ticket dir f tmp
   ticket="$(active_ticket)"
@@ -89,13 +89,13 @@ bump_ticket_stage() {
   jq -r --arg s "$stage" '.iterations[$s] // empty' "$f" 2>/dev/null
 }
 
-# Orden de etapas — define la distancia de fuga (§2.2).
+# Stage order — defines the leak distance (§2.2).
 #
-# mr-desc y retro NO forman parte del eje: no son etapas donde se origine ni se
-# detecte un defecto (una describe el MR, la otra cierra el ciclo). Van a 0 igual
-# que un valor desconocido, pero explícitamente, para que un 0 en los datos no se
-# confunda con "el vocabulario de stage se rompió" — que es lo que pasaba cuando
-# wf-refine escribía "refinement" en vez de "refine".
+# mr-desc and retro are NOT part of the axis: they aren't stages where a defect
+# originates or is detected (one describes the MR, the other closes the cycle).
+# They map to 0 just like an unknown value, but explicitly, so that a 0 in the
+# data isn't confused with "the stage vocabulary broke" — which is what happened
+# when wf-refine wrote "refinement" instead of "refine".
 stage_index() {
   case "$1" in
     refine)      echo 1 ;;
@@ -105,13 +105,13 @@ stage_index() {
     validate)    echo 5 ;;
     test)        echo 6 ;;
     mr-review)   echo 7 ;;
-    mr-desc)     echo 0 ;;  # fuera del eje, a propósito
-    retro)       echo 0 ;;  # fuera del eje, a propósito
+    mr-desc)     echo 0 ;;  # off the axis, on purpose
+    retro)       echo 0 ;;  # off the axis, on purpose
     *)           echo 0 ;;
   esac
 }
 
-# Appendea un evento. Argumentos: stage, event, data (JSON), [subtask]
+# Appends an event. Arguments: stage, event, data (JSON), [subtask]
 emit() {
   local stage="$1" event="$2" data="$3" subtask="${4:-}"
   local ticket
@@ -137,7 +137,7 @@ read_state() {
   [ -f "$STATE_FILE" ] && cat "$STATE_FILE" 2>/dev/null || echo '{}'
 }
 
-# Cierra la etapa activa emitiendo stage_end con sus contadores acumulados.
+# Closes the active stage by emitting stage_end with its accumulated counters.
 close_open_stage() {
   local st prev turns tools started elapsed
   st="$(read_state)"
@@ -156,14 +156,14 @@ close_open_stage() {
 }
 
 # ---------------------------------------------------------------------------
-# UserPromptSubmit — detecta /wf-* y abre etapa
+# UserPromptSubmit — detects /wf-* and opens a stage
 # ---------------------------------------------------------------------------
 
 handle_prompt() {
   local prompt cmd stage st seen n scope
   prompt="$(jget '.prompt')"
 
-  # Sólo nos interesa un slash command de workflow al inicio del prompt.
+  # We only care about a workflow slash command at the start of the prompt.
   cmd="$(printf '%s' "$prompt" | sed -n 's|^[[:space:]]*/\(wf[a-z-]*\).*|\1|p' | head -1)"
   [ -z "$cmd" ] && exit 0
 
@@ -177,23 +177,24 @@ handle_prompt() {
     wf-mr-review)   stage="mr-review" ;;
     wf-mr-desc)     stage="mr-desc" ;;
     wf-retro)       stage="retro" ;;
-    # /wf, /wf-init, /wf-jira, /wf-improve no son etapas medidas del ciclo.
+    # /wf, /wf-init, /wf-jira and /wf-improve aren't measured stages of the cycle.
     *) exit 0 ;;
   esac
 
   st="$(read_state)"
 
-  # Cambio de etapa: cerrar la anterior antes de abrir la nueva.
+  # Stage change: close the previous one before opening the new one.
   if [ "$(printf '%s' "$st" | jq -r '.stage // empty')" != "$stage" ]; then
     close_open_stage
   else
-    # Reinvocación del mismo comando sin haber salido de la etapa.
+    # Re-invocation of the same command without having left the stage.
     st="$(printf '%s' "$st" | jq -c 'del(.stage)')"
   fi
 
-  # Conteo persistente en el ticket. Si no hay ticket activo todavía, se cae al
-  # conteo por sesión, que se pierde al cerrarla — de ahí el campo `scope`:
-  # marca qué tan confiable es este número al analizar los datos después.
+  # Persistent count on the ticket. If there's no active ticket yet, it falls
+  # back to a per-session count, which is lost when the session closes — hence
+  # the `scope` field: it marks how trustworthy this number is when the data is
+  # analyzed later.
   scope="ticket"
   n="$(bump_ticket_stage "$stage")"
   if [ -z "$n" ]; then
@@ -221,7 +222,7 @@ handle_prompt() {
 }
 
 # ---------------------------------------------------------------------------
-# PostToolUse — cuenta tool calls y detecta plan churn
+# PostToolUse — counts tool calls and detects plan churn
 # ---------------------------------------------------------------------------
 
 handle_tool() {
@@ -233,7 +234,7 @@ handle_tool() {
   printf '%s' "$st" | jq -c '.tool_calls = ((.tool_calls // 0) + 1)' \
     > "$STATE_FILE" 2>/dev/null
 
-  # Plan churn (§2.3 #2): edición de plan.md una vez aprobado el plan.
+  # Plan churn (§2.3 #2): an edit to plan.md once the plan has been approved.
   tool="$(jget '.tool_name')"
   case "$tool" in
     Write|Edit|MultiEdit) ;;
@@ -246,7 +247,7 @@ handle_tool() {
     *) exit 0 ;;
   esac
 
-  # Sólo cuenta como churn si el plan ya pasó por review-plan.
+  # It only counts as churn if the plan already went through review-plan.
   [ "$(stage_index "$stage")" -ge 3 ] 2>/dev/null &&
     emit "$stage" "plan_edit" \
       "$(jq -cn --arg p "$path" '{path:$p, post_approval:true}')"
@@ -255,7 +256,7 @@ handle_tool() {
 }
 
 # ---------------------------------------------------------------------------
-# Stop — un turno completado
+# Stop — one completed turn
 # ---------------------------------------------------------------------------
 
 handle_stop() {
@@ -268,7 +269,7 @@ handle_stop() {
 }
 
 # ---------------------------------------------------------------------------
-# SessionEnd — cierra la etapa que quedó abierta
+# SessionEnd — closes the stage that was left open
 # ---------------------------------------------------------------------------
 
 handle_session_end() {

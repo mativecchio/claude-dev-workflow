@@ -1,83 +1,85 @@
 ---
-description: "Genera mensaje de commit con contexto del workflow activo. Lee plan.md, refinement-summary.md y el diff para producir un mensaje en Conventional Commits con scope del ticket."
+description: "Generates a commit message with the active workflow's context. Reads plan.md, refinement-summary.md and the diff to produce a Conventional Commits message scoped to the ticket."
 allowed-tools: Read, Bash, Glob
 ---
 
-Tu rol es generar un mensaje de commit preciso usando el contexto del workflow y el diff real.
+Your role is to generate a precise commit message using the workflow's context and the real diff.
 
-## Paso 1 — Leer contexto del workflow
+## Step 1 — Read the workflow context
 
-Intentar leer (silenciosamente, sin error si no existe):
+Try to read (silently, no error if missing):
 - `.claude/workflow/state.json` → `activeTicket`
-- `{workflowDir}/refinement-summary.md` → objetivo del cambio
-- `{workflowDir}/plan.md` → qué se implementó
+- `{workflowDir}/refinement-summary.md` → objective of the change
+- `{workflowDir}/plan.md` → what was implemented
 
-Donde `{workflowDir}` = `.claude/workflow/{activeTicket}`. Si no hay ticket activo o no existen los archivos, continuar igual — el diff es suficiente.
+Where `{workflowDir}` = `.claude/workflow/{activeTicket}`. If there's no active ticket or the files don't exist, continue anyway — the diff is enough.
 
-`/wf-commit` no es una etapa del ciclo: no registra `stage` ni emite telemetría.
+`/wf-commit` is not a stage of the cycle: it records no `stage` and emits no telemetry.
 
-## Paso 2 — Obtener el diff
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). The commit message itself is always in English.
 
-Si se llamó con archivos específicos en `$ARGUMENTS`, usar esos. Si no, usar los archivos staged + modified:
+## Step 2 — Get the diff
+
+If it was called with specific files in `$ARGUMENTS`, use those. Otherwise use the staged + modified files:
 
 ```bash
-# Archivos staged
+# Staged files
 git diff --cached --stat
 
-# Archivos modified (unstaged)
+# Modified files (unstaged)
 git diff --stat
 
-# Diff completo (excluir lock files y binarios)
+# Full diff (exclude lock files and binaries)
 git diff HEAD -- ':!pnpm-lock.yaml' ':!*.lock' ':!*.png' ':!*.jpg' ':!*.svg'
 ```
 
-## Paso 3 — Determinar tipo y scope
+## Step 3 — Determine type and scope
 
-**Tipo** (Conventional Commits):
+**Type** (Conventional Commits):
 
-| Tipo | Cuándo |
+| Type | When |
 |------|--------|
-| `feat` | nueva funcionalidad visible al usuario |
-| `fix` | corrección de bug |
-| `refactor` | reestructura sin cambio de comportamiento |
-| `style` | cambios de estilo/formato sin lógica |
-| `test` | tests nuevos o corregidos |
+| `feat` | new user-visible functionality |
+| `fix` | bug fix |
+| `refactor` | restructuring with no behavior change |
+| `style` | style/formatting changes with no logic |
+| `test` | new or fixed tests |
 | `chore` | tooling, config, deps, build |
-| `docs` | solo documentación |
-| `perf` | mejora de performance |
+| `docs` | documentation only |
+| `perf` | performance improvement |
 
-**Scope**: derivar del ticket ID en `state.json` (ej: `MA-770`) o del módulo más afectado (ej: `PlayerControls`, `chat`, `auth`). Si hay ticket ID, usarlo como scope.
+**Scope**: derive it from the ticket ID in `state.json` (e.g. `MA-770`) or from the most affected module (e.g. `PlayerControls`, `chat`, `auth`). If there's a ticket ID, use it as the scope.
 
-## Paso 4 — Generar el mensaje
+## Step 4 — Generate the message
 
-Formato:
+Format:
 ```
-<tipo>(<scope>): <descripción en imperativo, max 72 chars>
+<type>(<scope>): <imperative description, max 72 chars>
 
-[cuerpo opcional: por qué, no el qué — solo si el cambio no es obvio del título]
-```
-
-Reglas:
-- Descripción en imperativo, minúsculas, sin punto al final
-- No repetir el scope en la descripción
-- Cuerpo solo si hay decisiones técnicas no obvias o contexto de workaround
-- Máximo 2 líneas de cuerpo
-- No listar archivos modificados
-
-## Paso 5 — Mostrar y confirmar
-
-Mostrar el mensaje propuesto:
-
-```
-📝 Mensaje de commit propuesto:
-
-  <tipo>(<scope>): <descripción>
-
-  [cuerpo si aplica]
-
-¿Usamos este mensaje, lo ajustamos, o escribís uno distinto?
+[optional body: the why, not the what — only if the change isn't obvious from the title]
 ```
 
-Esperar respuesta. Si el usuario aprueba o ajusta → devolver el mensaje final listo para usar.
+Rules:
+- Description in the imperative, lowercase, no trailing period
+- Don't repeat the scope in the description
+- Body only if there are non-obvious technical decisions or workaround context
+- Maximum 2 lines of body
+- Don't list modified files
 
-**No hacer el commit** — solo generar el mensaje. El caller (wf-deploy u otro) ejecuta el commit.
+## Step 5 — Show and confirm
+
+Show the proposed message:
+
+```
+📝 Proposed commit message:
+
+  <type>(<scope>): <description>
+
+  [body if applicable]
+
+Use this message, adjust it, or write a different one?
+```
+
+Wait for the answer. If the user approves or adjusts → return the final message ready to use.
+
+**Do not make the commit** — only generate the message. The caller (wf-deploy or another) runs the commit.

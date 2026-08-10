@@ -1,25 +1,25 @@
 #!/bin/bash
 #
-# wf-probe — sonda temporal para resolver H1 (docs/plan-harness-migration.md).
+# wf-probe — temporary probe to resolve H1 (docs/plan-harness-migration.md).
 #
-# PREGUNTA QUE RESPONDE: cuando el ruteo de una etapa ocurre vía `/wf` en vez de
-# tipear `/wf-analyze`, ¿qué ve un hook? El hook de telemetría solo matchea el
-# comando tipeado en UserPromptSubmit, así que hoy todo el camino del
-# orquestador es invisible y events.jsonl queda vacío.
+# QUESTION IT ANSWERS: when a stage is routed via `/wf` instead of typing
+# `/wf-analyze`, what does a hook see? The telemetry hook only matches the typed
+# command in UserPromptSubmit, so today the whole orchestrator path is invisible
+# and events.jsonl stays empty.
 #
-# Había tres candidatos y NINGUNO estaba verificado:
-#   (a) que /wf escriba stage antes de rutear   → depende del modelo
-#   (b) PreToolUse sobre Read de wf-*.md        → depende del modelo
-#   (c) PostToolUse con tool_name "Skill"       → mecánico, si es que ocurre así
+# There were three candidates and NONE was verified:
+#   (a) /wf writing stage before routing     → depends on the model
+#   (b) PreToolUse on a Read of wf-*.md      → depends on the model
+#   (c) PostToolUse with tool_name "Skill"   → mechanical, if it happens that way
 #
-# Esta sonda vuelca el JSON crudo para decidir con un dato en vez de una apuesta.
-# NO bloquea, NO modifica estado, solo escribe un archivo.
+# This probe dumps the raw JSON so the decision rests on data instead of a bet.
+# It does NOT block, does NOT modify state, it only writes a file.
 #
-# Uso:
-#   ./scripts/wf-probe.sh --install    registra la sonda en ~/.claude/settings.json
-#   ./scripts/wf-probe.sh --remove     la desregistra (y deja el log)
-#   ./scripts/wf-probe.sh --report     resume qué capturó
-#   ./scripts/wf-probe.sh <evento>     modo hook (lo invoca Claude Code)
+# Usage:
+#   ./scripts/wf-probe.sh --install    registers the probe in ~/.claude/settings.json
+#   ./scripts/wf-probe.sh --remove     unregisters it (and leaves the log)
+#   ./scripts/wf-probe.sh --report     summarizes what it captured
+#   ./scripts/wf-probe.sh <event>      hook mode (invoked by Claude Code)
 
 PROBE_LOG="$HOME/.claude/workflow/probe.jsonl"
 SETTINGS="$HOME/.claude/settings.json"
@@ -27,11 +27,11 @@ SELF="$HOME/.claude/hooks/wf-probe.sh"
 
 case "${1:-}" in
   --install)
-    command -v jq >/dev/null 2>&1 || { echo "❌ Hace falta jq"; exit 1; }
+    command -v jq >/dev/null 2>&1 || { echo "❌ jq is required"; exit 1; }
     mkdir -p "$HOME/.claude/hooks" "$HOME/.claude/workflow"
     cp "$0" "$SELF" 2>/dev/null; chmod +x "$SELF"
     [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
-    jq -e . "$SETTINGS" >/dev/null 2>&1 || { echo "❌ settings.json inválido"; exit 1; }
+    jq -e . "$SETTINGS" >/dev/null 2>&1 || { echo "❌ invalid settings.json"; exit 1; }
     TMP="$(mktemp)"
     jq --arg h "$SELF" '
       def strip:
@@ -44,17 +44,17 @@ case "${1:-}" in
       | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip | add("post-tool"))
     ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
     : > "$PROBE_LOG"
-    echo "✅ Sonda instalada. Log: $PROBE_LOG"
+    echo "✅ Probe installed. Log: $PROBE_LOG"
     echo ""
-    echo "Ahora, en un proyecto con workflow:"
-    echo "  1. Corré /wf con una descripción que rutee a una etapa"
-    echo "     (ej: /wf necesito un plan para el ticket X)"
-    echo "  2. Volvé acá y corré: ./scripts/wf-probe.sh --report"
-    echo "  3. Desinstalá con: ./scripts/wf-probe.sh --remove"
+    echo "Now, in a project with a workflow:"
+    echo "  1. Run /wf with a description that routes to a stage"
+    echo "     (e.g. /wf I need a plan for ticket X)"
+    echo "  2. Come back here and run: ./scripts/wf-probe.sh --report"
+    echo "  3. Uninstall with: ./scripts/wf-probe.sh --remove"
     exit 0 ;;
 
   --remove)
-    command -v jq >/dev/null 2>&1 || { echo "❌ Hace falta jq"; exit 1; }
+    command -v jq >/dev/null 2>&1 || { echo "❌ jq is required"; exit 1; }
     TMP="$(mktemp)"
     jq '
       def strip:
@@ -65,31 +65,31 @@ case "${1:-}" in
       | .hooks.PostToolUse    //= [] | .hooks.PostToolUse      |= strip
     ' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
     rm -f "$SELF"
-    echo "✅ Sonda desregistrada. El log queda en $PROBE_LOG"
+    echo "✅ Probe unregistered. The log stays at $PROBE_LOG"
     exit 0 ;;
 
   --report)
-    [ -s "$PROBE_LOG" ] || { echo "El log está vacío — ¿corriste /wf con la sonda instalada?"; exit 1; }
-    echo "═══ Eventos capturados ($(wc -l < "$PROBE_LOG" | tr -d ' ') líneas) ═══"
+    [ -s "$PROBE_LOG" ] || { echo "The log is empty — did you run /wf with the probe installed?"; exit 1; }
+    echo "═══ Captured events ($(wc -l < "$PROBE_LOG" | tr -d ' ') lines) ═══"
     echo ""
-    echo "── Por evento y tool ──"
+    echo "── By event and tool ──"
     jq -r '"\(.probe_event)\t\(.tool_name // "-")"' "$PROBE_LOG" 2>/dev/null | sort | uniq -c | sort -rn
     echo ""
-    echo "── ¿Se invocó el tool Skill? (candidato c) ──"
+    echo "── Was the Skill tool invoked? (candidate c) ──"
     jq -r 'select(.tool_name == "Skill") | "  \(.probe_event): \(.tool_input // {} | tostring)"' "$PROBE_LOG" 2>/dev/null | head -10 || true
-    grep -q '"tool_name":"Skill"' "$PROBE_LOG" 2>/dev/null || echo "  (ninguno)"
+    grep -q '"tool_name":"Skill"' "$PROBE_LOG" 2>/dev/null || echo "  (none)"
     echo ""
-    echo "── ¿Se leyó algún wf-*.md? (candidato b) ──"
+    echo "── Was any wf-*.md read? (candidate b) ──"
     jq -r 'select((.tool_input.file_path // "") | test("wf-[a-z-]*\\.md"))
            | "  \(.probe_event) \(.tool_name): \(.tool_input.file_path)"' "$PROBE_LOG" 2>/dev/null | head -10
     echo ""
-    echo "── Prompts que empiezan con /wf ──"
+    echo "── Prompts starting with /wf ──"
     jq -r 'select((.prompt // "") | test("^\\s*/wf")) | "  \(.prompt[0:80])"' "$PROBE_LOG" 2>/dev/null | head -5
     exit 0 ;;
 esac
 
 # ---------------------------------------------------------------------------
-# Modo hook: volcar el input crudo con la etiqueta del evento. Nunca bloquea.
+# Hook mode: dump the raw input tagged with the event name. Never blocks.
 # ---------------------------------------------------------------------------
 command -v jq >/dev/null 2>&1 || exit 0
 INPUT="$(cat)"

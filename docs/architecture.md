@@ -105,7 +105,7 @@ Before adding a validation guard for a value, `wf-implement` greps all call site
 
 ## Telemetry (hook layer)
 
-`hooks/wf-telemetry.sh` is installed to `~/.claude/hooks/` and registered in `~/.claude/settings.json` on four events. It appends to `~/.claude/workflow/events.jsonl`. Design and event schema: `docs/brainstorm-metricas-y-complejidad.md`.
+`hooks/wf-telemetry.sh` is installed to `~/.claude/hooks/` and registered in `~/.claude/settings.json` on four events. It appends to `~/.claude/workflow/events.jsonl`. Design and event schema: `docs/brainstorm-metrics-and-complexity.md`.
 
 | Hook | Mode | Captures |
 |---|---|---|

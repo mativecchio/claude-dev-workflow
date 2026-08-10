@@ -1,135 +1,135 @@
-# Plan — Migración a capa de harness
+# Plan — Migration to a harness layer
 
-> Estado: **propuesta, pendiente de review**. No implementar sin pasar por la revisión del plan.
-> Regla aplicada: `docs/brainstorm-metricas-y-complejidad.md` §0 — cada ítem cita evidencia (`archivo:línea`) o se marca explícitamente como hipótesis.
+> Status: **proposal, pending review**. Do not implement without going through plan review.
+> Rule applied: `docs/brainstorm-metrics-and-complexity.md` §0 — every item cites evidence (`file:line`) or is explicitly marked as a hypothesis.
 
 ---
 
-## 1. Diagnóstico
+## 1. Diagnosis
 
-### 1.1 Tesis
+### 1.1 Thesis
 
-El sistema hoy impone sus reglas **escribiendo prosa en archivos `.md` que el modelo lee y obedece casi siempre**. Un harness impone reglas con **mecanismos que no se pueden saltear**: hooks, scripts, permisos, checks ejecutables.
+Today the system enforces its rules by **writing prose into `.md` files that the model reads and almost always obeys**. A harness enforces rules with **mechanisms that can't be skipped**: hooks, scripts, permissions, executable checks.
 
-El repo ya tiene una prueba de que el enfoque mecánico funciona: la telemetría se implementó como hook (`hooks/wf-telemetry.sh`) en vez de pedirle a cada comando que registre eventos, justamente porque §3.1 del brainstorm documenta que el mecanismo opt-in previo (`flow-history.json` vía `/wf-retro` Paso 4) nunca se ejecutó ni una vez.
+The repo already has proof that the mechanical approach works: telemetry was implemented as a hook (`hooks/wf-telemetry.sh`) instead of asking each command to record events, precisely because §3.1 of the brainstorm documents that the previous opt-in mechanism (`flow-history.json` via `/wf-retro` step 4) never ran even once.
 
-Este plan aplica ese mismo criterio al resto del sistema.
+This plan applies that same criterion to the rest of the system.
 
-### 1.2 Hallazgos verificados
+### 1.2 Verified findings
 
-Cada uno con su evidencia. Ordenados por severidad.
+Each with its evidence. Ordered by severity.
 
-| # | Hallazgo | Evidencia | Impacto |
+| # | Finding | Evidence | Impact |
 |---|---|---|---|
-| H1 | La telemetría no observa el camino de entrada principal | `hooks/wf-telemetry.sh:172-186` solo matchea `/wf-<etapa>` tipeado; `/wf` cae en `*) exit 0`. `README.md`: "el punto de entrada es siempre `/wf`" | Toda etapa entrada por el orquestador es invisible. `events.jsonl` = 0 líneas desde el 07/08 |
-| H2 | El repo no es la fuente de verdad | `wf-commit.md` y `wf-deploy.md` existen en `~/.claude/commands/`, no en `commands/`. `install.sh:24` copia solo repo→home. `wf-retro.md:83` y `wf-improve.md:113` editan `~/.claude/commands/` y delegan el copy-back al usuario | Ya se perdieron 2 comandos. Cada `/wf-retro` que aplica una mejora amplía la divergencia |
-| H3 | Gate que evalúa contra un archivo estructuralmente vacío | `wf-review-plan.md:60` marca hallazgo si el plan no cruzó `flow-history.json`; `wf-analyze.md` paso 6 idem. El archivo está en `{"entries": []}` | Un gate que nunca puede aportar señal, pero sí ruido |
-| H4 | `base_branch` hardcodeado a `develop` | `wf-refine.md:101,104` ejecutan `git checkout -b {branch} develop`. `config.json` no tiene campo de rama base (`wf-init.md` paso 5 no lo genera) | Rompe en cualquier repo sobre `main`. Los otros 3 comandos dicen "develop/main/master, según el proyecto" — o sea, se lo preguntan al modelo cada vez |
-| H5 | `wf-jira` quedó en el esquema pre-multi-ticket | `wf-jira.md:31-33` lee `.claude/workflow/refinement-summary.md` y `plan.md` (paths planos), pero el esquema actual es `.claude/workflow/{ticketId}/` | Nunca encuentra el contexto; genera el ticket sin enriquecer |
-| H6 | `wf.md` tiene los pasos fuera de orden | `wf.md`: "## Paso 1 — Argumentos especiales" aparece **antes** de "## Paso 0 — Verificar inicialización" | El chequeo de init se ejecuta después del ruteo, o no se ejecuta |
-| H7 | `stage_index()` no cubre todas las etapas que el propio hook emite | `hooks/wf-telemetry.sh:97-107`: no hay case para `mr-desc` ni `retro`, ambos emitidos en `:180-182`. Caen en `*) echo 0` | `leak_distance` (§2.2) calcula mal para findings detectados en esas etapas |
-| H8 | El config global es código muerto | `config/workflow.json` tiene `projects`/`preferences`; ningún comando ni hook lo lee (grep sin resultados fuera de `install.sh:36`) | Confusión: hay dos configs y solo uno se usa |
-| H9 | De la capa semántica del brainstorm no se implementó nada | §3.3 lista 7 comandos que deben emitir eventos; ninguno lo hace. §5 (rúbrica), §6 (peso MR), §7 (trip wire) tampoco | El diseño de "detectar que el log está incompleto" (§3.1) no puede funcionar: no hay con qué cruzar |
-| H10 | `improvements.md` no existe | §0 y §8 lo requieren como bitácora obligatoria; `install.sh` no lo crea | La regla de fundamentación no tiene dónde asentarse |
-| H11 | El campo `stage` del ticket queda desactualizado desde el primer comando | Solo `wf-refine.md:25` y `wf.md:105` escriben `stage`. Ni `wf-review-plan`, ni `wf-implement`, ni `wf-validate`, ni `wf-test` lo actualizan al entrar | La máquina de estados solo existe si pasás siempre por `/wf`. Invocando los comandos directo —uso que el README presenta como válido— el stage queda congelado en el del refinement |
-| H12 | El valor escrito en `stage` no es el que espera ningún consumidor | `wf-refine.md:25` escribe `"stage": "refinement"`; `hooks/wf-telemetry.sh:163`, la tabla de ruteo de `wf.md` Paso 3 y `stage_index()` usan `refine` | Toda comparación de stage falla hoy, en silencio |
+| H1 | Telemetry doesn't observe the main entry path | `hooks/wf-telemetry.sh:172-186` only matches a typed `/wf-<stage>`; `/wf` falls into `*) exit 0`. `README.md`: "the entry point is always `/wf`" | Every stage entered through the orchestrator is invisible. `events.jsonl` = 0 lines since 08/07 |
+| H2 | The repo is not the source of truth | `wf-commit.md` and `wf-deploy.md` exist in `~/.claude/commands/`, not in `commands/`. `install.sh:24` only copies repo→home. `wf-retro.md:83` and `wf-improve.md:113` edit `~/.claude/commands/` and delegate the copy-back to the user | 2 commands were already lost. Every `/wf-retro` that applies an improvement widens the divergence |
+| H3 | Gate evaluating against a structurally empty file | `wf-review-plan.md:60` raises a finding if the plan didn't cross-reference `flow-history.json`; `wf-analyze.md` step 6 likewise. The file sits at `{"entries": []}` | A gate that can never contribute signal, but can contribute noise |
+| H4 | `base_branch` hardcoded to `develop` | `wf-refine.md:101,104` run `git checkout -b {branch} develop`. `config.json` has no base branch field (`wf-init.md` step 5 doesn't generate it) | Breaks in any repo on `main`. The other 3 commands say "develop/main/master, depending on the project" — i.e. they ask the model every time |
+| H5 | `wf-jira` was left on the pre-multi-ticket schema | `wf-jira.md:31-33` reads `.claude/workflow/refinement-summary.md` and `plan.md` (flat paths), but the current schema is `.claude/workflow/{ticketId}/` | It never finds the context; it generates the ticket without enriching it |
+| H6 | `wf.md` has its steps out of order | `wf.md`: "## Step 1 — Special arguments" appears **before** "## Step 0 — Verify initialization" | The init check runs after routing, or doesn't run at all |
+| H7 | `stage_index()` doesn't cover every stage the hook itself emits | `hooks/wf-telemetry.sh:97-107`: there's no case for `mr-desc` or `retro`, both emitted at `:180-182`. They fall into `*) echo 0` | `leak_distance` (§2.2) miscalculates for findings detected in those stages |
+| H8 | The global config is dead code | `config/workflow.json` has `projects`/`preferences`; no command or hook reads it (grep returns nothing outside `install.sh:36`) | Confusion: there are two configs and only one is used |
+| H9 | None of the brainstorm's semantic layer was implemented | §3.3 lists 7 commands that should emit events; none do. §5 (rubric), §6 (MR weight), §7 (trip wire) neither | The "detect that the log is incomplete" design (§3.1) can't work: there's nothing to cross-reference against |
+| H10 | `improvements.md` doesn't exist | §0 and §8 require it as a mandatory logbook; `install.sh` doesn't create it | The grounding rule has nowhere to be recorded |
+| H11 | The ticket's `stage` field goes stale from the first command onward | Only `wf-refine.md:25` and `wf.md:105` write `stage`. Neither `wf-review-plan`, nor `wf-implement`, nor `wf-validate`, nor `wf-test` update it on entry | The state machine only exists if you always go through `/wf`. Invoking commands directly — a usage the README presents as valid — freezes the stage at the refinement one |
+| H12 | The value written to `stage` isn't the one any consumer expects | `wf-refine.md:25` writes `"stage": "refinement"`; `hooks/wf-telemetry.sh:163`, the routing table in `wf.md` step 3 and `stage_index()` all use `refine` | Every stage comparison fails today, silently |
 
-### 1.3 Nota sobre §0 y el alcance de este plan
+### 1.3 Note on §0 and this plan's scope
 
-§0 exige 3 tickets con el mismo patrón antes de proponer un cambio al workflow. **Hoy hay 0 eventos**, así que ninguna propuesta de *política de flujo* puede fundamentarse en datos todavía.
+§0 requires 3 tickets with the same pattern before proposing a workflow change. **Today there are 0 events**, so no *flow policy* proposal can be grounded in data yet.
 
-Por eso este plan se limita deliberadamente a dos clases de cambio, ambas admisibles bajo §0 vía la fuente "tarea en curso" (`archivo:línea`):
+That's why this plan deliberately limits itself to two classes of change, both admissible under §0 via the "task in progress" source (`file:line`):
 
-- **Correcciones** de comportamiento roto o divergente (H1-H8, H10).
-- **Cambios de mecanismo sin cambio de política**: la regla que se aplica es la misma que ya está escrita en el `.md`; solo cambia *quién la hace cumplir*. Un gate que hoy es una instrucción y pasa a ser un hook no es una política nueva.
+- **Fixes** to broken or divergent behavior (H1-H8, H10).
+- **Mechanism changes with no policy change**: the rule being enforced is the same one already written in the `.md`; only *who enforces it* changes. A gate that is an instruction today and becomes a hook is not a new policy.
 
-Todo lo que sí sería política nueva (umbrales, gates adicionales, partición de tareas) queda fuera de este plan y espera datos — es exactamente lo que §11 del brainstorm ordena en sus pasos 5-6.
+Everything that would be new policy (thresholds, additional gates, task partitioning) is out of scope for this plan and waits for data — which is exactly what §11 of the brainstorm mandates in its steps 5-6.
 
-**Una excepción declarada:** la Fase 3 agrega capacidades nuevas opt-in (validador de runtime, worktrees). No cambian ninguna regla existente ni se activan solas, pero tampoco están fundamentadas en datos. Se marcan como hipótesis y se dejan al final, separables del resto.
+**One declared exception:** Phase 3 adds new opt-in capabilities (runtime validator, worktrees). They change no existing rule and don't activate on their own, but they aren't grounded in data either. They are marked as hypotheses and left at the end, separable from the rest.
 
 ---
 
-## 2. Inventario: prosa → mecanismo
+## 2. Inventory: prose → mechanism
 
-El núcleo del plan. Cada fila es una regla que hoy vive como texto y puede vivir como mecanismo.
+The core of the plan. Each row is a rule that lives as text today and could live as a mechanism.
 
-| Regla | Hoy | Propuesto | Fase |
+| Rule | Today | Proposed | Phase |
 |---|---|---|---|
-| "Leé `activeTicket` de `state.json`" | Prosa idéntica repetida en 10 comandos (`wf-analyze.md:12`, `wf-review-plan.md:12`, `wf-validate.md:12`, `wf-implement.md:38`, `wf-test.md:12`, `wf-mr-desc.md:12`, `wf-mr-review.md:12`, `wf-retro.md:12`, `wf-improve.md:20`, `wf-refine.md:12`) | `scripts/wf-lib.sh` → `wf_ticket`, `wf_dir` | 2 |
-| "Diffeá contra merge-base, no contra la base" | Párrafo explicativo repetido en 4 comandos (`wf-validate.md:36`, `wf-mr-review.md:18`, `wf-mr-desc.md:24`, + `wf-implement` implícito) | `scripts/wf-diff.sh` | 2 |
-| "La rama base es develop/main/master según el proyecto" | Se le pregunta al modelo cada vez; hardcodeado en `wf-refine.md:104` | `base_branch` en `config.json` + `wf_base` en `wf-lib.sh` | 2 |
-| "Al iniciar una etapa, actualizar `stage` en el state del ticket" | Solo lo hace `/wf` Paso 5; los comandos invocados directo no (H11) | `wf_enter_stage <stage>` en `wf-lib.sh`, invocada por cada comando en su primera línea | 2 |
-| "NUNCA pasar a implementación sin respuesta explícita" | `wf-review-plan.md:96` — instrucción en mayúsculas | Hook `PreToolUse` que rechaza `Edit`/`Write` si `stage == review-plan` y `approved != true`. **Depende de H11/H12** | 2 |
-| DoD checklist | Lista de strings en prosa (`config.json` → `dod_checklist`), evaluada por criterio del modelo | `checks` ejecutables en `config.json`, corridos antes de invocar cualquier agente | 2 |
-| "Verificá el contrato del related_project antes de aprobar" | Prosa en 4 comandos; imposible de verificar a posteriori | Artefacto obligatorio `{workflowDir}/contract-verification.md`; el gate chequea existencia, no intención | 2 |
-| "No toques archivos fuera del plan" | No existe como regla; solo se mide como `scope_drift` a posteriori (§2.3 #1) | Fuera de alcance — sería política nueva | — |
+| "Read `activeTicket` from `state.json`" | Identical prose repeated in 10 commands (`wf-analyze.md:12`, `wf-review-plan.md:12`, `wf-validate.md:12`, `wf-implement.md:38`, `wf-test.md:12`, `wf-mr-desc.md:12`, `wf-mr-review.md:12`, `wf-retro.md:12`, `wf-improve.md:20`, `wf-refine.md:12`) | `scripts/wf-lib.sh` → `wf_ticket`, `wf_dir` | 2 |
+| "Diff against merge-base, not against the base" | Explanatory paragraph repeated in 4 commands (`wf-validate.md:36`, `wf-mr-review.md:18`, `wf-mr-desc.md:24`, + `wf-implement` implicitly) | `scripts/wf-diff.sh` | 2 |
+| "The base branch is develop/main/master depending on the project" | The model is asked every time; hardcoded at `wf-refine.md:104` | `base_branch` in `config.json` + `wf_base` in `wf-lib.sh` | 2 |
+| "When entering a stage, update `stage` in the ticket state" | Only `/wf` step 5 does it; directly invoked commands don't (H11) | `wf_enter_stage <stage>` in `wf-lib.sh`, called by every command on its first line | 2 |
+| "NEVER move to implementation without an explicit answer" | `wf-review-plan.md:96` — an instruction in capitals | A `PreToolUse` hook that rejects `Edit`/`Write` when `stage == review-plan` and `approved != true`. **Depends on H11/H12** | 2 |
+| DoD checklist | A list of prose strings (`config.json` → `dod_checklist`), evaluated by the model's judgment | Executable `checks` in `config.json`, run before invoking any agent | 2 |
+| "Verify the related_project contract before approving" | Prose in 4 commands; impossible to verify after the fact | Mandatory artifact `{workflowDir}/contract-verification.md`; the gate checks existence, not intent | 2 |
+| "Don't touch files outside the plan" | Doesn't exist as a rule; only measured as `scope_drift` after the fact (§2.3 #1) | Out of scope — it would be new policy | — |
 
 ---
 
-## 3. Fases
+## 3. Phases
 
-Cada fase es independiente y entregable por separado. El orden importa: la Fase 0 es prerequisito de todo lo demás, porque sin ella cualquier cambio se pierde en la próxima divergencia.
+Each phase is independent and separately shippable. Order matters: Phase 0 is a prerequisite for everything else, because without it any change is lost in the next divergence.
 
-### Fase 0 — Cerrar el circuito de instalación
+### Phase 0 — Close the installation loop
 
-**Problema:** H2. El repo no es la fuente de verdad.
+**Problem:** H2. The repo is not the source of truth.
 
-1. Adoptar `wf-commit.md` al repo tal cual. **Nota:** arrastra el mismo bug de paths planos que H5 (`.claude/workflow/plan.md` en vez de `{ticketId}/`); se adopta con el bug y se corrige en la Fase 1, para no mezclar adopción con corrección.
-2. Adoptar `wf-deploy.md` en **versión genérica**: detecta método (CI vs local) y modelo de ramas desde `config.json` en vez de asumir fastlane/GitLab. Cuando el proyecto no tiene CI/CD, ni ramas de release definidas, ni scripts de deploy, el comando **lo señala y propone armarlo** en vez de seguir como si existiera. La versión actual atada a fastlane queda como override en `.claude/commands/` del proyecto que la usa.
-3. `install.sh`: agregar modo `--check` que compare repo vs instalado y liste divergencias sin escribir.
-4. `install.sh`: crear `~/.claude/workflow/improvements.md` si no existe (H10).
-5. `wf-retro.md` Paso 5 y `wf-improve.md` Paso 4: cambiar el target de edición de `~/.claude/commands/wf-*.md` a `$WF_REPO/commands/wf-*.md` + correr `install.sh` al terminar. Resolver `$WF_REPO` desde `repo_path` en `~/.claude/workflow/config.json` (que pasa a tener un uso real — H8).
-6. Eliminar `projects`/`preferences` de `config/workflow.json` (código muerto) y dejar `{ "repo_path": "..." }`.
-7. `install.sh`: **mergear** `repo_path` en el config global existente con `jq`, no preservarlo intacto. El bloque actual (`install.sh:34-40`) hace skip si el archivo ya existe, así que una instalación previa —como la de este usuario, de mayo— nunca recibiría la key.
+1. Adopt `wf-commit.md` into the repo as-is. **Note:** it carries the same flat-path bug as H5 (`.claude/workflow/plan.md` instead of `{ticketId}/`); it is adopted with the bug and fixed in Phase 1, so adoption isn't mixed with correction.
+2. Adopt `wf-deploy.md` in a **generic version**: it detects the method (CI vs local) and the branching model from `config.json` instead of assuming fastlane/GitLab. When the project has no CI/CD, no defined release branches and no deploy scripts, the command **says so and offers to set it up** instead of proceeding as if it existed. The current fastlane-bound version stays as an override in the `.claude/commands/` of the project that uses it.
+3. `install.sh`: add a `--check` mode that compares repo vs installed and lists divergences without writing.
+4. `install.sh`: create `~/.claude/workflow/improvements.md` if it doesn't exist (H10).
+5. `wf-retro.md` step 5 and `wf-improve.md` step 4: change the edit target from `~/.claude/commands/wf-*.md` to `$WF_REPO/commands/wf-*.md` + run `install.sh` at the end. Resolve `$WF_REPO` from `repo_path` in `~/.claude/workflow/config.json` (which thereby gains a real use — H8).
+6. Remove `projects`/`preferences` from `config/workflow.json` (dead code) and leave `{ "repo_path": "..." }`.
+7. `install.sh`: **merge** `repo_path` into the existing global config with `jq`, don't preserve it untouched. The current block (`install.sh:34-40`) skips if the file already exists, so a previous installation — like this user's, from May — would never receive the key.
 
-**Criterio de aceptación:** después de un `/wf-retro` que aplique una mejora, `install.sh --check` no reporta divergencias.
-
----
-
-### Fase 1 — Corregir lo roto
-
-Correcciones puntuales, sin cambio de arquitectura.
-
-1. **H12 primero** — unificar el vocabulario de etapas en `refine` (valor que ya usan el hook, `stage_index()` y la tabla de ruteo). Corregir `wf-refine.md:25`. Es prerequisito de H11 y del gate de la Fase 2: no tiene sentido construir sobre un campo cuyo vocabulario no está unificado.
-2. **H11** — cada comando de etapa escribe su `stage` al entrar. Se implementa en la Fase 2 vía `wf_enter_stage`, pero la corrección puntual va acá porque el gate depende de ella.
-3. **H1 — empezar por un experimento, no por un diseño.** El ruteo por `/wf` no se detecta desde `UserPromptSubmit`: el prompt dice `/wf analizá esto`, no la etapa. Había tres candidatos, y **ninguno estaba verificado**:
-   - (a) Que `/wf` escriba `stage` antes de rutear y el hook lo derive de ahí — depende de que el modelo escriba, que es lo que queremos evitar.
-   - (b) `PreToolUse` sobre el `Read` de `~/.claude/commands/wf-*.md` (`wf.md:79`) — **descartada como "mecánica"**: también depende de que el modelo ejecute un `Read` que le indicaron por prosa.
-   - (c) `PostToolUse` filtrando `tool_name: "Skill"` — en este harness los `wf-*` se exponen como skills, así que el ruteo puede resolverse por ahí y (b) no dispararía nunca.
-
-   **Procedimiento:** instalar un hook temporal de logging que vuelque el JSON crudo de `PostToolUse` y `UserPromptSubmit` a un archivo, correr `/wf` una vez, inspeccionar qué llega realmente. Decidir con ese dato. Sin el experimento, cualquiera de las tres es una apuesta.
-
-   **✅ RESUELTO — 2026-08-10.** Se corrió `/wf` en `PrositeMobile` con el probe instalado (205 eventos capturados). **Los tres candidatos quedaron descartados por observación:**
-   - (b) **no disparó ni una vez.** No hubo ningún `Read` de `wf-*.md`: el harness inyecta el cuerpo del comando directo en el contexto, el modelo nunca lee el archivo. *(Nota: `wf-probe.sh --report` muestra falsos positivos acá — su grep matchea cualquier tool, y listó `Edit`s hechos sobre este mismo repo. La conclusión correcta es cero lecturas.)*
-   - (c) **el tool `Skill` no se invocó.**
-   - El payload de `UserPromptSubmit` trae `prompt` literal `"/wf"` — sin expandir, sin etapa. El hook puede saber que se invocó `/wf`, no adónde ruteó. H1 confirmado, ya no supuesto.
-
-   **Salida adoptada — (d), que no estaba en la lista original y solo existe gracias a la Fase 2:** `wf_enter_stage` es una llamada a `Bash`, y `PreToolUse` sobre `Bash` incluye `tool_input.command` en el payload. La telemetría detecta la entrada a etapa matcheando `enter-stage (\w+)` en el comando, sin importar si se llegó por `/wf` o por invocación directa.
-
-   Es mejor que (a) por una razón estructural: ahí la escritura de estado y el evento de telemetría eran dos acciones que podían divergir. Acá **son la misma acción** — si el Paso 0 corrió, hay estado *y* hay evento; si no corrió, no hay ninguno. Desaparece la clase de bug donde el estado dice una cosa y `events.jsonl` otra.
-
-   **Límite que queda:** no es mecánico del todo — sigue dependiendo de que el comando ejecute su Paso 0. Pero esa dependencia ya existía para el estado; ahora hay **una sola** en vez de dos.
-
-   **Bonus:** el payload trae `cwd` en todos los eventos, así que la telemetría puede segmentar por proyecto sin trabajo adicional.
-4. **H7** — agregar `mr-desc` y `retro` a `stage_index()`, o excluirlos explícitamente del cálculo de fuga con un comentario.
-5. **H5** — `wf-jira.md:31-33` y `wf-commit.md` Paso 1: migrar a `{workflowDir}/`, con el Paso 0 estándar.
-6. **H6** — `wf.md`: mover "Paso 0" antes de "Paso 1".
-7. **H3** — `wf-analyze.md` paso 6 y `wf-review-plan.md:60`: degradar el cruce con `flow-history.json` de "marcarlo como hallazgo" a "si el archivo tiene entries, cruzarlo". Reactivar el gate cuando la Fase 4 lo llene.
+**Acceptance criterion:** after a `/wf-retro` that applies an improvement, `install.sh --check` reports no divergences.
 
 ---
 
-### Fase 2 — Migración prosa → mecanismo
+### Phase 1 — Fix what's broken
 
-El núcleo. Implementa la tabla de §2.
+Targeted fixes, no architectural change.
 
-1. **`scripts/wf-lib.sh`** — funciones sourceables:
-   - `wf_ticket` → activeTicket, o falla con mensaje claro
+1. **H12 first** — unify the stage vocabulary on `refine` (the value already used by the hook, `stage_index()` and the routing table). Fix `wf-refine.md:25`. It's a prerequisite for H11 and for the Phase 2 gate: there's no point building on a field whose vocabulary isn't unified.
+2. **H11** — every stage command writes its `stage` on entry. It's implemented in Phase 2 via `wf_enter_stage`, but the targeted fix goes here because the gate depends on it.
+3. **H1 — start with an experiment, not a design.** Routing through `/wf` can't be detected from `UserPromptSubmit`: the prompt says `/wf analyze this`, not the stage. There were three candidates, and **none was verified**:
+   - (a) Have `/wf` write `stage` before routing and let the hook derive it from there — depends on the model writing, which is what we want to avoid.
+   - (b) `PreToolUse` on the `Read` of `~/.claude/commands/wf-*.md` (`wf.md:79`) — **discarded as "mechanical"**: it also depends on the model running a `Read` it was told about in prose.
+   - (c) `PostToolUse` filtering `tool_name: "Skill"` — in this harness the `wf-*` are exposed as skills, so routing could be resolved there and (b) would never fire.
+
+   **Procedure:** install a temporary logging hook that dumps the raw JSON of `PostToolUse` and `UserPromptSubmit` to a file, run `/wf` once, inspect what actually arrives. Decide from that data. Without the experiment, all three are a bet.
+
+   **✅ RESOLVED — 2026-08-10.** `/wf` was run in `PrositeMobile` with the probe installed (205 events captured). **All three candidates were ruled out by observation:**
+   - (b) **never fired.** There was no `Read` of `wf-*.md` at all: the harness injects the command body straight into the context, the model never reads the file. *(Note: `wf-probe.sh --report` shows false positives here — its grep matches any tool, and it listed `Edit`s made on this very repo. The correct conclusion is zero reads.)*
+   - (c) **the `Skill` tool was never invoked.**
+   - The `UserPromptSubmit` payload carries a literal `prompt` of `"/wf"` — unexpanded, with no stage. The hook can know `/wf` was invoked, not where it routed. H1 confirmed, no longer assumed.
+
+   **Adopted way out — (d), which wasn't in the original list and only exists thanks to Phase 2:** `wf_enter_stage` is a `Bash` call, and `PreToolUse` on `Bash` includes `tool_input.command` in the payload. Telemetry detects stage entry by matching `enter-stage (\w+)` in the command, regardless of whether it was reached via `/wf` or by direct invocation.
+
+   It's better than (a) for a structural reason: there, the state write and the telemetry event were two actions that could diverge. Here **they are the same action** — if step 0 ran, there is state *and* there is an event; if it didn't, there is neither. The class of bug where the state says one thing and `events.jsonl` another disappears.
+
+   **Remaining limit:** it isn't fully mechanical — it still depends on the command running its step 0. But that dependency already existed for the state; now there is **one** instead of two.
+
+   **Bonus:** the payload carries `cwd` on every event, so telemetry can segment by project at no extra cost.
+4. **H7** — add `mr-desc` and `retro` to `stage_index()`, or exclude them explicitly from the leak calculation with a comment.
+5. **H5** — `wf-jira.md:31-33` and `wf-commit.md` step 1: migrate to `{workflowDir}/`, with the standard step 0.
+6. **H6** — `wf.md`: move "Step 0" before "Step 1".
+7. **H3** — `wf-analyze.md` step 6 and `wf-review-plan.md:60`: downgrade the `flow-history.json` cross-reference from "raise a finding" to "if the file has entries, cross-reference it". Re-enable the gate when Phase 4 fills it.
+
+---
+
+### Phase 2 — Prose → mechanism migration
+
+The core. Implements the table in §2.
+
+1. **`scripts/wf-lib.sh`** — sourceable functions:
+   - `wf_ticket` → activeTicket, or fail with a clear message
    - `wf_dir` → `.claude/workflow/{ticketId}`
-   - `wf_base` → `base_branch` del config, con fallback detectando `develop`/`main`/`master` en el repo
-   - `wf_config <key>` → lectura tipada del config
-   - `wf_enter_stage <stage>` → escribe `stage` y appendea a `completed` en el state del ticket (H11). Vocabulario único, el de `stage_index()`
-2. **`scripts/wf-diff.sh`** — encapsula el merge-base; soporta el caso "sin commits, todo en working tree" que hoy está descrito en prosa en `wf-validate.md:48`.
-3. **`scripts/wf-checks.sh`** — corre los `checks` del config y devuelve JSON con resultados. Nuevo campo en `config.json`:
+   - `wf_base` → `base_branch` from the config, with a fallback detecting `develop`/`main`/`master` in the repo
+   - `wf_config <key>` → typed config read
+   - `wf_enter_stage <stage>` → writes `stage` and appends to `completed` in the ticket state (H11). Single vocabulary, the one from `stage_index()`
+2. **`scripts/wf-diff.sh`** — encapsulates the merge-base; supports the "no commits, everything in the working tree" case that today is described in prose at `wf-validate.md:48`.
+3. **`scripts/wf-checks.sh`** — runs the config's `checks` and returns JSON with the results. New field in `config.json`:
    ```json
    "base_branch": "develop",
    "checks": {
@@ -138,106 +138,107 @@ El núcleo. Implementa la tabla de §2.
      "test":  "npm test"
    }
    ```
-   `wf-init.md` pasa a detectarlos y generarlos (hoy detecta el linter en el Paso 2 pero solo para escribir un string de prosa en el DoD).
-4. **`hooks/wf-gate.sh`** (`PreToolUse`) — bloquea `Edit`/`Write` sobre archivos de código cuando el ticket activo está en `stage: review-plan` sin `approved: true`. Excluye `.claude/workflow/**` y `docs/**`.
-   - `wf-review-plan.md` Paso 3 escribe `approved: true` en el state del ticket cuando el usuario confirma.
-   - El hook **sí puede bloquear** — es la única excepción al principio "nunca bloquea" del hook de telemetría, y es deliberada: acá bloquear es la función, no un efecto secundario. Escape hatch: `WF_GATE=off`.
-   - **Contención del radio de explosión (obligatoria).** Los hooks se registran en `~/.claude/settings.json`, o sea que corren en *todos* los proyectos, tengan workflow o no. Requisitos no negociables:
-     1. Salida temprana (exit 0) si el repo no tiene `.claude/workflow/state.json`.
-     2. Fail-open ante cualquier error —`jq` ausente, JSON corrupto, git ausente—; el único camino que bloquea es la condición explícita evaluada con éxito.
-     3. **Una semana en modo logging-only antes de activar el bloqueo.** Registra qué *habría* bloqueado en `events.jsonl` sin impedir nada. Requisito, no sugerencia: es el primer hook del sistema capaz de frenar trabajo, y rompe deliberadamente el principio "nunca interrumpe" de `wf-telemetry.sh`.
-5. **Reescribir los 8 "Paso 0"** (13 líneas cada uno) como una línea que invoca `wf-lib.sh`, y los 4 bloques de merge-base (12 líneas) como una llamada a `wf-diff.sh`. `wf-refine` y `wf-improve` tienen variantes propias del Paso 0 y se migran aparte.
-6. **`wf-validate.md` Paso 2.5** — correr `wf-checks.sh` antes de lanzar el Agent. Si falla algo mecánico, devolver eso y no gastar el agente.
+   `wf-init.md` now detects and generates them (today it detects the linter in step 2 but only to write a prose string into the DoD).
+4. **`hooks/wf-gate.sh`** (`PreToolUse`) — blocks `Edit`/`Write` on code files when the active ticket is at `stage: review-plan` without `approved: true`. Excludes `.claude/workflow/**` and `docs/**`.
+   - `wf-review-plan.md` step 3 writes `approved: true` into the ticket state when the user confirms.
+   - The hook **is allowed to block** — it's the sole exception to the telemetry hook's "never blocks" principle, and it's deliberate: here blocking is the function, not a side effect. Escape hatch: `WF_GATE=off`.
+   - **Blast-radius containment (mandatory).** Hooks are registered in `~/.claude/settings.json`, meaning they run in *every* project, workflow or not. Non-negotiable requirements:
+     1. Early exit (exit 0) if the repo has no `.claude/workflow/state.json`.
+     2. Fail-open on any error — `jq` missing, corrupt JSON, git missing; the only blocking path is the explicit condition evaluated successfully.
+     3. **One week in logging-only mode before enabling blocking.** It records what it *would* have blocked in `events.jsonl` without preventing anything. A requirement, not a suggestion: it's the system's first hook capable of stopping work, and it deliberately breaks `wf-telemetry.sh`'s "never interrupts" principle.
+5. **Rewrite the 8 "Step 0" blocks** (13 lines each) as a single line calling `wf-lib.sh`, and the 4 merge-base blocks (12 lines) as a call to `wf-diff.sh`. `wf-refine` and `wf-improve` have their own step 0 variants and are migrated separately.
+6. **`wf-validate.md` step 2.5** — run `wf-checks.sh` before launching the Agent. If something mechanical fails, return that and don't spend the agent.
 
-**Ahorro estimado:** ~150 líneas de prosa repetida (8 × 13 + 4 × 12).
+**Estimated savings:** ~150 lines of repeated prose (8 × 13 + 4 × 12).
 
-**Resultado real: +119 / −102, neto +17 líneas.** La estimación no se cumplió. Lo que se borró de prosa repetida se consumió explicando qué hace cada script y por qué (más el `approved` del gate y los campos nuevos de `wf-init`, que son capacidad nueva, no reemplazo).
+**Actual result: +119 / −102, net +17 lines.** The estimate didn't hold. What was deleted from repeated prose was consumed explaining what each script does and why (plus the gate's `approved` and the new `wf-init` fields, which are new capability, not replacement).
 
-La conclusión importante no es el número sino qué justifica la fase: **no era el conteo de líneas.** Es que la regla pasa a existir en un solo lugar y deja de depender de que el modelo la interprete igual las 8 veces. `wf_base` es el caso claro: antes era prosa distinta en 4 archivos, uno de ellos con `develop` hardcodeado (H4); ahora es una función con fallback verificado por test. El conteo de líneas era una métrica conveniente, no la razón.
+The important conclusion isn't the number but what justifies the phase: **it wasn't the line count.** It's that the rule now exists in a single place and stops depending on the model interpreting it the same way all 8 times. `wf_base` is the clear case: it used to be different prose in 4 files, one of them with `develop` hardcoded (H4); now it's a function with a test-verified fallback. The line count was a convenient metric, not the reason.
 
-**Verificación:** `tests/test-scripts.sh` — 34 checks contra un repo git temporal, incluyendo el caso que motivó `wf-diff` (base que avanza después de crear el branch) y los seis caminos de fail-open del gate.
-
----
-
-### Fase 3 — Capacidades nuevas (opt-in, marcadas como hipótesis)
-
-> Ninguna de estas está fundamentada en datos. Son apuestas explícitas, separables del resto del plan. Si el review las rechaza, las Fases 0/1/2/4 siguen siendo válidas.
-
-1. **Validador de runtime** — nuevo ítem `7. 📱 Runtime` en el picker de `wf-validate.md` Paso 1. Para cambios de UI/navegación: levantar la app vía MCP de Metro, navegar a la pantalla afectada, leer estado y network, screenshot. Hipótesis: las races que §"orden de ejecución esperado" de `wf-analyze` intenta cubrir preguntándole al usuario se detectan mejor observando el runtime que razonando sobre el diff.
-2. ~~**Un worktree por ticket**~~ — **movido fuera de este plan.** Choca con el dashboard multi-ticket: `wf.md` Paso 2 escanea `.claude/workflow/*/state.json` para listar todos los tickets, y con un worktree por ticket cada uno ve solo su propia carpeta. No es un detalle de implementación — obliga a decidir si el estado se muda a `~/.claude/workflow/{proyecto}/`, lo que toca también las Fases 2 y 4. Requiere su propio plan.
-3. ~~**Routing de modelo por etapa**~~ — **no aplica.** El punto asumía que `wf-mr-desc`, `wf-jira` y `wf-commit` invocaban Agents a los que ponerles `model: sonnet`. No lo hacen: `grep -l "Agent tool" commands/*.md` devuelve exactamente `wf-analyze`, `wf-review-plan`, `wf-validate` y `wf-mr-review`, y esos cuatro son justamente los de juicio que conviene dejar en Opus. Los otros tres corren en el contexto principal, donde el modelo lo elige el usuario en la sesión, no el comando. No hay nada que rutear.
-4. **Delegar el review genérico** — `wf-mr-review.md` pasa a armar contexto + invocar `/code-review`, y conserva como propio solo el chequeo de contratos con `related_projects`, que ningún reviewer genérico hace.
-5. **`AGENTS.md`** — `wf-init` genera también `AGENTS.md` con stack y convenciones, además de `config.json`.
-
-**Resultado de la fase:** 1, 4 y 5 implementados. 2 movido a su propio plan. 3 descartado por no ser aplicable. De los tres implementados, solo el 4 tiene fundamento sólido (`/code-review` existe y se mantiene solo); 1 y 5 siguen siendo hipótesis con criterio de descarte declarado.
+**Verification:** `tests/test-scripts.sh` — 34 checks against a temporary git repo, including the case that motivated `wf-diff` (a base that advances after the branch was created) and the gate's six fail-open paths.
 
 ---
 
-### Fase 4 — Cerrar el loop de datos
+### Phase 3 — New capabilities (opt-in, marked as hypotheses)
 
-Implementa §11 pasos 2-4 y 6 del brainstorm, que quedaron pendientes (H9).
+> None of these is grounded in data. They are explicit bets, separable from the rest of the plan. If review rejects them, Phases 0/1/2/4 remain valid.
 
-1. ✅ **Eventos semánticos en los comandos** (§3.3). Se emiten vía `scripts/wf-event.sh`, no escribiendo JSON desde la prosa: pedirle al modelo que arme el objeto a mano es el mismo patrón regla-como-prosa que esta migración elimina, y falla en silencio — una línea mal formada rompe todas las consultas posteriores y nadie se entera hasta que las stats vuelven mal. Cubre `complexity_estimate` (`wf-analyze`), `finding` (`review-plan`, `validate`, `test`, `mr-review`), `finding_decision` (`validate`) y `ticket_closed` (`wf-retro`).
-2. ✅ **`scripts/wf-stats.sh`** — un subcomando por pregunta de §10, más `coverage` para auditar la salud del propio log. Impone dos reglas: siempre reporta el tamaño de muestra, y se niega a concluir por debajo de los 3 tickets de §0.
-3. ⏸️ **Diferido — `wf-improve`/`wf-retro` consultando stats.** `events.jsonl` está vacío (el hook se instaló el 2026-08-10 y `/wf` no emite nada por diseño). Cambiar esos comandos para que razonen sobre datos inexistentes los deja **peor** que hoy: hoy al menos analizan la sesión, que es información real. Reactivar cuando `wf-stats.sh` reporte ≥ 10 tickets con etapas registradas.
-4. ⏸️ **Diferido — gate de `flow-history.json`.** Mismo motivo: el archivo tiene 1 entrada.
+1. **Runtime validator** — new item `7. 📱 Runtime` in the `wf-validate.md` step 1 picker. For UI/navigation changes: bring the app up via the Metro MCP, navigate to the affected screen, read state and network, screenshot. Hypothesis: the races that `wf-analyze`'s §"expected execution order" tries to cover by asking the user are better caught by observing the runtime than by reasoning over the diff.
+2. ~~**One worktree per ticket**~~ — **moved out of this plan.** It collides with the multi-ticket dashboard: `wf.md` step 2 scans `.claude/workflow/*/state.json` to list every ticket, and with one worktree per ticket each one sees only its own folder. That isn't an implementation detail — it forces a decision on whether state moves to `~/.claude/workflow/{project}/`, which also touches Phases 2 and 4. It needs its own plan.
+3. ~~**Model routing per stage**~~ — **not applicable.** The point assumed `wf-mr-desc`, `wf-jira` and `wf-commit` invoked Agents that could be given `model: sonnet`. They don't: `grep -l "Agent tool" commands/*.md` returns exactly `wf-analyze`, `wf-review-plan`, `wf-validate` and `wf-mr-review`, and those four are precisely the judgment-heavy ones worth leaving on Opus. The other three run in the main context, where the model is chosen by the user in the session, not by the command. There's nothing to route.
+4. **Delegate the generic review** — `wf-mr-review.md` now assembles context + invokes `/code-review`, and keeps as its own only the contract check against `related_projects`, which no generic reviewer does.
+5. **`AGENTS.md`** — `wf-init` also generates `AGENTS.md` with stack and conventions, in addition to `config.json`.
 
-**Por qué 3 y 4 quedan afuera y no es pereza:** son los únicos dos puntos que *consumen* datos. 1 y 2 los producen y los consultan bajo demanda; activar consumidores automáticos sobre un archivo vacío produce recomendaciones con cero evidencia detrás, que es exactamente lo que §0 prohíbe.
-
-**Prerequisito:** ~~Fase 1 punto 1 (H1)~~ — **desbloqueado.** El experimento se corrió y la vía es `PreToolUse` sobre `Bash` matcheando `enter-stage (\w+)`. Ver Fase 1 punto 3.
-
-**Primer paso concreto:** `hooks/wf-telemetry.sh` pasa a registrarse también en `PreToolUse`, y deriva `stage_start` / `stage_reentry` del comando `enter-stage` en vez de parsear el prompt. El parseo de `UserPromptSubmit` queda como fallback para la invocación directa sin Paso 0.
+**Phase result:** 1, 4 and 5 implemented. 2 moved to its own plan. 3 discarded as not applicable. Of the three implemented, only 4 has a solid basis (`/code-review` exists and maintains itself); 1 and 5 remain hypotheses with a declared discard criterion.
 
 ---
 
-## 4. Orden y dependencias
+### Phase 4 — Close the data loop
+
+Implements §11 steps 2-4 and 6 of the brainstorm, which were left pending (H9).
+
+1. ✅ **Semantic events in the commands** (§3.3). They are emitted via `scripts/wf-event.sh`, not by writing JSON from prose: asking the model to assemble the object by hand is the same rule-as-prose pattern this migration removes, and it fails silently — one malformed line breaks every downstream query and nobody notices until the stats come back wrong. Covers `complexity_estimate` (`wf-analyze`), `finding` (`review-plan`, `validate`, `test`, `mr-review`), `finding_decision` (`validate`) and `ticket_closed` (`wf-retro`).
+2. ✅ **`scripts/wf-stats.sh`** — one subcommand per question in §10, plus `coverage` to audit the health of the log itself. It enforces two rules: it always reports the sample size, and it refuses to conclude below the 3 tickets of §0.
+3. ⏸️ **Deferred — `wf-improve`/`wf-retro` querying stats.** `events.jsonl` is empty (the hook was installed on 2026-08-10 and `/wf` emits nothing by design). Changing those commands to reason over nonexistent data leaves them **worse** than today: today they at least analyze the session, which is real information. Re-enable when `wf-stats.sh` reports ≥ 10 tickets with recorded stages.
+4. ⏸️ **Deferred — `flow-history.json` gate.** Same reason: the file has 1 entry.
+
+**Why 3 and 4 are left out, and it isn't laziness:** they are the only two points that *consume* data. 1 and 2 produce it and query it on demand; enabling automatic consumers over an empty file produces recommendations with zero evidence behind them, which is exactly what §0 forbids.
+
+**Prerequisite:** ~~Phase 1 point 1 (H1)~~ — **unblocked.** The experiment was run and the path is `PreToolUse` on `Bash` matching `enter-stage (\w+)`. See Phase 1 point 3.
+
+**First concrete step:** `hooks/wf-telemetry.sh` also registers on `PreToolUse`, and derives `stage_start` / `stage_reentry` from the `enter-stage` command instead of parsing the prompt. Parsing `UserPromptSubmit` remains as a fallback for direct invocation without step 0.
+
+---
+
+## 4. Order and dependencies
 
 ```
-Fase 0 (circuito de instalación)
-   └── prerequisito de todo: sin esto, los cambios se pierden
+Phase 0 (installation loop)
+   └── prerequisite for everything: without it, changes get lost
         │
-        ├── Fase 1 (correcciones)
-        │      └── H1 ── prerequisito de ── Fase 4
+        ├── Phase 1 (fixes)
+        │      └── H1 ── prerequisite for ── Phase 4
         │
-        ├── Fase 2 (prosa → mecanismo)   ← núcleo del cambio
+        ├── Phase 2 (prose → mechanism)   ← the core of the change
         │
-        └── Fase 3 (capacidades nuevas)  ← independiente, descartable
+        └── Phase 3 (new capabilities)    ← independent, discardable
 ```
 
-## 5. Qué queda explícitamente afuera
+## 5. What is explicitly out of scope
 
-| Ítem | Por qué |
+| Item | Why |
 |---|---|
-| Umbrales de complejidad (§5.4) y peso de MR (§6.4) | Provisionales por diseño; §12 los deja para 15-20 tickets |
-| Partición en subtareas (§7) | §11 paso 5: "el primero que altera cómo trabajás, y llega deliberadamente tarde" |
-| Trip wire de tamaño (§7.2) | Depende de umbrales sin calibrar |
-| Regla "no toques archivos fuera del plan" | Sería política nueva sin evidencia |
-| Worktree por ticket | Obliga a mover el estado fuera del repo para no romper el dashboard multi-ticket. Plan propio |
+| Complexity thresholds (§5.4) and MR weight (§6.4) | Provisional by design; §12 leaves them for 15-20 tickets |
+| Partitioning into subtasks (§7) | §11 step 5: "the first one that alters how you work, and it arrives deliberately late" |
+| Size trip wire (§7.2) | Depends on uncalibrated thresholds |
+| The "don't touch files outside the plan" rule | Would be new policy with no evidence |
+| Worktree per ticket | Forces moving state out of the repo so as not to break the multi-ticket dashboard. Its own plan |
 
-### TODO — pasar el repo a inglés
+### Repo language — done
 
-Convención del usuario: código, comentarios, commits y documentación en inglés; la conversación en español. El repo hoy no la cumple.
+User convention: code, comments, commits and documentation in English.
 
-| Archivo | Estado |
+**Translated on 2026-08-10** (this branch): every `.md`, `.sh` and `.json` in the repo — `README.md`, all of `docs/`, `install.sh`, `hooks/`, `scripts/`, `tests/`, `agents/` and `commands/`. `docs/architecture.md` was already in English. `docs/brainstorm-metricas-y-complejidad.md` was renamed to `docs/brainstorm-metrics-and-complexity.md`.
+
+The `commands/wf-*.md` case, previously flagged as needing its own decision: they were translated in full, including the literal blocks displayed on screen. The user chose English output over preserving the Spanish UX, on the grounds that the result is verifiable rather than dependent on a prose directive being honored.
+
+**The output language became configurable instead of hardcoded.** `wf_language` in `wf-lib.sh` reads `.language` from the project's `config.json` and defaults to `en`; `wf-lib.sh context` exposes it as `lang`, and every conversational command carries one line telling it to address the user in that language while always writing files in English. That keeps a Spanish-speaking user reachable per project without putting Spanish back into the source.
+
+**TODO — what is still in Spanish:**
+
+| Item | Why it wasn't done |
 |---|---|
-| `docs/architecture.md` | ✅ inglés |
-| `README.md` | ❌ español |
-| `docs/plan-harness-migration.md` | ❌ español |
-| `docs/brainstorm-metricas-y-complejidad.md` | ❌ español |
-| `commands/wf-*.md` | ❌ español — **caso aparte**: son el prompt que consume el modelo, no doc para humanos. Traducirlos es un diff sobre el sistema entero y merece su propia decisión |
-| Commits `ebf5973`..`1eda637` | ❌ español, ya pusheados — reescribirlos exige force-push sobre una rama publicada |
+| Commits `ebf5973`..`f9dc8ce` | Already pushed; rewriting them requires a force-push over a published branch |
 
-No se hace ahora para no mezclar traducción con cambios de comportamiento. Todo contenido **nuevo** va en inglés desde ya.
+## 6. Risks
 
-## 6. Riesgos
-
-| Riesgo | Mitigación |
+| Risk | Mitigation |
 |---|---|
-| **`wf-gate.sh` bloquea trabajo en proyectos ajenos al workflow.** Los hooks son globales (`~/.claude/settings.json`): corren en todos los repos que abras. Un bug bloquea `Edit`/`Write` en todos, no solo acá | Los tres requisitos de la Fase 2 punto 4: salida temprana sin `state.json`, fail-open ante cualquier error, y semana obligatoria de logging-only. **Este es el riesgo más alto del plan** |
-| El gate bloquea trabajo legítimo (ej. tocar código durante `review-plan` para verificar una hipótesis) | Escape hatch `WF_GATE=off`; excluir `.claude/workflow/**` y `docs/**` |
-| El gate se construye sobre `stage`, un campo hoy desactualizado (H11) y con vocabulario roto (H12) | H12 y H11 son prerequisitos explícitos, en la Fase 1, antes de escribir una línea del gate |
-| Los scripts se rompen en un proyecto sin `jq` o sin git | Mismo principio que `wf-telemetry.sh`: degradar a fallback, nunca romper. Excepto `wf-gate.sh`, donde fallar **abierto** es lo correcto — bloquear por error es peor que no bloquear |
-| Fase 2 toca los comandos a la vez → regresión difícil de aislar | Migrar comando por comando, verificando con `install.sh --check` y el smoke test entre cada uno |
-| El experimento de H1 no concluye nada (ninguno de los tres hooks captura el ruteo) | ✅ **Resuelto** — ninguno de los tres capturaba, pero apareció una cuarta vía (`PreToolUse` sobre `Bash` + `enter-stage`). Ver Fase 1 punto 3 |
-| **`exit 2` podría no bloquear nada.** Los tests solo prueban que el script devuelve 2, no que el harness lo honre. Si no lo honra, el gate es decorativo | ✅ **Verificado end-to-end (2026-08-10)** — con un ticket en `review-plan` sin aprobar, un `Write` a un path no excluido fue rechazado por el harness, con el stderr del hook como error del tool. El gate bloquea de verdad |
-| **La Fase 4 no tiene datos sobre los que reportar.** Al 2026-08-10 `events.jsonl` está vacío: el hook se instaló ese mismo día y `/wf` no emite nada por diseño | Se puede construir `wf-stats.sh` igual, pero hay que asumir que no dice nada útil hasta acumular etapas reales. Conectar `wf-retro`/`wf-improve` a los datos recién tiene sentido después de eso |
+| **`wf-gate.sh` blocks work in projects unrelated to the workflow.** Hooks are global (`~/.claude/settings.json`): they run in every repo you open. A bug blocks `Edit`/`Write` in all of them, not just here | The three requirements of Phase 2 point 4: early exit without `state.json`, fail-open on any error, and a mandatory logging-only week. **This is the highest risk in the plan** |
+| The gate blocks legitimate work (e.g. touching code during `review-plan` to verify a hypothesis) | Escape hatch `WF_GATE=off`; exclude `.claude/workflow/**` and `docs/**` |
+| The gate is built on `stage`, a field that is stale today (H11) and has broken vocabulary (H12) | H12 and H11 are explicit prerequisites, in Phase 1, before writing a line of the gate |
+| The scripts break in a project without `jq` or without git | Same principle as `wf-telemetry.sh`: degrade to a fallback, never break. Except `wf-gate.sh`, where failing **open** is the right call — blocking by mistake is worse than not blocking |
+| Phase 2 touches the commands all at once → regression hard to isolate | Migrate command by command, verifying with `install.sh --check` and the smoke test between each one |
+| The H1 experiment concludes nothing (none of the three hooks captures the routing) | ✅ **Resolved** — none of the three captured it, but a fourth path appeared (`PreToolUse` on `Bash` + `enter-stage`). See Phase 1 point 3 |
+| **`exit 2` might not block anything.** The tests only prove the script returns 2, not that the harness honors it. If it doesn't, the gate is decorative | ✅ **Verified end-to-end (2026-08-10)** — with a ticket in `review-plan` and unapproved, a `Write` to a non-excluded path was rejected by the harness, with the hook's stderr as the tool error. The gate really does block |
+| **Phase 4 has no data to report on.** As of 2026-08-10 `events.jsonl` is empty: the hook was installed that same day and `/wf` emits nothing by design | `wf-stats.sh` can be built anyway, but you have to assume it says nothing useful until real stages accumulate. Wiring `wf-retro`/`wf-improve` to the data only makes sense after that |

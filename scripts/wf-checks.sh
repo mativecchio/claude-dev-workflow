@@ -1,29 +1,29 @@
 #!/bin/bash
 #
-# wf-checks — corre los gates determinísticos del proyecto.
+# wf-checks — runs the project's deterministic gates.
 #
-# El DoD vivía como una lista de strings en prosa que un agente evaluaba con
-# criterio ("¿el linter pasa?", "¿hay console.log?"). Eso lo contesta un
-# comando en segundos, sin falsos positivos y sin gastar un agente.
+# The DoD used to live as a list of prose strings that an agent evaluated by
+# judgment ("does the linter pass?", "is there a console.log?"). A command
+# answers that in seconds, with no false positives and without spending an agent.
 #
-# Config del proyecto (.claude/workflow/config.json):
+# Project config (.claude/workflow/config.json):
 #   "checks": { "lint": "npm run lint", "types": "tsc --noEmit", "test": "npm test" }
 #
-# Uso:
-#   wf-checks.sh            corre todos, salida legible
-#   wf-checks.sh --json     salida JSON para que la consuma un comando
-#   wf-checks.sh lint       corre uno solo
+# Usage:
+#   wf-checks.sh            run them all, human-readable output
+#   wf-checks.sh --json     JSON output for a command to consume
+#   wf-checks.sh lint       run a single one
 #
-# Exit: 0 si todos pasan, 1 si alguno falla, 2 si no hay checks configurados.
+# Exit: 0 if all pass, 1 if any fails, 2 if no checks are configured.
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 [ -f "$DIR/wf-lib.sh" ] && . "$DIR/wf-lib.sh"
 
-command -v jq >/dev/null 2>&1 || { echo "wf-checks: hace falta jq" >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "wf-checks: jq is required" >&2; exit 2; }
 
 CONFIG="$(wf_workflow_root)/config.json"
-[ -f "$CONFIG" ] || { echo "wf-checks: no hay config en $CONFIG" >&2; exit 2; }
+[ -f "$CONFIG" ] || { echo "wf-checks: no config at $CONFIG" >&2; exit 2; }
 
 JSON=0; ONLY=""
 case "${1:-}" in
@@ -37,17 +37,17 @@ if [ -z "$NAMES" ]; then
   if [ "$JSON" -eq 1 ]; then
     echo '{"configured":false,"results":[],"passed":null}'
   else
-    echo "⚠️  Este proyecto no tiene checks configurados."
-    echo "   Agregarlos en $CONFIG:"
+    echo "⚠️  This project has no checks configured."
+    echo "   Add them in $CONFIG:"
     echo '     "checks": { "lint": "...", "types": "...", "test": "..." }'
-    echo "   Sin esto, la validación depende del criterio de un agente para"
-    echo "   cosas que un comando responde de forma exacta."
+    echo "   Without this, validation depends on an agent's judgment for"
+    echo "   things a command answers exactly."
   fi
   exit 2
 fi
 
 RESULTS="[]"; FAILED=0
-[ "$JSON" -eq 1 ] || echo "🔍 Checks determinísticos"
+[ "$JSON" -eq 1 ] || echo "🔍 Deterministic checks"
 
 for name in $NAMES; do
   [ -n "$ONLY" ] && [ "$ONLY" != "$name" ] && continue
@@ -57,8 +57,8 @@ for name in $NAMES; do
   out="$(eval "$cmd" 2>&1)"; rc=$?
   [ "$rc" -ne 0 ] && FAILED=1
 
-  # Solo la cola del output: un fallo de tests puede tirar miles de líneas y
-  # el consumidor de esto es un prompt.
+  # Only the tail of the output: a test failure can dump thousands of lines and
+  # the consumer of this is a prompt.
   tail_out="$(printf '%s' "$out" | tail -30)"
   RESULTS="$(jq -c --arg n "$name" --arg c "$cmd" --argjson rc "$rc" --arg o "$tail_out" \
     '. + [{name:$n, command:$c, exit_code:$rc, passed:($rc == 0), output:$o}]' <<< "$RESULTS")"
@@ -78,7 +78,7 @@ if [ "$JSON" -eq 1 ]; then
     '{configured:true, results:$r, passed:($f == 0)}'
 else
   echo ""
-  [ "$FAILED" -eq 0 ] && echo "✅ Todos los checks pasan" || echo "❌ Hay checks fallando — corregir antes de la validación semántica"
+  [ "$FAILED" -eq 0 ] && echo "✅ All checks pass" || echo "❌ Some checks are failing — fix them before semantic validation"
 fi
 
 exit "$FAILED"

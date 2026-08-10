@@ -1,20 +1,22 @@
 ---
-description: "Revisión completa de MR/PR. Corre en contexto aislado via Agent tool. Soporta git local como fuente del diff. Output estructurado: críticos, importantes, sugerencias."
+description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Supports local git as the diff source. Structured output: critical, important, suggestions."
 allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 ---
 
-Tu rol es preparar el contexto y lanzar una revisión completa del MR en un agente con contexto limpio.
+Your role is to prepare the context and launch a full MR review in an agent with a clean context.
 
-## Paso 0 — Contexto del ticket
+## Step 0 — Ticket context
 
 ```bash
 ~/.claude/scripts/wf-lib.sh context
 ~/.claude/scripts/wf-lib.sh enter-stage mr-review
 ```
 
-Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-## Paso 1 — Obtener el diff
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — the review, plan.md, code — is always in English.
+
+## Step 1 — Get the diff
 
 ```bash
 ~/.claude/scripts/wf-diff.sh --log
@@ -22,136 +24,136 @@ Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json`
 ~/.claude/scripts/wf-diff.sh
 ```
 
-Si `$ARGUMENTS` trae un branch específico, agregar `--branch [rama]` a cada llamada.
+If `$ARGUMENTS` carries a specific branch, add `--branch [branch]` to each call.
 
-El script resuelve el merge-base contra la rama base del proyecto. Esto importa: `[base]..HEAD` se rompe si la base avanzó por un pull o fast-forward después de crear el feature branch, y termina mostrando cambios de terceros como si fueran del MR.
+The script resolves the merge-base against the project's base branch. This matters: `[base]..HEAD` breaks if the base advanced through a pull or fast-forward after the feature branch was created, and ends up showing other people's changes as if they belonged to the MR.
 
-Si el diff es muy grande (>500 líneas), mostrar el `--stat` al usuario y preguntar si quiere continuar o acotar el scope. Para dimensionarlo bien:
+If the diff is very large (>500 lines), show the `--stat` to the user and ask whether to continue or narrow the scope. To size it properly:
 ```bash
 ~/.claude/scripts/wf-diff.sh --weight
 ```
-`weight_prod` es lo que importa — `weight_tests` va aparte, porque un MR de 300 líneas donde 220 son tests no es un MR grande, es uno bien cubierto.
+`weight_prod` is what matters — `weight_tests` is kept separate, because a 300-line MR where 220 are tests isn't a big MR, it's a well-covered one.
 
-## Paso 2 — Recopilar contexto
+## Step 2 — Gather context
 
-Leer:
-- `{workflowDir}/plan.md` → contexto de lo que se implementó
-- `{workflowDir}/refinement-summary.md` → criterios de aceptación
-- `CLAUDE.md` o `README.md` → stack y convenciones
-- `.claude/workflow/config.json` → stack del proyecto
+Read:
+- `{workflowDir}/plan.md` → context of what was implemented
+- `{workflowDir}/refinement-summary.md` → acceptance criteria
+- `CLAUDE.md` or `README.md` → stack and conventions
+- `.claude/workflow/config.json` → the project's stack
 
-## Paso 2.5 — Delegar el review genérico
+## Step 2.5 — Delegate the generic review
 
-Antes de lanzar el Agent propio, correr el reviewer del harness:
+Before launching our own Agent, run the harness's reviewer:
 
 ```
 /code-review high
 ```
 
-Cubre bugs de correctitud, simplificación, reuso y eficiencia sobre el diff — y lo hace mejor que una instrucción nuestra, porque se mantiene solo. Para un MR con foco en seguridad, `/security-review` en vez de o además.
+It covers correctness bugs, simplification, reuse and efficiency over the diff — and it does it better than an instruction of ours, because it maintains itself. For an MR focused on security, `/security-review` instead of or in addition.
 
-**Qué queda para el Agent del Paso 3**, y es lo que ningún reviewer genérico puede hacer:
-- Contraste contra el `plan.md` y los criterios de aceptación del ticket: ¿el MR hace lo que se acordó, y solo eso?
-- Contratos con `related_projects`: verificar contra el código fuente real del otro repo, no asumirlo.
-- Convenciones específicas del proyecto (feature hermana, helpers existentes).
-- Deuda técnica registrada y desvíos del plan.
+**What's left for the Step 3 Agent**, and it's what no generic reviewer can do:
+- Contrast against the ticket's `plan.md` and acceptance criteria: does the MR do what was agreed, and only that?
+- Contracts with `related_projects`: verify against the other repo's real source code, don't assume it.
+- Project-specific conventions (sister feature, existing helpers).
+- Recorded tech debt and deviations from the plan.
 
-Si `/code-review` ya reportó un hallazgo, **no repetirlo** en el output del Paso 3. Referenciarlo y seguir.
+If `/code-review` already reported a finding, **don't repeat it** in Step 3's output. Reference it and move on.
 
-Si el comando no está disponible en este entorno, seguir al Paso 3 con el alcance completo (la sección "Revisión línea por línea" del prompt) y anotarlo en el output.
+If the command isn't available in this environment, continue to Step 3 with the full scope (the prompt's "Line-by-line review" section) and note it in the output.
 
-## Paso 3 — Lanzar el Agent de revisión
+## Step 3 — Launch the review Agent
 
-Usar el **Agent tool** con el siguiente prompt:
+Use the **Agent tool** with the following prompt:
 
 ---
-**PROMPT DEL AGENT:**
+**AGENT PROMPT:**
 
-Sos un senior engineer haciendo code review de un MR. Tu objetivo es encontrar problemas reales — no dar feedback genérico.
+You are a senior engineer doing a code review of an MR. Your goal is to find real problems — not to give generic feedback.
 
-**Contexto del MR:**
-[contenido de refinement-summary.md y plan.md]
+**MR context:**
+[contents of refinement-summary.md and plan.md]
 
-**Stack:** [stack del config]
-**Convenciones del proyecto:** [resumen de CLAUDE.md]
+**Stack:** [stack from the config]
+**Project conventions:** [summary of CLAUDE.md]
 
-**Diff completo:**
+**Full diff:**
 [diff]
 
-## Tu proceso de revisión
+## Your review process
 
-### 1. Contexto primero (antes de revisar línea por línea)
-- ¿Qué resuelve este MR?
-- ¿La solución elegida tiene sentido arquitectónicamente?
-- ¿Hay efectos secundarios no contemplados?
+### 1. Context first (before reviewing line by line)
+- What does this MR solve?
+- Does the chosen solution make sense architecturally?
+- Are there unaccounted-for side effects?
 
-### 2. Revisión línea por línea
-**Si el Paso 2.5 corrió `/code-review`, saltear los bullets 1-3:** ya los cubrió, y repetirlos produce output duplicado que el autor del MR tiene que descartar a mano.
+### 2. Line-by-line review
+**If Step 2.5 ran `/code-review`, skip bullets 1-3:** it already covered them, and repeating them produces duplicate output the MR author has to discard by hand.
 
-Evaluar en orden de importancia:
-- Bugs y lógica incorrecta *(cubierto por `/code-review`)*
-- Seguridad — inputs, auth, datos expuestos *(cubierto por `/code-review`)*
-- Performance — N+1, re-renders, operaciones costosas *(cubierto por `/code-review`)*
-- **Tests: gaps de cobertura contra los casos borde del refinement** — no genérico, sino contra los casos que el ticket identificó
-- **Contratos modificados y sus consumidores**, incluidos los de otros repos
+Evaluate in order of importance:
+- Bugs and incorrect logic *(covered by `/code-review`)*
+- Security — inputs, auth, exposed data *(covered by `/code-review`)*
+- Performance — N+1, re-renders, expensive operations *(covered by `/code-review`)*
+- **Tests: coverage gaps against the refinement's edge cases** — not generic, but against the cases the ticket identified
+- **Modified contracts and their consumers**, including those in other repos
 
-### 3. Efectos secundarios
-- ¿Hay contratos (API, tipos, eventos) que se modifican y tienen consumidores?
-- ¿Hay migraciones que pueden afectar datos existentes?
-- ¿El diff toca un estado/storage/contrato compartido con algún `related_project` (config.json)? Si sí: ¿el plan/diff documenta qué se verificó contra el código fuente real de ese proyecto (grep/read de su `path` local), o es una asunción sin confirmar? Un diff correcto en la lógica de *este* repo puede seguir estando roto si el otro lado del contrato (sistema externo) hace algo distinto a lo asumido — no se puede aprobar ese punto solo mirando este diff.
+### 3. Side effects
+- Are there contracts (API, types, events) being modified that have consumers?
+- Are there migrations that could affect existing data?
+- Does the diff touch state/storage/a contract shared with some `related_project` (config.json)? If so: does the plan/diff document what was verified against that project's real source code (grep/read of its local `path`), or is it an unconfirmed assumption? A diff that's correct in *this* repo's logic can still be broken if the other side of the contract (an external system) does something different from what was assumed — that point can't be approved by looking at this diff alone.
 
-## Output requerido
+## Required output
 
 ```markdown
-## Code Review — [nombre del MR]
+## Code review — [MR name]
 
-### 📋 Resumen ejecutivo
-[1-2 líneas: qué hace el MR y veredicto general]
+### 📋 Executive summary
+[1-2 lines: what the MR does and the overall verdict]
 
-### 🔴 Críticos (bloqueantes)
-- **[archivo:línea]** — [problema] → [corrección requerida]
+### 🔴 Critical (blocking)
+- **[file:line]** — [problem] → [required correction]
 
-### 🟠 Importantes
-- **[archivo:línea]** — [problema] → [sugerencia]
+### 🟠 Important
+- **[file:line]** — [problem] → [suggestion]
 
-### 💡 Sugerencias
-- **[archivo:línea]** — [mejora opcional]
+### 💡 Suggestions
+- **[file:line]** — [optional improvement]
 
-### 🔗 Efectos secundarios
-- [contratos modificados y consumidores afectados]
-- [si aplica: riesgo no verificable contra un related_project — qué se asumió sin confirmar contra su código fuente real]
+### 🔗 Side effects
+- [modified contracts and affected consumers]
+- [if applicable: risk not verifiable against a related_project — what was assumed without confirming against its real source code]
 
-### ❓ Preguntas al autor
-- [pregunta 1]
+### ❓ Questions for the author
+- [question 1]
 
-### ✅ Lista de acciones priorizada
-1. [acción crítica 1]
-2. [acción importante 1]
+### ✅ Prioritized action list
+1. [critical action 1]
+2. [important action 1]
 ```
 
 ---
 
-## Paso 4 — Mostrar el review
+## Step 4 — Show the review
 
-Leer el output del agente y presentarlo al usuario.
+Read the agent's output and present it to the user.
 
-Si hay 🔴 Críticos, preguntar: **"¿Querés que aborde alguno de estos items ahora con `/wf-implement`?"**
+If there are 🔴 Critical findings, ask: **"Do you want me to tackle any of these items now with `/wf-implement`?"**
 
-## Paso 5 — Registrar findings y peso del MR
+## Step 5 — Record findings and the MR's weight
 
 ```bash
-# uno por cada 🔴 y 🟠
+# one per 🔴 and 🟠
 ~/.claude/scripts/wf-event.sh finding \
   --category [slug] --severity [high|medium] \
   --stage_origin [refine|analyze|implement] --stage_detected mr-review \
-  --detected_by [gate|user] --summary "[una línea]"
+  --detected_by [gate|user] --summary "[one line]"
 
-# el peso, tomado de wf-diff.sh --weight (Paso 1)
+# the weight, taken from wf-diff.sh --weight (Step 1)
 ~/.claude/scripts/wf-event.sh mr_opened \
   --weight_prod [N] --weight_tests [N] \
-  --branch "[rama]" --target "[rama base]"
+  --branch "[branch]" --target "[base branch]"
 ```
 
-Los findings de esta etapa son los que más pesan en la métrica de fuga: un defecto que llegó hasta el MR atravesó `review-plan`, `validate` y `test` sin que ninguno lo atrapara. `stage_origin` es lo que dice cuál de esos tres gates hay que mirar.
+This stage's findings weigh the most in the leak metric: a defect that made it all the way to the MR passed through `review-plan`, `validate` and `test` without any of them catching it. `stage_origin` is what says which of those three gates to look at.
 
-Marcar `detected_by gate` sólo lo que encontró el review (propio o `/code-review`). Lo que viste vos leyendo el diff va como `user` — es exactamente la señal de que los gates se están quedando cortos.
+Mark `detected_by gate` only for what the review found (ours or `/code-review`'s). What you spotted yourself reading the diff goes as `user` — that's exactly the signal that the gates are falling short.

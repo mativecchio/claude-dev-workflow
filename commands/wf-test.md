@@ -1,125 +1,127 @@
 ---
-description: "Escribe tests faltantes, evalúa cobertura y prepara el checklist pre-MR."
+description: "Writes missing tests, assesses coverage and prepares the pre-MR checklist."
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep, TodoWrite
 ---
 
-Tu rol es revisar los tests existentes, identificar gaps y escribir los que falten. Al final, checklist pre-MR.
+Your role is to review the existing tests, identify gaps and write the missing ones. At the end, the pre-MR checklist.
 
-## Paso 0 — Contexto del ticket
+## Step 0 — Ticket context
 
 ```bash
 ~/.claude/scripts/wf-lib.sh context
 ~/.claude/scripts/wf-lib.sh enter-stage test
 ```
 
-Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-## Paso 1 — Revisar tests existentes
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — tests, code, comments — is always in English.
 
-Leer `{workflowDir}/plan.md` para saber qué archivos se modificaron.
+## Step 1 — Review the existing tests
 
-Para cada módulo modificado:
-- Buscar el archivo de test correspondiente
-- Leer los tests existentes para entender el patrón del proyecto
+Read `{workflowDir}/plan.md` to know which files were modified.
 
-## Paso 2 — Gap analysis
+For each modified module:
+- Find the corresponding test file
+- Read the existing tests to understand the project's pattern
 
-Identificar qué falta cubrir:
+## Step 2 — Gap analysis
 
-**Happy paths:** ¿el flujo principal está testeado?
-**Error cases:** ¿los errores críticos tienen test?
-**Edge cases:** ¿casos borde identificados en el refinement están cubiertos?
+Identify what's missing:
 
-Mostrar el gap analysis al usuario antes de empezar a escribir:
+**Happy paths:** is the main flow tested?
+**Error cases:** do the critical errors have a test?
+**Edge cases:** are the edge cases identified in refinement covered?
+
+Show the gap analysis to the user before starting to write:
 ```
 📊 Gap analysis:
-✅ Cubierto: [lista]
-❌ Faltante: [lista]
+✅ Covered: [list]
+❌ Missing: [list]
 ```
 
-Preguntar: "¿Arrancamos a escribir los tests faltantes?"
+Ask: "Shall we start writing the missing tests?"
 
-## Paso 3 — Escribir los tests
+## Step 3 — Write the tests
 
-**Principios:**
-- Leer los tests existentes del proyecto antes de escribir (seguir el mismo patrón)
-- Tests sociables: no mockear componentes hijos, solo servicios externos y APIs
-- Usar las utilidades de test del proyecto (factories, helpers, fixtures existentes)
-- Un test por comportamiento, no por función
+**Principles:**
+- Read the project's existing tests before writing (follow the same pattern)
+- Sociable tests: don't mock child components, only external services and APIs
+- Use the project's test utilities (existing factories, helpers, fixtures)
+- One test per behavior, not per function
 
-**Orden:**
-1. Happy path del flujo principal
-2. Casos de error críticos
-3. Edge cases del refinement
+**Order:**
+1. Happy path of the main flow
+2. Critical error cases
+3. Edge cases from refinement
 
-## Paso 4 — E2E (evaluación opcional)
+## Step 4 — E2E (optional assessment)
 
-Al terminar los unit/integration tests, evaluar si aplica cobertura E2E:
+Once the unit/integration tests are done, assess whether E2E coverage applies:
 
-**Aplica E2E cuando:**
-- Es un flujo crítico de negocio (login, checkout, reserva)
-- Es un flujo multi-pantalla encadenado
-- Es una regresión que ya ocurrió en producción
+**E2E applies when:**
+- It's a business-critical flow (login, checkout, booking)
+- It's a chained multi-screen flow
+- It's a regression that already happened in production
 
-**No aplica E2E cuando:**
-- Son cambios visuales menores
-- Es lógica interna sin flujo de usuario
-- El flujo ya está cubierto con E2E existentes
+**E2E doesn't apply when:**
+- They're minor visual changes
+- It's internal logic with no user flow
+- The flow is already covered by existing E2E
 
-Informar la evaluación al usuario y preguntar si quiere que se escriban los E2E si aplica.
+Report the assessment to the user and ask whether they want the E2E written if it applies.
 
-## Paso 5 — Correr los tests
+## Step 5 — Run the tests
 
-Durante la escritura, correr solo lo que estás tocando (adaptar al stack: `npm test -- --testPathPattern=X`, `pytest tests/X -v`, `php artisan test --filter=X`).
+While writing, run only what you're touching (adapt to the stack: `npm test -- --testPathPattern=X`, `pytest tests/X -v`, `php artisan test --filter=X`).
 
-Al terminar, la corrida completa sale del config del proyecto:
+When finished, the full run comes from the project's config:
 
 ```bash
 ~/.claude/scripts/wf-checks.sh
 ```
 
-Si algún test falla, diagnosticar y corregir antes de continuar. Este es el mismo gate que corre `/wf-validate`: si pasa acá, no vuelve a ser un problema allá.
+If any test fails, diagnose and fix it before continuing. This is the same gate `/wf-validate` runs: if it passes here, it won't be a problem there.
 
-## Paso 6 — Checklist pre-MR
+## Step 6 — Pre-MR checklist
 
 ```
-✅ Checklist pre-MR:
+✅ Pre-MR checklist:
 
-DoD del proyecto:
-[ítems del dod_checklist del config.json]
+Project DoD:
+[items from dod_checklist in config.json]
 
 Tests:
-- [ ] Unit/integration tests escritos y pasando
-- [ ] E2E evaluado ([aplica/no aplica] — [razón])
-- [ ] Sin tests en skip/xdescribe sin justificación
+- [ ] Unit/integration tests written and passing
+- [ ] E2E assessed ([applies/doesn't apply] — [reason])
+- [ ] No tests in skip/xdescribe without justification
 
-Código:
-- [ ] Sin console.log / print / dd() de debug
-- [ ] Linter pasa sin errores
-- [ ] Build pasa sin errores
+Code:
+- [ ] No debug console.log / print / dd()
+- [ ] Linter passes with no errors
+- [ ] Build passes with no errors
 
-Otros:
-- [ ] Deuda técnica registrada en plan.md
-- [ ] Breaking changes documentados
+Other:
+- [ ] Tech debt recorded in plan.md
+- [ ] Breaking changes documented
 ```
 
-Si el ticket toca un estado/storage/contrato compartido con algún `related_project` (config.json) — revisar `plan.md`/`review-findings.md`/`validation-*.md` para confirmarlo — agregar al checklist:
+If the ticket touches state/storage/a contract shared with some `related_project` (config.json) — check `plan.md`/`review-findings.md`/`validation-*.md` to confirm it — add to the checklist:
 ```
-- [ ] Validado manualmente en browser/entorno real contra el sistema externo real ([related_project]), no solo tests unitarios/mocks
+- [ ] Manually validated in a browser/real environment against the real external system ([related_project]), not just unit tests/mocks
 ```
-Esto no lo puede tildar el propio agente: es un gate que requiere confirmación explícita del usuario, porque ningún test in-repo ni revisión de diff puede verificar el comportamiento real de un sistema fuera de este repo.
+The agent cannot tick this one itself: it's a gate requiring explicit confirmation from the user, because no in-repo test or diff review can verify the real behavior of a system outside this repo.
 
-## Paso 7 — Registrar los gaps encontrados
+## Step 7 — Record the gaps found
 
-Por cada hueco que el análisis de cobertura destapó y que **no era** un test faltante trivial — un caso borde sin cubrir, un comportamiento que el plan no contemplaba:
+For each gap the coverage analysis exposed that was **not** a trivial missing test — an uncovered edge case, a behavior the plan didn't account for:
 
 ```bash
 ~/.claude/scripts/wf-event.sh finding \
   --category [slug] --severity [high|medium] \
   --stage_origin [refine|analyze|implement] --stage_detected test \
-  --detected_by gate --summary "[una línea]"
+  --detected_by gate --summary "[one line]"
 ```
 
-Un caso borde que aparece recién acá casi siempre se originó en `refine` (nadie lo pidió) o en `analyze` (el plan no lo contempló). Atribuirlo a `implement` porque es donde se ve el síntoma es el error que vuelve inútil la métrica de origen.
+An edge case that only shows up here almost always originated in `refine` (nobody asked for it) or in `analyze` (the plan didn't account for it). Attributing it to `implement` because that's where the symptom appears is the mistake that makes the origin metric useless.
 
-Al terminar, sugerir: "Siguiente: `/wf-mr-desc` para la descripción del MR y `/wf-mr-review` para la revisión final."
+When done, suggest: "Next: `/wf-mr-desc` for the MR description and `/wf-mr-review` for the final review."

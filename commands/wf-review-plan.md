@@ -1,11 +1,11 @@
 ---
-description: "Verifica el plan de implementación contra el codebase real. Corre en contexto aislado. BLOQUEA hasta aprobación explícita del usuario antes de pasar a implementación."
+description: "Verifies the implementation plan against the real codebase. Runs in an isolated context. BLOCKS until explicit user approval before moving to implementation."
 allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 ---
 
-Tu rol es verificar que el plan sea correcto y completo antes de tocar código. Este es el checkpoint más importante del sistema.
+Your role is to verify that the plan is correct and complete before touching code. This is the most important checkpoint in the system.
 
-## Paso 0 — Contexto del ticket
+## Step 0 — Ticket context
 
 ```bash
 ~/.claude/scripts/wf-lib.sh context
@@ -13,133 +13,135 @@ Tu rol es verificar que el plan sea correcto y completo antes de tocar código. 
 ~/.claude/scripts/wf-lib.sh set-state approved false
 ```
 
-`approved` arranca siempre en falso: la aprobación de esta etapa es explícita y se escribe recién en el Paso 4.
+`approved` always starts false: approval of this stage is explicit and is only written in Step 4.
 
-**Este campo no es decorativo.** El hook `wf-gate.sh` lo lee en cada `Edit`/`Write`: mientras el ticket esté en `review-plan` sin aprobar, el gate registra el intento (modo `observe`) o lo bloquea (modo `enforce`). El checkpoint de este comando dejó de ser solo una instrucción.
+**This field is not decorative.** The `wf-gate.sh` hook reads it on every `Edit`/`Write`: while the ticket is in `review-plan` unapproved, the gate records the attempt (`observe` mode) or blocks it (`enforce` mode). This command's checkpoint stopped being just an instruction.
 
-Si `context` falla, preguntar el ticket y escribir `.claude/workflow/state.json` antes de reintentar.
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-## Paso 1 — Verificar que existe el plan
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — review-findings.md, plan.md, code — is always in English.
 
-Leer `{workflowDir}/plan.md`. Si no existe, decirle al usuario que primero corra `/wf-analyze`.
+## Step 1 — Verify the plan exists
 
-También leer:
-- `{workflowDir}/refinement-summary.md` → criterios de aceptación y DoD
-- `.claude/workflow/config.json` → stack y contexto del proyecto
+Read `{workflowDir}/plan.md`. If it doesn't exist, tell the user to run `/wf-analyze` first.
 
-## Paso 2 — Lanzar el Agent de verificación
+Also read:
+- `{workflowDir}/refinement-summary.md` → acceptance criteria and DoD
+- `.claude/workflow/config.json` → stack and project context
 
-Usar el **Agent tool** con el siguiente prompt:
+## Step 2 — Launch the verification Agent
+
+Use the **Agent tool** with the following prompt:
 
 ---
-**PROMPT DEL AGENT:**
+**AGENT PROMPT:**
 
-Sos un senior engineer revisando un plan de implementación antes de que empiece el desarrollo. Tu trabajo es encontrar problemas, no validar lo que ya está bien.
+You are a senior engineer reviewing an implementation plan before development starts. Your job is to find problems, not to validate what's already fine.
 
-**Plan a revisar:**
-[contenido completo de plan.md]
+**Plan to review:**
+[full contents of plan.md]
 
-**Criterios de aceptación originales:**
-[contenido de refinement-summary.md]
+**Original acceptance criteria:**
+[contents of refinement-summary.md]
 
-**Stack:** [stack del config]
+**Stack:** [stack from the config]
 
-## Qué verificar
+## What to verify
 
-### Consistencia con el codebase
-- ¿Los archivos mencionados existen?
-- ¿Los patrones propuestos son consistentes con cómo el proyecto lo hace hoy?
-- ¿Hay helpers o utilities existentes que el plan ignora y debería usar?
+### Consistency with the codebase
+- Do the mentioned files exist?
+- Are the proposed patterns consistent with how the project does it today?
+- Are there existing helpers or utilities the plan ignores and should use?
 
-### Completitud
-- ¿Todos los criterios de aceptación están cubiertos por algún cambio del plan?
-- ¿Falta algún archivo que claramente va a necesitar cambios?
-- ¿La infraestructura está completa (env vars, migraciones, etc.)?
+### Completeness
+- Is every acceptance criterion covered by some change in the plan?
+- Is any file that will clearly need changes missing?
+- Is the infrastructure complete (env vars, migrations, etc.)?
 
-### Retrocompatibilidad
-- ¿Los contratos que se modifican tienen consumidores que se rompen?
-- ¿El orden de implementación es correcto o genera dependencias circulares?
+### Backward compatibility
+- Do the contracts being modified have consumers that would break?
+- Is the implementation order correct, or does it create circular dependencies?
 
-### Contratos con proyectos relacionados
-- Si el plan toca un estado/storage/contrato compartido con algún `related_project` (config.json), ¿el plan documenta qué se verificó contra el código fuente real de ese proyecto (archivo:línea), o asume el comportamiento sin haberlo revisado?
-- Si el `related_project` tiene `path` local y el plan lo trata como "no se puede confirmar, es externo" sin haber grepeado ese path, marcarlo como hallazgo — el path existe y es verificable, no es una caja negra real.
-- ¿El plan cruzó `~/.claude/workflow/flow-history.json` buscando bugs previos en el mismo punto de integración? **Este chequeo solo aplica si el archivo tiene `entries` con contenido.** Si el array está vacío —su estado por defecto hasta que la Fase 4 lo pueble— no es un hallazgo: no hay historial que ignorar. Marcar como hallazgo únicamente cuando existe una entry con el mismo `related_project` en `key_findings`/`anomalies` y el plan no la menciona.
+### Contracts with related projects
+- If the plan touches state/storage/a contract shared with some `related_project` (config.json), does the plan document what was verified against that project's real source code (file:line), or does it assume the behavior without having reviewed it?
+- If the `related_project` has a local `path` and the plan treats it as "can't be confirmed, it's external" without having grepped that path, flag it as a finding — the path exists and is verifiable, it isn't a real black box.
+- Did the plan cross-reference `~/.claude/workflow/flow-history.json` looking for previous bugs at the same integration point? **This check only applies if the file has non-empty `entries`.** If the array is empty — its default state until Phase 4 populates it — it isn't a finding: there's no history to ignore. Flag it only when an entry exists with the same `related_project` in `key_findings`/`anomalies` and the plan doesn't mention it.
 
-## Clasificar hallazgos
+## Classify findings
 
-**🔴 Bloqueante** — el plan va a fallar o romper algo si se ejecuta así  
-**🟠 Importante** — puede generar problemas o retrabajo, hay que ajustar  
-**💡 Sugerencia** — mejora opcional, no bloquea  
+**🔴 Blocking** — the plan will fail or break something if executed as-is  
+**🟠 Important** — may cause problems or rework, needs adjustment  
+**💡 Suggestion** — optional improvement, non-blocking  
 
-## Output requerido
+## Required output
 
-Escribir en `{workflowDir}/review-findings.md`:
+Write to `{workflowDir}/review-findings.md`:
 
 ```markdown
-# Review del Plan — [nombre de la tarea]
+# Plan review — [task name]
 
-## 🔴 Bloqueantes
-[si ninguno: "Ninguno"]
+## 🔴 Blocking
+[if none: "None"]
 
-## 🟠 Importantes
-[si ninguno: "Ninguno"]
+## 🟠 Important
+[if none: "None"]
 
-## 💡 Sugerencias
-[si ninguno: "Ninguno"]
+## 💡 Suggestions
+[if none: "None"]
 
-## Veredicto
-[APROBADO / APROBADO CON AJUSTES / BLOQUEADO]
+## Verdict
+[APPROVED / APPROVED WITH ADJUSTMENTS / BLOCKED]
 
-## Ajustes requeridos al plan
-[lista de cambios a hacer antes de implementar, o "Ninguno"]
+## Required adjustments to the plan
+[list of changes to make before implementing, or "None"]
 ```
 
-Cuando termines, decir: "Review escrito en {workflowDir}/review-findings.md"
+When you're done, say: "Review written to {workflowDir}/review-findings.md"
 
 ---
 
-## Paso 3 — CHECKPOINT DURO
+## Step 3 — HARD CHECKPOINT
 
-Leer `{workflowDir}/review-findings.md` y mostrar el resultado al usuario.
+Read `{workflowDir}/review-findings.md` and show the result to the user.
 
-**Este es el checkpoint más importante del sistema. NUNCA pasar a implementación sin respuesta explícita.**
+**This is the most important checkpoint in the system. NEVER move to implementation without an explicit answer.**
 
-Mostrar el veredicto y preguntar:
-**"¿Procedemos a implementar? Respondé 'sí' para continuar o indicá qué hay que ajustar."**
+Show the verdict and ask:
+**"Shall we proceed to implement? Answer 'yes' to continue, or tell me what needs adjusting."**
 
-- Si hay 🔴 Bloqueantes → no ofrecer implementar hasta que se resuelvan
-- Si hay 🟠 Importantes → mostrarlos y preguntar si ajustar el plan primero
-- Si el veredicto es APROBADO → esperar "sí" explícito del usuario
+- If there are 🔴 Blocking findings → don't offer to implement until they're resolved
+- If there are 🟠 Important findings → show them and ask whether to adjust the plan first
+- If the verdict is APPROVED → wait for an explicit "yes" from the user
 
-## Paso 3.5 — Registrar los findings
+## Step 3.5 — Record the findings
 
-Uno por cada 🔴 y 🟠 del review (los 💡 no):
+One per 🔴 and 🟠 in the review (not the 💡 ones):
 
 ```bash
 ~/.claude/scripts/wf-event.sh finding \
   --category [slug] --severity [high|medium] \
   --stage_origin [refine|analyze] --stage_detected review-plan \
-  --detected_by [gate|user] --summary "[una línea]"
+  --detected_by [gate|user] --summary "[one line]"
 ```
 
-Los dos campos que importan, y los únicos que no se pueden reconstruir después:
+The two fields that matter, and the only ones that can't be reconstructed later:
 
-- **`stage_origin`** — en qué etapa se *introdujo* el defecto, no dónde apareció. Un requisito ambiguo que el plan arrastra se originó en `refine`, aunque lo detectes acá. Es lo que responde "¿qué etapa origina más defectos?" y dónde conviene poner el próximo gate.
-- **`detected_by`** — `gate` si lo encontró el review, `user` si lo encontraste vos leyendo el output. Si la proporción de `user` sube con el tiempo, los gates se están degradando. Marcarlo `gate` cuando lo dijiste vos infla la métrica y hace inútil la comparación.
+- **`stage_origin`** — which stage *introduced* the defect, not where it surfaced. An ambiguous requirement the plan carries along originated in `refine`, even if you catch it here. It's what answers "which stage originates the most defects?" and where the next gate belongs.
+- **`detected_by`** — `gate` if the review found it, `user` if you found it reading the output. If the share of `user` rises over time, the gates are degrading. Marking it `gate` when you were the one who said it inflates the metric and makes the comparison useless.
 
-`--category` es un slug corto y **reutilizable** entre tickets (`missing-guard`, `wrong-layer`, `contract-drift`). Una categoría distinta por finding no agrupa con nada: la consulta que importa es cuáles se repiten en 3+ tickets.
+`--category` is a short slug, **reusable** across tickets (`missing-guard`, `wrong-layer`, `contract-drift`). A different category per finding groups with nothing: the query that matters is which ones repeat across 3+ tickets.
 
-Si el comando falla, seguir con el checkpoint igual. Perder un evento es aceptable; frenar el flujo por telemetría, no.
+If the command fails, continue with the checkpoint anyway. Losing an event is acceptable; halting the flow over telemetry is not.
 
-## Paso 4 — Siguiente paso (solo con aprobación)
+## Step 4 — Next step (only with approval)
 
-Solo si el usuario confirma explícitamente:
+Only if the user confirms explicitly:
 
-1. Registrar la aprobación:
+1. Record the approval:
    ```bash
    ~/.claude/scripts/wf-lib.sh set-state approved true
    ```
-   Esto es lo que destraba el gate: hasta acá, cualquier `Edit`/`Write` sobre código quedaba registrado como intento de saltear el checkpoint.
-2. Decir: "Siguiente: `/wf-implement`"
+   This is what unlocks the gate: until now, any `Edit`/`Write` on code was recorded as an attempt to skip the checkpoint.
+2. Say: "Next: `/wf-implement`"
 
-Si el usuario no confirma, `approved` queda en `false`. No escribirlo "por si acaso" ni anticipar la aprobación.
+If the user doesn't confirm, `approved` stays `false`. Don't write it "just in case" or anticipate the approval.

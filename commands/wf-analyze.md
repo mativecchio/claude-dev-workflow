@@ -1,172 +1,174 @@
 ---
-description: "Análisis técnico del codebase para planificar la implementación. Corre en contexto aislado via Agent tool. Lee refinement-summary.md como input, genera plan.md como output."
+description: "Technical analysis of the codebase to plan the implementation. Runs in an isolated context via the Agent tool. Reads refinement-summary.md as input, generates plan.md as output."
 allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite
 ---
 
-Tu rol es preparar el análisis técnico y lanzar un agente especializado para explorarlo en profundidad sin contaminar el contexto principal.
+Your role is to prepare the technical analysis and launch a specialized agent to explore it in depth without polluting the main context.
 
-## Paso 0 — Contexto del ticket
+## Step 0 — Ticket context
 
 ```bash
-~/.claude/scripts/wf-lib.sh context          # ticket, dir, base, stage, branch
+~/.claude/scripts/wf-lib.sh context          # ticket, dir, base, stage, branch, lang
 ~/.claude/scripts/wf-lib.sh enter-stage analyze
 ```
 
-`context` crea el directorio del ticket y devuelve `{ticketId}` y `{workflowDir}`. `enter-stage` registra la entrada preservando `branch`, `notes`, `iterations` y `subtasks`, y valida el nombre de la etapa contra el vocabulario único del sistema.
+`context` creates the ticket's directory and returns `{ticketId}` and `{workflowDir}`. `enter-stage` records the entry while preserving `branch`, `notes`, `iterations` and `subtasks`, and validates the stage name against the system's single vocabulary.
 
-Si `context` falla no hay ticket activo: preguntar "¿Cuál es el número de ticket? (ej. BC-1234)", escribir `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json` y reintentar.
+If `context` fails there's no active ticket: ask "What's the ticket number? (e.g. BC-1234)", write `{ "activeTicket": "BC-XXXX" }` to `.claude/workflow/state.json` and retry.
 
-## Paso 1 — Recopilar contexto para el Agent
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — plan.md, design-decisions.md, code — is always in English.
 
-Leer los siguientes archivos (van a ser parte del prompt del Agent):
-- `{workflowDir}/refinement-summary.md` → objetivo y DoD
-- `.claude/workflow/config.json` → stack, proyectos relacionados, DoD
-- `CLAUDE.md` o `README.md` → resumen del proyecto
-- Estructura top-level del proyecto (un `ls` rápido)
+## Step 1 — Gather context for the Agent
 
-Si no existe `refinement-summary.md`, pedirle al usuario una descripción de la tarea antes de continuar.
+Read the following files (they'll be part of the Agent's prompt):
+- `{workflowDir}/refinement-summary.md` → objective and DoD
+- `.claude/workflow/config.json` → stack, related projects, DoD
+- `CLAUDE.md` or `README.md` → project summary
+- The project's top-level structure (a quick `ls`)
 
-## Paso 2 — Lanzar el Agent de análisis
+If `refinement-summary.md` doesn't exist, ask the user for a description of the task before continuing.
 
-Usar el **Agent tool** con el siguiente prompt (interpolando el contexto leído):
+## Step 2 — Launch the analysis Agent
+
+Use the **Agent tool** with the following prompt (interpolating the context you read):
 
 ---
-**PROMPT DEL AGENT:**
+**AGENT PROMPT:**
 
-Sos un senior engineer haciendo análisis técnico para implementar la siguiente tarea.
+You are a senior engineer doing the technical analysis to implement the following task.
 
-**Tarea:** [contenido de refinement-summary.md]
+**Task:** [contents of refinement-summary.md]
 
-**Stack del proyecto:** [stack del config]
-**Directorio de trabajo:** [cwd]
-**Resumen del proyecto:** [contenido de CLAUDE.md/README.md]
+**Project stack:** [stack from the config]
+**Working directory:** [cwd]
+**Project summary:** [contents of CLAUDE.md/README.md]
 
-## Tu proceso de análisis
+## Your analysis process
 
-### 1. Encontrar la "feature hermana"
-Buscar en el codebase una implementación similar a lo que hay que hacer. Si encontrás un patrón análogo, usarlo como referencia principal. Mostrar el path encontrado.
+### 1. Find the "sister feature"
+Search the codebase for an implementation similar to what needs to be done. If you find an analogous pattern, use it as the primary reference. Show the path you found.
 
-### 2. Mapear el impacto por capas
-Identificar qué archivos/módulos hay que tocar en cada capa:
-- UI / componentes
-- Hooks / services / lógica de negocio  
-- Estado (Redux / Context / Zustand)
+### 2. Map the impact by layer
+Identify which files/modules need to be touched in each layer:
+- UI / components
+- Hooks / services / business logic  
+- State (Redux / Context / Zustand)
 - API / endpoints
-- Base de datos / migraciones
+- Database / migrations
 - Tests
 
-### 3. Diseñar la solución
-Basándote en los patrones existentes del codebase (no inventar convenciones nuevas).
+### 3. Design the solution
+Base it on the codebase's existing patterns (don't invent new conventions).
 
-### 4. Identificar riesgos
-- Breaking changes en contratos
-- Dependencias entre subtareas
-- Deuda técnica que hay que registrar pero NO implementar ahora
-- Si hay 2+ efectos/observers que leen y escriben el mismo storage/estado compartido, documentar el orden de ejecución esperado y los posibles casos de carrera entre ellos
+### 4. Identify risks
+- Breaking changes to contracts
+- Dependencies between subtasks
+- Tech debt that must be recorded but NOT implemented now
+- If 2+ effects/observers read and write the same shared storage/state, document the expected execution order and the possible race conditions between them
 
-### 5. Verificar contratos con proyectos relacionados (si aplica)
-Si el plan toca un estado, storage, o contrato que también lee/escribe otro proyecto listado en `related_projects` (config.json) — ej. sessionStorage compartido, un campo que otro repo también persiste, un endpoint consumido por otro front — **no asumir el comportamiento**: si ese proyecto tiene un `path` local, usar Grep/Read para inspeccionar su código fuente real (cómo escribe/lee esa estructura: merge o replace, qué tipos, qué formato) antes de diseñar la solución. Tratar el proyecto externo como caja negra solo si su `path` no existe en disco o no es accesible. Registrar en el plan qué se confirmó así (con archivo:línea del repo externo) o qué quedó como riesgo sin verificar.
+### 5. Verify contracts with related projects (if applicable)
+If the plan touches state, storage, or a contract that another project listed in `related_projects` (config.json) also reads/writes — e.g. shared sessionStorage, a field another repo also persists, an endpoint consumed by another frontend — **don't assume the behavior**: if that project has a local `path`, use Grep/Read to inspect its real source code (how it writes/reads that structure: merge or replace, which types, which format) before designing the solution. Treat the external project as a black box only if its `path` doesn't exist on disk or isn't accessible. Record in the plan what was confirmed this way (with file:line from the external repo) or what remains an unverified risk.
 
-Antes de asumir un riesgo como "no se puede confirmar, es un repo externo", correr algo como:
+Before assuming a risk is "can't be confirmed, it's an external repo", run something like:
 ```bash
-grep -rln "<clave o símbolo relevante>" <path del related_project>
+grep -rln "<relevant key or symbol>" <path of the related_project>
 ```
 
-### 6. Cruzar con el histórico de sesiones
-Leer `~/.claude/workflow/flow-history.json`. **Si el array `entries` está vacío, saltear este paso sin comentario** — es el estado normal hasta que la Fase 4 de `docs/plan-harness-migration.md` empiece a poblarlo, y no significa nada sobre este ticket.
+### 6. Cross-reference the session history
+Read `~/.claude/workflow/flow-history.json`. **If the `entries` array is empty, skip this step without comment** — that's the normal state until Phase 4 of `docs/plan-harness-migration.md` starts populating it, and it says nothing about this ticket.
 
-Si hay entries, buscar aquellas cuyo `key_findings`/`anomalies` mencionen los mismos `related_projects` o el mismo tipo de integración que este ticket toca. Si hay coincidencias, citarlas explícitamente en el plan (sección de riesgos) — son bugs ya conocidos en ese punto de integración, no hace falta redescubrirlos.
+If there are entries, look for ones whose `key_findings`/`anomalies` mention the same `related_projects` or the same kind of integration this ticket touches. If there are matches, cite them explicitly in the plan (risks section) — they're already-known bugs at that integration point, no need to rediscover them.
 
-## Output requerido
+## Required output
 
-Escribir DOS archivos en `{workflowDir}/`:
+Write TWO files in `{workflowDir}/`:
 
-**`plan.md`** — solo lo que el implementador necesita saber:
+**`plan.md`** — only what the implementer needs to know:
 ```markdown
-# Plan de Implementación — [nombre de la tarea]
+# Implementation plan — [task name]
 
-## Feature hermana de referencia
-[path y descripción breve]
+## Reference sister feature
+[path and brief description]
 
-## Archivos a modificar/crear
-| Archivo | Cambio | Razón |
+## Files to modify/create
+| File | Change | Reason |
 |---|---|---|
 
-## Contrato de API (si aplica)
-[endpoint, método, request/response]
+## API contract (if applicable)
+[endpoint, method, request/response]
 
-## Contratos con proyectos relacionados (si aplica)
-[qué se verificó contra el código fuente real de cada related_project tocado, con archivo:línea — o "sin contratos compartidos" si no aplica]
+## Contracts with related projects (if applicable)
+[what was verified against the real source code of each related_project touched, with file:line — or "no shared contracts" if not applicable]
 
-## Infraestructura
-- [ ] [env var / migración / feature flag]
+## Infrastructure
+- [ ] [env var / migration / feature flag]
 
-## Orden de implementación sugerido
-1. [paso 1]
-2. [paso 2]
+## Suggested implementation order
+1. [step 1]
+2. [step 2]
 
-## Riesgos y dependencias
-- [riesgo 1]
+## Risks and dependencies
+- [risk 1]
 
-## Deuda técnica detectada (no implementar)
-- [deuda 1]
+## Tech debt detected (do not implement)
+- [debt 1]
 ```
 
-**`design-decisions.md`** — contexto para el reviewer del MR:
+**`design-decisions.md`** — context for the MR reviewer:
 ```markdown
-# Decisiones de Diseño — [nombre de la tarea]
+# Design decisions — [task name]
 
-## [Decisión 1]
-**Alternativas consideradas:** [A, B, C]
-**Elegida:** [A]
-**Por qué:** [razón]
+## [Decision 1]
+**Alternatives considered:** [A, B, C]
+**Chosen:** [A]
+**Why:** [reason]
 
-## [Decisión 2]
+## [Decision 2]
 ...
 ```
 
-Cuando termines, decir: "Plan escrito en {workflowDir}/plan.md y design-decisions.md"
+When you're done, say: "Plan written to {workflowDir}/plan.md and design-decisions.md"
 
 ---
 
-## Paso 3 — Checkpoint antes de cerrar
+## Step 3 — Checkpoint before closing
 
-Leer el `plan.md` generado y hacer un resumen para el usuario.
+Read the generated `plan.md` and summarize it for the user.
 
-Antes de dar por terminado el análisis, preguntar:
-**"¿El análisis tiene sentido? ¿Hay algo que corregir antes de pasar al review del plan?"**
+Before considering the analysis finished, ask:
+**"Does the analysis make sense? Is there anything to correct before moving to the plan review?"**
 
-Esperar respuesta explícita antes de sugerir el siguiente paso.
+Wait for an explicit answer before suggesting the next step.
 
-## Paso 3.5 — Registrar la estimación de complejidad
+## Step 3.5 — Record the complexity estimate
 
-Puntuar el plan con la rúbrica de `docs/brainstorm-metricas-y-complejidad.md` §5.2. **No es trabajo de análisis nuevo:** las siete dimensiones ya se resolvieron en los pasos 1-5 del Agent, esto sólo las formaliza.
+Score the plan with the rubric in `docs/brainstorm-metrics-and-complexity.md` §5.2. **This is not new analysis work:** the seven dimensions were already resolved in the Agent's steps 1-5, this only formalizes them.
 
-| Dimensión | Valores → puntos |
+| Dimension | Values → points |
 |---|---|
-| Feature hermana | encontrada `0` / parcial `3` / ninguna `6` |
-| Archivos a tocar | 1-3 `0` / 4-8 `2` / 9-15 `4` / >15 `6` |
-| Capas cruzadas | 0-1 `0` / 2-3 `2` / 4-5 `4` / 6 `5` |
-| Proyectos externos | 0 `0` / 1 `3` / 2+ `5` |
-| Estado compartido / races | no `0` / sí `4` |
-| Huecos en el DoD | ninguno `0` / menores `2` / mayores `5` |
-| Infra (migración, env var, flag) | no `0` / sí `3` |
+| Sister feature | found `0` / partial `3` / none `6` |
+| Files to touch | 1-3 `0` / 4-8 `2` / 9-15 `4` / >15 `6` |
+| Layers crossed | 0-1 `0` / 2-3 `2` / 4-5 `4` / 6 `5` |
+| External projects | 0 `0` / 1 `3` / 2+ `5` |
+| Shared state / races | no `0` / yes `4` |
+| Gaps in the DoD | none `0` / minor `2` / major `5` |
+| Infra (migration, env var, flag) | no `0` / yes `3` |
 
-Mapeo a puntos: 0-4→`1`, 5-8→`2`, 9-13→`3`, 14-19→`5`, 20-26→`8`, 27+→`13`.
+Mapping to points: 0-4→`1`, 5-8→`2`, 9-13→`3`, 14-19→`5`, 20-26→`8`, 27+→`13`.
 
 ```bash
 ~/.claude/scripts/wf-event.sh complexity_estimate \
-  --raw_score [suma] --points [fibonacci] \
-  --split_recommended [true si points >= 8] \
+  --raw_score [sum] --points [fibonacci] \
+  --split_recommended [true if points >= 8] \
   --dimensions '{"sister_feature":{"value":"none","pts":6},"files":{"value":11,"pts":4},"layers":{"value":4,"pts":4},"external_projects":{"value":1,"pts":3},"shared_state":{"value":true,"pts":4},"dod_gaps":{"value":"none","pts":0},"infra":{"value":false,"pts":0}}'
 ```
 
-Guardar lo mismo en `{workflowDir}/complexity.json` para que `/wf-retro` cierre el par (estimado, real) sin releer el JSONL.
+Save the same thing to `{workflowDir}/complexity.json` so `/wf-retro` can close the (estimated, actual) pair without re-reading the JSONL.
 
-Mostrar el puntaje al usuario. **Si da ≥ 8, decirlo**: es el umbral donde el ticket es candidato a partirse. No partir automáticamente — sólo señalarlo.
+Show the score to the user. **If it's ≥ 8, say so**: that's the threshold where the ticket becomes a candidate for splitting. Don't split automatically — just flag it.
 
-> Los umbrales son provisionales y se eligieron sin datos (§5.4). Hoy su único propósito es generar el lado "estimado" del par, para calibrarlos a los 15-20 tickets. No tratarlos como verdad.
+> The thresholds are provisional and were chosen without data (§5.4). Today their only purpose is to generate the "estimated" side of the pair, to calibrate them at 15-20 tickets. Don't treat them as truth.
 
-## Paso 4 — Siguiente paso
+## Step 4 — Next step
 
-Si el usuario confirma, sugerir: "Siguiente: `/wf-review-plan` para verificar el plan contra el codebase real."
+If the user confirms, suggest: "Next: `/wf-review-plan` to verify the plan against the real codebase."

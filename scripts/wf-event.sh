@@ -34,7 +34,7 @@ set -uo pipefail
 LIB="$(dirname "${BASH_SOURCE[0]}")/wf-lib.sh"
 [ -f "$LIB" ] || LIB="$HOME/.claude/scripts/wf-lib.sh"
 # shellcheck source=/dev/null
-. "$LIB" 2>/dev/null || { echo "wf-event: no encuentro wf-lib.sh" >&2; exit 1; }
+. "$LIB" 2>/dev/null || { echo "wf-event: cannot find wf-lib.sh" >&2; exit 1; }
 
 EVENTS="$HOME/.claude/workflow/events.jsonl"
 
@@ -60,9 +60,9 @@ req_for() {
 
 usage() {
   cat >&2 <<EOF
-uso: wf-event.sh <event> [--key value ...]
+usage: wf-event.sh <event> [--key value ...]
 
-eventos: $(echo $WF_EVENTS)
+events: $(echo $WF_EVENTS)
 
   finding              --category --severity --stage_origin --detected_by --summary
   finding_decision     --finding_ref --decision (implement|ignore|tech-debt)
@@ -79,10 +79,10 @@ EVENT="${1:-}"; [ -n "$EVENT" ] || usage
 shift
 case " $(echo $WF_EVENTS) " in
   *" $EVENT "*) ;;
-  *) echo "wf-event: evento desconocido '$EVENT'" >&2; usage ;;
+  *) echo "wf-event: unknown event '$EVENT'" >&2; usage ;;
 esac
 
-command -v jq >/dev/null 2>&1 || { echo "wf-event: jq no disponible" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "wf-event: jq not available" >&2; exit 1; }
 
 # --- parse args into a jq-built data object ------------------------------------
 DATA='{}'
@@ -107,7 +107,7 @@ while [ $# -gt 0 ]; do
       fi
       KEYS="$KEYS $k"
       shift 2 ;;
-    *) echo "wf-event: argumento suelto '$1'" >&2; usage ;;
+    *) echo "wf-event: stray argument '$1'" >&2; usage ;;
   esac
 done
 
@@ -117,14 +117,14 @@ for r in $(req_for "$EVENT"); do
   case " $KEYS " in *" $r "*) ;; *) MISSING="$MISSING --$r" ;; esac
 done
 if [ -n "$MISSING" ]; then
-  echo "wf-event: faltan campos obligatorios para '$EVENT':$MISSING" >&2
+  echo "wf-event: missing required fields for '$EVENT':$MISSING" >&2
   exit 1
 fi
 
 # --- context -------------------------------------------------------------------
 TICKET="$O_TICKET"; [ -n "$TICKET" ] || TICKET="$(wf_ticket 2>/dev/null)"
 if [ -z "$TICKET" ]; then
-  echo "wf-event: no hay ticket activo — el evento no se registra" >&2
+  echo "wf-event: no active ticket — the event is not recorded" >&2
   exit 2
 fi
 STAGE="$O_STAGE"; [ -n "$STAGE" ] || STAGE="$(wf_state '.stage' 2>/dev/null)"
@@ -149,9 +149,9 @@ LINE="$(jq -cn \
 # Only append if jq produced a line that parses. A corrupt events.jsonl is worse
 # than a lost event: it breaks every query, not just this row.
 if [ -z "$LINE" ] || ! printf '%s' "$LINE" | jq -e . >/dev/null 2>&1; then
-  echo "wf-event: no se pudo construir el evento; no se escribió nada" >&2
+  echo "wf-event: could not build the event; nothing was written" >&2
   exit 1
 fi
 
-printf '%s\n' "$LINE" >> "$EVENTS" || { echo "wf-event: no se pudo escribir $EVENTS" >&2; exit 1; }
-printf '✓ %s registrado (%s/%s)\n' "$EVENT" "$TICKET" "${STAGE:-sin-etapa}"
+printf '%s\n' "$LINE" >> "$EVENTS" || { echo "wf-event: could not write $EVENTS" >&2; exit 1; }
+printf '✓ %s recorded (%s/%s)\n' "$EVENT" "$TICKET" "${STAGE:-no-stage}"

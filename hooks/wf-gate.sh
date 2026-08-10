@@ -1,28 +1,29 @@
 #!/bin/bash
 #
-# wf-gate — el checkpoint de review-plan, como mecanismo.
+# wf-gate — the review-plan checkpoint, as a mechanism.
 #
-# wf-review-plan.md dice "NUNCA pasar a implementación sin respuesta explícita".
-# Eso es una instrucción: se cumple casi siempre. Este hook lo hace cumplir.
+# wf-review-plan.md says "NEVER move to implementation without an explicit
+# answer". That's an instruction: it's honored almost always. This hook enforces it.
 #
-# ⚠️  ESTE ES EL ÚNICO HOOK DEL SISTEMA QUE PUEDE BLOQUEAR.
-# wf-telemetry.sh tiene como principio inviolable no interrumpir nunca. Acá
-# interrumpir ES la función. Por eso el radio de explosión está acotado:
+# ⚠️  THIS IS THE ONLY HOOK IN THE SYSTEM THAT CAN BLOCK.
+# wf-telemetry.sh holds as an inviolable principle that it never interrupts. Here
+# interrupting IS the function. That's why the blast radius is bounded:
 #
-#   1. Los hooks se registran en ~/.claude/settings.json → corren en TODOS los
-#      proyectos. Sin .claude/workflow/state.json, este sale en silencio.
-#   2. Fail-open: cualquier error (sin jq, JSON corrupto, sin git) sale 0.
-#      El único camino que bloquea es la condición evaluada con éxito.
-#      Bloquear por un bug es peor que no bloquear.
-#   3. Arranca en modo observe: registra qué HABRÍA bloqueado, sin impedir nada.
+#   1. Hooks are registered in ~/.claude/settings.json → they run in EVERY
+#      project. Without .claude/workflow/state.json, this one exits silently.
+#   2. Fail-open: any error (no jq, corrupt JSON, no git) exits 0.
+#      The only blocking path is the condition evaluated successfully.
+#      Blocking because of a bug is worse than not blocking.
+#   3. It starts in observe mode: it records what it WOULD have blocked, without
+#      preventing anything.
 #
-# Modos (WF_GATE):
-#   observe   (default) registra en events.jsonl, no bloquea
-#   enforce   bloquea de verdad
-#   off       no hace nada
+# Modes (WF_GATE):
+#   observe   (default) records to events.jsonl, doesn't block
+#   enforce   really blocks
+#   off       does nothing
 #
-# Para activar el bloqueo, después de revisar los eventos gate_would_block:
-#   export WF_GATE=enforce     (o ponerlo en env de ~/.claude/settings.json)
+# To enable blocking, after reviewing the gate_would_block events:
+#   export WF_GATE=enforce     (or put it in the env of ~/.claude/settings.json)
 
 MODE="${WF_GATE:-observe}"
 [ "$MODE" = "off" ] && exit 0
@@ -43,23 +44,23 @@ ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" || ROOT="$CWD"
 [ -n "$ROOT" ] || exit 0
 
 STATE="$ROOT/.claude/workflow/state.json"
-[ -f "$STATE" ] || exit 0                       # proyecto sin workflow: no es asunto nuestro
+[ -f "$STATE" ] || exit 0                       # project without a workflow: none of our business
 
 TICKET="$(jq -r '.activeTicket // empty' "$STATE" 2>/dev/null)"
 [ -n "$TICKET" ] || exit 0
 
 TSTATE="$ROOT/.claude/workflow/$TICKET/state.json"
 [ -f "$TSTATE" ] || exit 0
-jq -e . "$TSTATE" >/dev/null 2>&1 || exit 0     # state corrupto: fail-open
+jq -e . "$TSTATE" >/dev/null 2>&1 || exit 0     # corrupt state: fail-open
 
 STAGE="$(jq -r '.stage // empty' "$TSTATE" 2>/dev/null)"
-[ "$STAGE" = "review-plan" ] || exit 0          # solo esta etapa bloquea
+[ "$STAGE" = "review-plan" ] || exit 0          # only this stage blocks
 
 APPROVED="$(jq -r '.approved // false' "$TSTATE" 2>/dev/null)"
-[ "$APPROVED" = "true" ] && exit 0              # el usuario ya dijo que sí
+[ "$APPROVED" = "true" ] && exit 0              # the user already said yes
 
-# Artefactos del propio workflow y documentación: siempre permitidos. Ajustar
-# el plan durante su review es parte del trabajo de esta etapa, no una fuga.
+# The workflow's own artifacts and documentation: always allowed. Adjusting the
+# plan while reviewing it is part of this stage's work, not a leak.
 FILE="$(jget '.tool_input.file_path')"
 case "$FILE" in
   */.claude/workflow/*|*/.claude/*|*/docs/*|*.md) exit 0 ;;
@@ -67,7 +68,7 @@ esac
 
 REL="${FILE#"$ROOT"/}"
 
-# Registrar el evento en la misma telemetría que el resto del sistema.
+# Record the event in the same telemetry stream as the rest of the system.
 EVENTS="$HOME/.claude/workflow/events.jsonl"
 mkdir -p "$(dirname "$EVENTS")" 2>/dev/null
 jq -cn \
@@ -85,12 +86,12 @@ jq -cn \
 [ "$MODE" != "enforce" ] && exit 0
 
 cat >&2 << EOF
-⛔ Gate de review-plan: $TICKET todavía no está aprobado.
+⛔ review-plan gate: $TICKET is not approved yet.
 
-Intentaste modificar: $REL
+You tried to modify: $REL
 
-El plan está en review y no hubo aprobación explícita. Terminá
-/wf-review-plan y confirmá, o si necesitás tocar código para verificar
-una hipótesis del review, corré con WF_GATE=off.
+The plan is under review and there was no explicit approval. Finish
+/wf-review-plan and confirm, or if you need to touch code to verify a
+hypothesis from the review, run with WF_GATE=off.
 EOF
 exit 2

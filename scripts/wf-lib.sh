@@ -1,23 +1,23 @@
 #!/bin/bash
 #
-# wf-lib — funciones compartidas del workflow.
+# wf-lib — shared workflow functions.
 #
-# Reemplaza la prosa repetida en los comandos wf-*.md. El "Paso 0 — Identificar
-# ticket activo" estaba copiado literal en 8 archivos: cambiar algo ahí exigía
-# tocar los 8 y acordarse de todos.
+# Replaces the prose repeated across the wf-*.md commands. "Step 0 — Identify
+# the active ticket" was copied verbatim into 8 files: changing anything there
+# meant touching all 8 and remembering every one of them.
 #
-# Uso desde un comando:
+# Usage from a command:
 #   source ~/.claude/scripts/wf-lib.sh
 #   TICKET="$(wf_ticket)" || exit 1
 #   DIR="$(wf_dir)"
 #
-# PRINCIPIO: degradar, no romper. Una función que no puede resolver algo
-# devuelve vacío y sale != 0; nunca deja el estado a medias.
+# PRINCIPLE: degrade, don't break. A function that can't resolve something
+# returns empty and exits != 0; it never leaves state half-written.
 
 WF_STAGES="refine analyze review-plan implement validate test mr-desc mr-review retro"
 
 # ---------------------------------------------------------------------------
-# Contexto del proyecto
+# Project context
 # ---------------------------------------------------------------------------
 
 wf_repo_root() {
@@ -26,8 +26,8 @@ wf_repo_root() {
 
 wf_workflow_root() { printf '%s/.claude/workflow' "$(wf_repo_root)"; }
 
-# Ticket activo. Vacío + exit 1 si no hay ninguno: el caller decide si
-# preguntarle al usuario o seguir sin ticket.
+# Active ticket. Empty + exit 1 if there is none: the caller decides whether to
+# ask the user or carry on without a ticket.
 wf_ticket() {
   local f t
   f="$(wf_workflow_root)/state.json"
@@ -38,7 +38,7 @@ wf_ticket() {
   printf '%s' "$t"
 }
 
-# Directorio del ticket activo, creado si no existe.
+# The active ticket's directory, created if it doesn't exist.
 wf_dir() {
   local t d
   t="$(wf_ticket)" || return 1
@@ -47,7 +47,7 @@ wf_dir() {
   printf '%s' "$d"
 }
 
-# Lee una clave del config del proyecto. Uso: wf_config '.base_branch'
+# Reads a key from the project config. Usage: wf_config '.base_branch'
 wf_config() {
   local f
   f="$(wf_workflow_root)/config.json"
@@ -56,9 +56,9 @@ wf_config() {
   jq -r "${1:-.} // empty" "$f" 2>/dev/null
 }
 
-# Rama base del proyecto. Prioridad: config > rama existente > main.
-# Antes esto era prosa ("develop/main/master, según el proyecto") que el modelo
-# resolvía de nuevo en cada corrida, y wf-refine directamente hardcodeaba develop.
+# The project's base branch. Precedence: config > existing branch > main.
+# This used to be prose ("develop/main/master, depending on the project") that
+# the model re-resolved on every run, and wf-refine hardcoded develop outright.
 wf_base() {
   local b
   b="$(wf_config '.base_branch')"
@@ -72,8 +72,19 @@ wf_base() {
   printf 'main'
 }
 
+# The language the commands address the user in. Artifacts written to disk
+# (plan.md, commit messages, code, docs) are always English regardless of this;
+# this only governs what gets spoken on screen.
+#
+# Set it per project with "language": "es" in .claude/workflow/config.json.
+wf_language() {
+  local l
+  l="$(wf_config '.language')"
+  [ -n "$l" ] && printf '%s' "$l" || printf 'en'
+}
+
 # ---------------------------------------------------------------------------
-# Estado del ticket
+# Ticket state
 # ---------------------------------------------------------------------------
 
 wf_state() {
@@ -83,15 +94,15 @@ wf_state() {
   jq -r "${1:-.} // empty" "$d/state.json" 2>/dev/null
 }
 
-# Escribe una clave preservando el resto del archivo.
-# Uso: wf_set_state approved true   |   wf_set_state branch '"MA-123-fix"'
+# Writes a key, preserving the rest of the file.
+# Usage: wf_set_state approved true   |   wf_set_state branch '"MA-123-fix"'
 wf_set_state() {
   local d f tmp key="$1" val="$2"
   [ -n "$key" ] || return 1
   d="$(wf_dir)" || return 1
   f="$d/state.json"
   [ -f "$f" ] || echo '{}' > "$f"
-  jq -e . "$f" >/dev/null 2>&1 || return 1   # nunca pisar un state corrupto
+  jq -e . "$f" >/dev/null 2>&1 || return 1   # never overwrite a corrupt state
   tmp="$(mktemp)" || return 1
   if jq --arg k "$key" --argjson v "$val" '.[$k] = $v' "$f" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
     mv "$tmp" "$f"; return 0
@@ -99,20 +110,20 @@ wf_set_state() {
   rm -f "$tmp"; return 1
 }
 
-# Registra la entrada a una etapa: escribe stage y appendea a completed,
-# preservando branch, notes, iterations, subtasks y approved.
+# Records entry into a stage: writes stage and appends to completed, preserving
+# branch, notes, iterations, subtasks and approved.
 #
-# Esto era una instrucción en prosa que solo cumplían wf-refine y /wf (H11),
-# y con un vocabulario que no coincidía con el de los consumidores (H12).
-# Acá el vocabulario se valida: un stage inválido falla ruidosamente en vez
-# de escribirse y romper el conteo en silencio.
+# This used to be a prose instruction that only wf-refine and /wf honored (H11),
+# with a vocabulary that didn't match the consumers' (H12). Here the vocabulary
+# is validated: an invalid stage fails loudly instead of being written and
+# silently breaking the counts.
 wf_enter_stage() {
   local stage="$1" d f tmp
   [ -n "$stage" ] || return 1
 
   case " $WF_STAGES " in
     *" $stage "*) ;;
-    *) echo "wf-lib: stage inválido '$stage' (válidos: $WF_STAGES)" >&2; return 1 ;;
+    *) echo "wf-lib: invalid stage '$stage' (valid: $WF_STAGES)" >&2; return 1 ;;
   esac
 
   d="$(wf_dir)" || return 1
@@ -135,25 +146,26 @@ wf_enter_stage() {
 }
 
 # ---------------------------------------------------------------------------
-# CLI: permite usarlo sin sourcear — `wf-lib.sh ticket`, `wf-lib.sh base`, etc.
+# CLI: lets it be used without sourcing — `wf-lib.sh ticket`, `wf-lib.sh base`, etc.
 # ---------------------------------------------------------------------------
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   case "${1:-}" in
     ticket)      wf_ticket ;;
     dir)         wf_dir ;;
     base)        wf_base ;;
+    language)    wf_language ;;
     config)      wf_config "${2:-.}" ;;
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
     enter-stage) wf_enter_stage "$2" ;;
     context)
-      # Todo lo que un comando necesita al arrancar, de una.
-      t="$(wf_ticket)" || { echo "❌ No hay ticket activo en $(wf_workflow_root)/state.json" >&2; exit 1; }
-      printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\n' \
-        "$t" "$(wf_dir)" "$(wf_base)" "$(wf_state '.stage')" "$(git branch --show-current 2>/dev/null)"
+      # Everything a command needs at startup, in one call.
+      t="$(wf_ticket)" || { echo "❌ No active ticket in $(wf_workflow_root)/state.json" >&2; exit 1; }
+      printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\n' \
+        "$t" "$(wf_dir)" "$(wf_base)" "$(wf_state '.stage')" "$(git branch --show-current 2>/dev/null)" "$(wf_language)"
       ;;
     *)
-      echo "uso: wf-lib.sh {ticket|dir|base|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
+      echo "usage: wf-lib.sh {ticket|dir|base|language|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
       exit 1 ;;
   esac
 fi

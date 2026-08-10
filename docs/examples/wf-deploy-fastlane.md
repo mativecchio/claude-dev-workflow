@@ -1,204 +1,204 @@
 ---
-description: "Ejemplo de override por proyecto de /wf-deploy — React Native con fastlane y GitLab CI."
+description: "Example of a per-project override of /wf-deploy — React Native with fastlane and GitLab CI."
 allowed-tools: Read, Bash, Glob
 ---
 
-> **Ejemplo, no comando activo.** Esta es la versión específica de un proyecto
-> React Native (fastlane, GitLab CI, `pnpm`, ramas `development`/`staging`/`master`).
-> El comando genérico vive en `commands/wf-deploy.md` y detecta el toolchain en
-> vez de asumirlo.
+> **Example, not an active command.** This is the project-specific version for a
+> React Native project (fastlane, GitLab CI, `pnpm`, branches `development`/`staging`/`master`).
+> The generic command lives in `commands/wf-deploy.md` and detects the toolchain
+> instead of assuming it.
 >
-> Para usar esta versión en el proyecto que la necesita: copiarla a
-> `.claude/commands/wf-deploy.md` en la raíz de ese proyecto. Claude Code prefiere
-> el comando local sobre el global.
+> To use this version in the project that needs it: copy it to
+> `.claude/commands/wf-deploy.md` at that project's root. Claude Code prefers
+> the local command over the global one.
 
-Tu rol es preparar el entorno git y guiar el deploy según la rama actual y el método disponible.
+Your role is to prepare the git environment and guide the deploy according to the current branch and the available method.
 
-## Paso 0 — Parsear argumentos
+## Step 0 — Parse arguments
 
-Leer `$ARGUMENTS` y extraer:
-- **TARGET** (`staging` | `production`) — si aparece alguna de estas palabras
-- **METHOD** (`local` | `ci`) — si aparece alguna de estas palabras
+Read `$ARGUMENTS` and extract:
+- **TARGET** (`staging` | `production`) — if either word appears
+- **METHOD** (`local` | `ci`) — if either word appears
 
-Ejemplos:
-- `/wf-deploy staging` → TARGET=staging, METHOD=auto-detectar
+Examples:
+- `/wf-deploy staging` → TARGET=staging, METHOD=auto-detect
 - `/wf-deploy local production` → METHOD=local, TARGET=production
 - `/wf-deploy ci staging` → METHOD=ci, TARGET=staging
-- `/wf-deploy` → ambos se determinan más adelante
+- `/wf-deploy` → both are determined later
 
-## Paso 1 — Verificar estado git
+## Step 1 — Verify git state
 
 ```bash
 git status --short
-git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "(sin remote tracking)"
+git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "(no remote tracking)"
 git branch --show-current
 ```
 
-Mostrar:
+Show:
 ```
-📦 Estado git:
-  Rama actual: [nombre]
-  Cambios sin commitear: [N archivos / ninguno]
-  Commits sin pushear: [N / ninguno]
+📦 Git state:
+  Current branch: [name]
+  Uncommitted changes: [N files / none]
+  Unpushed commits: [N / none]
 ```
 
-## Paso 2 — Detectar fase según rama
+## Step 2 — Detect the phase from the branch
 
-| Rama actual | Fase |
+| Current branch | Phase |
 |---|---|
-| Ticket branch (`MA-XXX`, `feature/*`, `fix/*`, cualquier nombre que no sea protegida) | **Fase 1** — preparar MR |
-| `development` | **Fase 2a** — crear release branch para staging |
-| `staging` | **Fase 2b** — crear release branch para production |
-| `release/*` | **Fase 2** — deploy directo |
-| `master` / `qa` | ⛔ Bloqueado — el script rechaza estas ramas |
+| Ticket branch (`MA-XXX`, `feature/*`, `fix/*`, any name that isn't protected) | **Phase 1** — prepare the MR |
+| `development` | **Phase 2a** — create a release branch for staging |
+| `staging` | **Phase 2b** — create a release branch for production |
+| `release/*` | **Phase 2** — deploy directly |
+| `master` / `qa` | ⛔ Blocked — the script rejects these branches |
 
 ---
 
-## FASE 1 — Preparar MR (ticket branch)
+## PHASE 1 — Prepare the MR (ticket branch)
 
-### Commit + push si hay cambios pendientes
+### Commit + push if there are pending changes
 
-Si hay cambios sin commitear, mostrar archivos y preguntar: **"¿Commiteamos? ¿Qué archivos incluimos?"**
+If there are uncommitted changes, show the files and ask: **"Shall we commit? Which files do we include?"**
 
-Una vez confirmados los archivos, invocar el skill `wf-commit` para generar el mensaje. Mostrar y pedir confirmación.
+Once the files are confirmed, invoke the `wf-commit` skill to generate the message. Show it and ask for confirmation.
 
 ```bash
-git add [archivos confirmados]   # nunca -A
-git commit -m "[mensaje aprobado]"
+git add [confirmed files]   # never -A
+git commit -m "[approved message]"
 ```
 
-Si hay commits sin pushear:
+If there are unpushed commits:
 ```bash
 git push origin $(git branch --show-current)
 ```
-Si el push falla por divergencia → mostrar error, pedir instrucciones. NO hacer force push.
+If the push fails due to divergence → show the error, ask for instructions. Do NOT force push.
 
-### Informar y detener
+### Report and stop
 
 ```
-✅ Rama lista: [nombre]
-📋 MR: [URL del MR si está en el output del push, o indicar que lo creen en GitLab]
+✅ Branch ready: [name]
+📋 MR: [MR URL if it's in the push output, or tell them to create it in GitLab]
 
-🔜 Próximo paso (después de que aprueben el MR):
-   Si es feature → merge a development → /wf-deploy staging
-   Si es fix sobre versión deployada → merge a staging → /wf-deploy production
+🔜 Next step (after the MR is approved):
+   If it's a feature → merge to development → /wf-deploy staging
+   If it's a fix on a deployed version → merge to staging → /wf-deploy production
 ```
 
-Detener aquí. No continuar al deploy.
+Stop here. Do not continue to the deploy.
 
 ---
 
-## FASE 2 — Deploy (release branch)
+## PHASE 2 — Deploy (release branch)
 
-### Paso 2.1 — Determinar TARGET si no viene por argumento
+### Step 2.1 — Determine TARGET if it wasn't passed as an argument
 
-- Si rama es `development` → TARGET=staging
-- Si rama es `staging` → TARGET=production
-- Si rama es `release/*` → preguntar TARGET si no fue pasado como argumento
+- If the branch is `development` → TARGET=staging
+- If the branch is `staging` → TARGET=production
+- If the branch is `release/*` → ask for TARGET if it wasn't passed as an argument
 
-### Paso 2.2 — Detectar método disponible
+### Step 2.2 — Detect the available method
 
 ```bash
 cat package.json 2>/dev/null | grep -E '"deploy:'
 ls .gitlab-ci.yml .github/workflows/ 2>/dev/null
 ```
 
-| Señal | Método |
+| Signal | Method |
 |---|---|
-| Scripts `deploy:*` en package.json + `Fastfile` | ✅ Local |
+| `deploy:*` scripts in package.json + a `Fastfile` | ✅ Local |
 | `.gitlab-ci.yml` / `.github/workflows/` | ✅ CI |
-| Ambos | Preguntar al usuario |
+| Both | Ask the user |
 
-Si METHOD ya viene por argumento, saltear la pregunta.
+If METHOD already came as an argument, skip the question.
 
-### Paso 2.3 — Crear release branch (si estamos en development o staging)
+### Step 2.3 — Create the release branch (if we're on development or staging)
 
-Si la rama actual es `development` o `staging`:
+If the current branch is `development` or `staging`:
 ```
-📦 Estás en [rama]. Para deployar hay que crear un release branch.
+📦 You're on [branch]. To deploy, a release branch has to be created.
 
-¿Cuál será la versión? (ej: 1.3.1)
+What will the version be? (e.g. 1.3.1)
 ```
-Esperar respuesta. Luego:
+Wait for the answer. Then:
 ```bash
 git checkout -b release/[version]
 git push -u origin release/[version]
 ```
 
-### Paso 2.4 — Ejecutar deploy
+### Step 2.4 — Run the deploy
 
 #### METHOD = local
 
-Antes de correr los deploys, preguntar:
-**"¿Qué versión usamos? (versionName y versionCode)"**
+Before running the deploys, ask:
+**"Which version do we use? (versionName and versionCode)"**
 
-Mostrar los valores actuales como referencia:
+Show the current values for reference:
 ```bash
 grep -E "versionName|versionCode" android/app/build.gradle | grep -v suffix | head -2
 ```
 
-Esperar respuesta. Resolver `VERSION_NAME` y `VERSION_CODE`.
+Wait for the answer. Resolve `VERSION_NAME` and `VERSION_CODE`.
 
 **Android:**
 
-Correr directamente (non-interactive gracias a los parámetros):
+Run it directly (non-interactive thanks to the parameters):
 ```bash
 bundle exec fastlane android local_[TARGET] version_name:[VERSION_NAME] version_code:[VERSION_CODE] skip_confirm:true
 ```
 
-Mostrar el output en tiempo real. Esperar a que termine.
+Show the output in real time. Wait for it to finish.
 
-**iOS** (después de que Android termine):
+**iOS** (after Android finishes):
 ```bash
 bundle exec fastlane ios local_[TARGET] version_name:[VERSION_NAME] version_code:[VERSION_CODE] skip_confirm:true
 ```
 
-Mostrar el output. El 409 en MR es normal — iOS imprime la URL existente.
+Show the output. A 409 on the MR is normal — iOS prints the existing URL.
 
 #### METHOD = ci
 
 **GitLab CI:**
 ```
-📋 Disparar el pipeline:
+📋 Trigger the pipeline:
   1. GitLab → CI/CD → Pipelines → Run pipeline
-  2. Branch: [rama actual]
+  2. Branch: [current branch]
   3. Variables:
-       VERSION_CODE = [entero, mayor al último publicado]
-       VERSION_NAME = [semver, ej: 1.3.1]
+       VERSION_CODE = [integer, higher than the last published one]
+       VERSION_NAME = [semver, e.g. 1.3.1]
   4. Click "Run pipeline"
 ```
-Preguntar: "¿Ya lo disparaste? Avisame cuando termine."
+Ask: "Have you triggered it? Let me know when it finishes."
 
-### Paso 2.5 — Resumen final
+### Step 2.5 — Final summary
 
 ```
-✅ Deploy completado
+✅ Deploy completed
 
-  Método: [local / CI]
+  Method: [local / CI]
   Target: [TARGET]
-  Android: [resultado]
-  iOS: [resultado / 409 normal]
-  Rama: [release/x.y.z]
-  MR release: [URL]
+  Android: [result]
+  iOS: [result / 409 is normal]
+  Branch: [release/x.y.z]
+  Release MR: [URL]
 ```
 
-Si hubo errores → ayudar a diagnosticar.
+If there were errors → help diagnose them.
 
 ---
 
-## Referencia rápida
+## Quick reference
 
 ```
-Flujo feature:
-  MA-XXX → /wf-deploy           → commit+push+MR → merge a development
-            → /wf-deploy staging → desde development → release/x.y.z → deploy staging → MR → staging
+Feature flow:
+  MA-XXX → /wf-deploy           → commit+push+MR → merge to development
+            → /wf-deploy staging → from development → release/x.y.z → deploy staging → MR → staging
 
-Flujo fix (versión ya deployada):
-  fix/MA-XXX → /wf-deploy            → commit+push+MR → merge a staging
-               → /wf-deploy production → desde staging → release/x.y.z → deploy production → MR → master
+Fix flow (version already deployed):
+  fix/MA-XXX → /wf-deploy            → commit+push+MR → merge to staging
+               → /wf-deploy production → from staging → release/x.y.z → deploy production → MR → master
 ```
 
-| Ambiente  | Android local                    | iOS local                    |
-|-----------|----------------------------------|------------------------------|
-| staging   | `pnpm deploy:android:staging`    | `pnpm deploy:ios:staging`    |
-| production| `pnpm deploy:android:production` | `pnpm deploy:ios:production` |
+| Environment | Android local                    | iOS local                    |
+|-------------|----------------------------------|------------------------------|
+| staging     | `pnpm deploy:android:staging`    | `pnpm deploy:ios:staging`    |
+| production  | `pnpm deploy:android:production` | `pnpm deploy:ios:production` |

@@ -1,118 +1,120 @@
 ---
-description: "Refinement de ticket o feature. Clarifica alcance, criterios de aceptación y DoD antes de cualquier código. Hacer preguntas de a una."
+description: "Refinement of a ticket or feature. Clarifies scope, acceptance criteria and DoD before any code. Ask questions one at a time."
 allowed-tools: Read, Glob, Grep, Bash, TodoWrite
 ---
 
-Sos un senior engineer facilitando el refinement de una tarea. Tu objetivo es cerrar el alcance con el mínimo de preguntas necesarias, priorizando las más importantes primero.
+You are a senior engineer facilitating the refinement of a task. Your goal is to close the scope with the minimum number of questions needed, prioritizing the most important ones first.
 
-## Paso 0 — Identificar el ticket
+## Step 0 — Identify the ticket
 
-Detectar el ticket ID en este orden:
-1. `$ARGUMENTS` — si contiene un patrón tipo `BC-1234`, `PROJ-99`, usarlo
-2. `.claude/workflow/state.json` → campo `activeTicket`
-3. Si no se encuentra en ninguno → **preguntar antes de continuar**: "¿Cuál es el número de ticket? (ej. BC-1234)"
+Detect the ticket ID in this order:
+1. `$ARGUMENTS` — if it contains a pattern like `BC-1234`, `PROJ-99`, use it
+2. `.claude/workflow/state.json` → `activeTicket` field
+3. If it's found in neither → **ask before continuing**: "What's the ticket number? (e.g. BC-1234)"
 
-Crear la carpeta `.claude/workflow/BC-XXXX/` si no existe.
-Todos los artefactos de este ticket se guardan ahí.
+Create the `.claude/workflow/BC-XXXX/` folder if it doesn't exist.
+All of this ticket's artifacts are saved there.
 
-Guardar el ticket activo en `.claude/workflow/state.json`:
+Save the active ticket in `.claude/workflow/state.json`:
 ```json
 { "activeTicket": "BC-XXXX" }
 ```
 
-Guardar el estado del ticket en `.claude/workflow/BC-XXXX/state.json`:
+Save the ticket's state in `.claude/workflow/BC-XXXX/state.json`:
 ```json
-{ "stage": "refine", "completed": [], "started_at": "[timestamp ISO]" }
+{ "stage": "refine", "completed": [], "started_at": "[ISO timestamp]" }
 ```
 
-> El valor de `stage` es `refine`, no `refinement`. El vocabulario de etapas es único y lo define `hooks/wf-telemetry.sh` (`stage_index`): `refine`, `analyze`, `review-plan`, `implement`, `validate`, `test`, `mr-desc`, `mr-review`, `retro`. Cualquier otro valor rompe en silencio el conteo de iteraciones y el ruteo de `/wf`.
+> The value of `stage` is `refine`, not `refinement`. The stage vocabulary is singular and defined by `hooks/wf-telemetry.sh` (`stage_index`): `refine`, `analyze`, `review-plan`, `implement`, `validate`, `test`, `mr-desc`, `mr-review`, `retro`. Any other value silently breaks the iteration count and `/wf`'s routing.
 
-## Paso 1 — Escanear el proyecto antes de preguntar
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). Everything written to a file — refinement-summary.md, plan.md, code, commits — is always in English.
 
-Leer rápido para no preguntar lo que ya podés inferir:
-- `CLAUDE.md` o `README.md` → stack, convenciones
-- `.claude/workflow/config.json` → DoD del proyecto, stack, proyectos relacionados
-- Si hay un ticket ID en `$ARGUMENTS`, intentar inferir contexto del nombre
+## Step 1 — Scan the project before asking
 
-## Paso 2 — Entender el pedido inicial
+Read quickly so you don't ask what you can already infer:
+- `CLAUDE.md` or `README.md` → stack, conventions
+- `.claude/workflow/config.json` → the project's DoD, stack, related projects
+- If there's a ticket ID in `$ARGUMENTS`, try to infer context from the name
 
-Leer `$ARGUMENTS`. Si es un ticket ID de Jira, decirle al usuario que lo describa brevemente (o usar `/wf-jira` para fetcher el ticket si MCP está disponible).
+## Step 2 — Understand the initial request
 
-## Paso 3 — Hacer preguntas de a una
+Read `$ARGUMENTS`. If it's a Jira ticket ID, ask the user to describe it briefly (or use `/wf-jira` to fetch the ticket if MCP is available).
 
-Cubrir estos temas en orden de importancia. No hacer todas juntas — esperar respuesta antes de continuar.
+## Step 3 — Ask questions one at a time
 
-**Preguntas prioritarias:**
-1. ¿Cuál es el objetivo de negocio? ¿Qué problema resuelve?
-2. ¿Cuáles son los criterios de aceptación concretos? ¿Cómo sabemos que está done?
-3. ¿Hay casos borde o escenarios de error importantes?
-4. ¿Hay dependencias con otros sistemas o equipos?
-5. ¿Puede haber breaking changes en contratos existentes (API, tipos, eventos)?
-6. ¿Requiere infraestructura nueva? (env vars, migraciones, feature flags, permisos)
+Cover these topics in order of importance. Don't ask them all at once — wait for an answer before continuing.
 
-**Preguntas secundarias (solo si aplica):**
-- ¿Hay un deadline o contexto de urgencia?
-- ¿Hay decisiones de diseño ya tomadas que debemos respetar?
+**Priority questions:**
+1. What's the business objective? What problem does it solve?
+2. What are the concrete acceptance criteria? How do we know it's done?
+3. Are there important edge cases or error scenarios?
+4. Are there dependencies on other systems or teams?
+5. Could there be breaking changes to existing contracts (API, types, events)?
+6. Does it require new infrastructure? (env vars, migrations, feature flags, permissions)
 
-## Paso 4 — Confirmar DoD
+**Secondary questions (only if applicable):**
+- Is there a deadline or any urgency context?
+- Are there design decisions already made that we must respect?
 
-Al terminar las preguntas, construir el DoD combinando:
-- Lo que dijo el usuario
-- El `dod_checklist` del `.claude/workflow/config.json` del proyecto (si existe)
+## Step 4 — Confirm the DoD
 
-Mostrar el DoD al usuario y pedir confirmación.
+Once the questions are done, build the DoD by combining:
+- What the user said
+- The `dod_checklist` from the project's `.claude/workflow/config.json` (if it exists)
 
-## Paso 5 — Escribir el output
+Show the DoD to the user and ask for confirmation.
 
-Guardar en `.claude/workflow/{ticketId}/refinement-summary.md`:
+## Step 5 — Write the output
+
+Save to `.claude/workflow/{ticketId}/refinement-summary.md`:
 
 ```markdown
-# Refinement — [nombre de la tarea]
+# Refinement — [task name]
 
-## Objetivo
-[qué resuelve y por qué]
+## Objective
+[what it solves and why]
 
-## Criterios de aceptación
-- [ ] [criterio 1]
-- [ ] [criterio 2]
+## Acceptance criteria
+- [ ] [criterion 1]
+- [ ] [criterion 2]
 
-## Casos borde
-- [caso 1]
+## Edge cases
+- [case 1]
 
-## Dependencias
-- [dependencia 1]
+## Dependencies
+- [dependency 1]
 
-## Infraestructura requerida
-- [ ] [env var / migración / feature flag]
+## Required infrastructure
+- [ ] [env var / migration / feature flag]
 
 ## Breaking changes
-- [ninguno / descripción]
+- [none / description]
 
 ## Definition of Done
-- [ ] [ítem 1 del DoD]
-- [ ] [ítem 2 del DoD]
+- [ ] [DoD item 1]
+- [ ] [DoD item 2]
 
-## Notas adicionales
-[contexto relevante que surgió]
+## Additional notes
+[relevant context that came up]
 ```
 
-Al terminar, verificar el branch actual con `git branch --show-current`:
+When done, check the current branch with `git branch --show-current`:
 
-La rama base sale del proyecto, no se asume:
+The base branch comes from the project, it isn't assumed:
 ```bash
 BASE=$(~/.claude/scripts/wf-lib.sh base)
 ```
 
-- Si el branch actual es la base o no contiene el ticketId → sugerir crear el branch feature:
+- If the current branch is the base or doesn't contain the ticketId → suggest creating the feature branch:
   ```
-  🌿 Branch sugerido: git checkout -b {ticketId}-{slug} $BASE
+  🌿 Suggested branch: git checkout -b {ticketId}-{slug} $BASE
   ```
-  Donde `{slug}` es el título del ticket en kebab-case, máximo 4-5 palabras. Mostrar el comando exacto y preguntar: "¿Creo el branch?"
-  Si el usuario confirma → ejecutarlo y guardar el branch:
+  Where `{slug}` is the ticket title in kebab-case, 4-5 words maximum. Show the exact command and ask: "Should I create the branch?"
+  If the user confirms → run it and save the branch:
   ```bash
   ~/.claude/scripts/wf-lib.sh set-state branch '"{ticketId}-{slug}"'
   ```
   
-- Si ya está en un branch que contiene el ticketId → no sugerir nada.
+- If already on a branch containing the ticketId → don't suggest anything.
 
-Sugerir: "Siguiente paso: `/wf-analyze` para el análisis técnico." Recordar al usuario que puede correr `/wf-refine BC-XXXX` para cambiar de ticket activo sin perder los artefactos del anterior.
+Suggest: "Next step: `/wf-analyze` for the technical analysis." Remind the user they can run `/wf-refine BC-XXXX` to switch the active ticket without losing the previous one's artifacts.

@@ -1,21 +1,23 @@
 ---
-description: "Deploy paso a paso: commit+push si hay cambios pendientes, detecta la fase según la rama y ejecuta el deploy con el método disponible (CI o local). Si el proyecto no tiene CI/CD ni modelo de ramas definido, lo señala y propone armarlo."
+description: "Step-by-step deploy: commit+push if there are pending changes, detects the phase from the branch and runs the deploy with whatever method is available (CI or local). If the project has no CI/CD or defined branching model, it says so and offers to set it up."
 allowed-tools: Read, Bash, Glob, Grep
 ---
 
-Tu rol es preparar el entorno git y guiar el deploy según la rama actual y el método disponible en **este** proyecto. No asumas ninguna herramienta concreta: todo se detecta o se lee del config.
+Your role is to prepare the git environment and guide the deploy according to the current branch and the method available in **this** project. Don't assume any specific tool: everything is detected or read from the config.
 
-## Paso 0 — Parsear argumentos
+## Step 0 — Parse arguments
 
-Leer `$ARGUMENTS` y extraer:
-- **TARGET** — el ambiente destino, si aparece nombrado (`staging`, `production`, `qa`, el que use el proyecto)
-- **METHOD** (`local` | `ci`) — si aparece alguna de esas palabras
+Read `$ARGUMENTS` and extract:
+- **TARGET** — the destination environment, if it's named (`staging`, `production`, `qa`, whatever the project uses)
+- **METHOD** (`local` | `ci`) — if either word appears
 
-Lo que no venga por argumento se determina más adelante.
+Whatever isn't passed as an argument is determined later.
 
-## Paso 1 — Leer el modelo de ramas del proyecto
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). Everything written to a file — commit messages, config, docs — is always in English.
 
-Leer `.claude/workflow/config.json`:
+## Step 1 — Read the project's branching model
+
+Read `.claude/workflow/config.json`:
 
 ```json
 "base_branch": "develop",
@@ -27,27 +29,27 @@ Leer `.claude/workflow/config.json`:
 }
 ```
 
-**Si no existe la clave `deploy`**, no inventarla: seguir con la detección del Paso 3 y aplicar el Paso 6 (diagnóstico de prácticas faltantes) antes de ejecutar nada.
+**If the `deploy` key doesn't exist**, don't invent it: continue with the Step 3 detection and apply Step 6 (missing-practices diagnosis) before running anything.
 
-## Paso 2 — Verificar estado git
+## Step 2 — Verify git state
 
 ```bash
 git status --short
 git branch --show-current
-git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "(sin remote tracking)"
+git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null || echo "(no remote tracking)"
 ```
 
-Mostrar:
+Show:
 ```
-📦 Estado git:
-  Rama actual: [nombre]
-  Cambios sin commitear: [N archivos / ninguno]
-  Commits sin pushear: [N / ninguno]
+📦 Git state:
+  Current branch: [name]
+  Uncommitted changes: [N files / none]
+  Unpushed commits: [N / none]
 ```
 
-Si la rama actual está en `deploy.protected` → **detener**. No se deploya ni se commitea desde una rama protegida.
+If the current branch is in `deploy.protected` → **stop**. Nothing is deployed or committed from a protected branch.
 
-## Paso 3 — Detectar el método de deploy disponible
+## Step 3 — Detect the available deploy method
 
 ```bash
 ls .gitlab-ci.yml .github/workflows/ .circleci/ azure-pipelines.yml 2>/dev/null
@@ -55,120 +57,120 @@ grep -oE '"deploy[^"]*"' package.json 2>/dev/null
 ls Fastfile fastlane/Fastfile Makefile Dockerfile 2>/dev/null
 ```
 
-| Señal encontrada | Método |
+| Signal found | Method |
 |---|---|
-| Config de CI (`.gitlab-ci.yml`, `.github/workflows/`, etc.) | ✅ CI disponible |
-| Scripts de deploy en `package.json`, `Makefile`, o `deploy.commands` en el config | ✅ Local disponible |
-| Ambos | Preguntar al usuario cuál usar |
-| **Ninguno** | Ir al Paso 6 antes de continuar |
+| CI config (`.gitlab-ci.yml`, `.github/workflows/`, etc.) | ✅ CI available |
+| Deploy scripts in `package.json`, `Makefile`, or `deploy.commands` in the config | ✅ Local available |
+| Both | Ask the user which one to use |
+| **Neither** | Go to Step 6 before continuing |
 
-Si METHOD vino por argumento, saltear la pregunta pero igual registrar qué se detectó.
+If METHOD came as an argument, skip the question but still record what was detected.
 
-## Paso 4 — Determinar la fase según la rama
+## Step 4 — Determine the phase from the branch
 
-| Rama actual | Fase |
+| Current branch | Phase |
 |---|---|
-| Rama de ticket (no figura en `branch_model` ni en `protected`) | **Fase 1** — preparar MR |
-| Rama de integración (`branch_model.integration`) | **Fase 2** — crear release branch hacia el ambiente siguiente |
-| Rama que matchea `release_branch_pattern` | **Fase 2** — deploy directo |
-| Rama en `protected` | ⛔ Detenido en el Paso 2 |
+| Ticket branch (not listed in `branch_model` or `protected`) | **Phase 1** — prepare the MR |
+| Integration branch (`branch_model.integration`) | **Phase 2** — create a release branch toward the next environment |
+| Branch matching `release_branch_pattern` | **Phase 2** — deploy directly |
+| Branch in `protected` | ⛔ Stopped at Step 2 |
 
 ---
 
-### FASE 1 — Preparar el MR
+### PHASE 1 — Prepare the MR
 
-**Commit y push si hay cambios pendientes.**
+**Commit and push if there are pending changes.**
 
-Si hay cambios sin commitear, mostrar los archivos y preguntar: **"¿Commiteamos? ¿Qué archivos incluimos?"**
+If there are uncommitted changes, show the files and ask: **"Shall we commit? Which files do we include?"**
 
-Con los archivos confirmados, invocar `/wf-commit` para generar el mensaje. Mostrar y pedir confirmación.
+With the files confirmed, invoke `/wf-commit` to generate the message. Show it and ask for confirmation.
 
 ```bash
-git add [archivos confirmados]   # nunca -A
-git commit -m "[mensaje aprobado]"
+git add [confirmed files]   # never -A
+git commit -m "[approved message]"
 git push origin $(git branch --show-current)
 ```
 
-Si el push falla por divergencia → mostrar el error y pedir instrucciones. **Nunca force push.**
+If the push fails due to divergence → show the error and ask for instructions. **Never force push.**
 
-**Informar y detener:**
+**Report and stop:**
 ```
-✅ Rama lista: [nombre]
-📋 MR: [URL si aparece en el output del push, o dónde crearlo]
+✅ Branch ready: [name]
+📋 MR: [URL if it appears in the push output, or where to create it]
 
-🔜 Próximo paso: después de que aprueben el MR, mergear a [integration]
-   y volver a correr /wf-deploy [target] desde ahí.
+🔜 Next step: after the MR is approved, merge to [integration]
+   and run /wf-deploy [target] again from there.
 ```
 
-No continuar al deploy.
+Do not continue to the deploy.
 
 ---
 
-### FASE 2 — Deploy
+### PHASE 2 — Deploy
 
-**Determinar TARGET** si no vino por argumento: derivarlo de `branch_model` (rama de integración → ambiente siguiente). Si el modelo no lo define, preguntar.
+**Determine TARGET** if it didn't come as an argument: derive it from `branch_model` (integration branch → next environment). If the model doesn't define it, ask.
 
-**Crear la release branch** si estás en una rama de integración:
+**Create the release branch** if you're on an integration branch:
 ```
-📦 Estás en [rama]. Para deployar hay que crear una release branch.
-¿Qué versión? (ej: 1.3.1)
+📦 You're on [branch]. To deploy, a release branch has to be created.
+Which version? (e.g. 1.3.1)
 ```
-Luego, usando `release_branch_pattern`:
+Then, using `release_branch_pattern`:
 ```bash
-git checkout -b [patrón resuelto]
-git push -u origin [patrón resuelto]
+git checkout -b [resolved pattern]
+git push -u origin [resolved pattern]
 ```
 
-**Ejecutar el deploy:**
+**Run the deploy:**
 
-- **METHOD = local** → correr el comando de `deploy.commands[TARGET]`. Si el proyecto pide datos de versión (versionName/versionCode, tag, semver), preguntarlos **antes** de ejecutar y mostrar los valores actuales como referencia. Mostrar el output en tiempo real y esperar a que termine.
-- **METHOD = ci** → mostrar los pasos concretos para disparar el pipeline (proveedor, rama, variables requeridas) y preguntar: "¿Ya lo disparaste? Avisame cuando termine."
+- **METHOD = local** → run the command from `deploy.commands[TARGET]`. If the project needs version data (versionName/versionCode, tag, semver), ask for it **before** executing and show the current values for reference. Show the output in real time and wait for it to finish.
+- **METHOD = ci** → show the concrete steps to trigger the pipeline (provider, branch, required variables) and ask: "Have you triggered it? Let me know when it finishes."
 
-**Resumen final:**
+**Final summary:**
 ```
-✅ Deploy completado
-  Método: [local / CI]
+✅ Deploy completed
+  Method: [local / CI]
   Target: [TARGET]
-  Rama: [release branch]
-  Resultado: [por plataforma/servicio]
+  Branch: [release branch]
+  Result: [per platform/service]
 ```
 
-Si hubo errores, ayudar a diagnosticar.
+If there were errors, help diagnose them.
 
 ---
 
-## Paso 6 — Diagnóstico de prácticas faltantes
+## Step 6 — Missing-practices diagnosis
 
-Correr **siempre** que falte alguna de estas piezas. No bloquea el deploy, pero se informa antes de ejecutar nada — un deploy manual sin red de seguridad es una decisión, no un default.
+Run this **whenever** any of these pieces is missing. It doesn't block the deploy, but it's reported before anything runs — a manual deploy with no safety net is a decision, not a default.
 
-| Falta | Qué señalar | Qué proponer |
+| Missing | What to flag | What to propose |
 |---|---|---|
-| No hay config de CI | No hay forma de reproducir el deploy fuera de tu máquina, ni de auditarlo | Pipeline mínimo: instalar deps, correr los `checks` del config, buildear |
-| Hay CI pero no corre los `checks` del `config.json` | El gate de calidad existe local pero no se aplica en el MR | Agregar lint/types/test al pipeline del MR |
-| No hay `deploy.branch_model` en el config | El comando tiene que adivinar el modelo de ramas en cada corrida | Definirlo una vez en `.claude/workflow/config.json` |
-| No hay ramas protegidas | Se puede pushear directo al ambiente productivo | Proteger las ramas de release en el remoto |
-| No hay versionado en el release | No se puede saber qué está deployado ni volver atrás | Tags de versión, o `release_branch_pattern` con semver |
-| No hay rollback documentado | Ante un incidente se improvisa | Documentar el procedimiento en el README |
+| No CI config | There's no way to reproduce the deploy off your machine, or to audit it | Minimal pipeline: install deps, run the config's `checks`, build |
+| CI exists but doesn't run the `config.json` `checks` | The quality gate exists locally but isn't enforced on the MR | Add lint/types/test to the MR pipeline |
+| No `deploy.branch_model` in the config | The command has to guess the branching model on every run | Define it once in `.claude/workflow/config.json` |
+| No protected branches | Anyone can push straight to the production environment | Protect the release branches on the remote |
+| No versioning on the release | You can't tell what's deployed or roll back | Version tags, or `release_branch_pattern` with semver |
+| No documented rollback | An incident turns into improvisation | Document the procedure in the README |
 
-Formato del aviso:
+Warning format:
 
 ```
-⚠️  Prácticas faltantes detectadas en este proyecto:
+⚠️  Missing practices detected in this project:
 
-  [pieza faltante] → [qué riesgo concreto implica]
-  [pieza faltante] → [qué riesgo concreto implica]
+  [missing piece] → [the concrete risk it implies]
+  [missing piece] → [the concrete risk it implies]
 
-Propuesta: [la más importante de la tabla]
+Proposal: [the most important one from the table]
 
-¿Seguimos con el deploy igual, o lo armamos primero?
+Continue with the deploy anyway, or set this up first?
 ```
 
-Esperar respuesta. Si el usuario elige armarlo, la skill `infra-checklist` cubre el checklist completo de infraestructura.
+Wait for an answer. If the user chooses to set it up, the `infra-checklist` skill covers the full infrastructure checklist.
 
-Si el usuario elige seguir, continuar sin volver a preguntar — el aviso ya se dio.
+If the user chooses to continue, proceed without asking again — the warning was already given.
 
 ---
 
-## Nota sobre proyectos con toolchain propio
+## Note on projects with their own toolchain
 
-Un proyecto con un flujo de deploy muy específico (fastlane, Helm, Terraform, scripts internos) debería crear su propio `.claude/commands/wf-deploy.md`, que sobrescribe a este. Este comando es el genérico: detecta lo que hay, no asume herramientas.
+A project with a very specific deploy flow (fastlane, Helm, Terraform, internal scripts) should create its own `.claude/commands/wf-deploy.md`, which overrides this one. This command is the generic one: it detects what's there, it doesn't assume tools.
