@@ -1,123 +1,132 @@
 ---
-description: "Mejora continua del workflow. Con argumento: registra una observación en el log de la sesión. Sin argumento: revisión completa — categoriza todo lo acumulado y propone fixes de código y mejoras a los comandos."
+description: "Continuous workflow improvement. With an argument: records an observation in the session log. Without one: full review — categorizes everything accumulated and proposes code fixes and command improvements."
 allowed-tools: Read, Write, Edit, Bash, Glob, TodoRead
 ---
 
-Comando de mejora continua. Operás en dos modos según si hay argumento o no.
+Continuous improvement command. You operate in two modes depending on whether there's an argument.
+
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). Everything written to a file — improvement-log.md, improvements.md, command edits — is always in English.
 
 ---
 
-## Modo flag — `/wf-improve <observación>`
+## Flag mode — `/wf-improve <observation>`
 
-Cuando `$ARGUMENTS` tiene texto, registrar la observación sin interrumpir el trabajo.
+When `$ARGUMENTS` has text, record the observation without interrupting the work.
 
-### Paso 1 — Detectar contexto actual
+### Step 1 — Detect the current context
 
-Leer `.claude/workflow/state.json` → `activeTicket`.
-Leer `.claude/workflow/{activeTicket}/state.json` → `stage` actual.
+Read `.claude/workflow/state.json` → `activeTicket`.
+Read `.claude/workflow/{activeTicket}/state.json` → current `stage`.
 
-### Paso 2 — Clasificar la observación
+### Step 2 — Classify the observation
 
-Determinar a qué categoría pertenece el problema reportado:
+Determine which category the reported problem belongs to:
 
-| Categoría | Descripción |
+| Category | Description |
 |---|---|
-| `workflow` | El comando se comportó diferente a lo esperado — habría que mejorar el comando |
-| `code` | Algo quedó mal implementado en el código |
-| `plan` | El análisis o plan fue incorrecto o incompleto |
-| `communication` | Claude malinterpretó la intención o no preguntó lo necesario |
-| `other` | Otro tipo de observación |
+| `workflow` | The command behaved differently than expected — the command should be improved |
+| `code` | Something ended up badly implemented in the code |
+| `plan` | The analysis or plan was wrong or incomplete |
+| `communication` | Claude misread the intent or didn't ask what it needed to |
+| `other` | Another kind of observation |
 
-### Paso 3 — Agregar al log
+### Step 3 — Append to the log
 
-Crear o agregar a `.claude/workflow/improvement-log.md`:
+Create or append to `.claude/workflow/improvement-log.md`:
 
 ```markdown
 ---
-**[timestamp] — Etapa: [etapa actual]**
-**Categoría:** [categoría]
-**Observación:** [texto del $ARGUMENTS]
-**Contexto:** [qué se estaba haciendo cuando ocurrió]
+**[timestamp] — Stage: [current stage]**
+**Category:** [category]
+**Observation:** [text from $ARGUMENTS]
+**Context:** [what was being done when it happened]
 
 ---
 ```
 
-Confirmar al usuario:
+Confirm to the user:
 ```
-📝 Registrado en improvement-log.md
-Categoría: [categoría]
-Podés continuar — se revisa todo al final con /wf-improve
+📝 Recorded in improvement-log.md
+Category: [category]
+You can continue — everything gets reviewed at the end with /wf-improve
 ```
 
 ---
 
-## Modo review — `/wf-improve` (sin argumentos)
+## Review mode — `/wf-improve` (no arguments)
 
-Revisión completa de todo lo acumulado durante la sesión.
+Full review of everything accumulated during the session.
 
-### Paso 1 — Recopilar todo
+### Step 1 — Gather everything
 
-Leer `.claude/workflow/state.json` → `activeTicket`.
+Read `.claude/workflow/state.json` → `activeTicket`.
 
-Leer:
-- `.claude/workflow/improvement-log.md` → observaciones acumuladas
-- `.claude/workflow/{activeTicket}/state.json` → etapas recorridas
-- `.claude/workflow/{activeTicket}/plan.md` → para entender qué se implementó
-- `~/.claude/workflow/flow-history.json` → si hay 3+ entries, cruzar patrones
+Read:
+- `.claude/workflow/improvement-log.md` → accumulated observations
+- `.claude/workflow/{activeTicket}/state.json` → stages visited
+- `.claude/workflow/{activeTicket}/plan.md` → to understand what was implemented
+- `~/.claude/workflow/flow-history.json` → if there are 3+ entries, cross-reference patterns
 
-### Paso 2 — Mostrar el análisis
+### Step 2 — Show the analysis
 
 ```
-## Revisión de mejora continua
+## Continuous improvement review
 
-### Observaciones acumuladas
-[lista de lo que se registró durante la sesión]
+### Accumulated observations
+[list of what was recorded during the session]
 
-### Patrones detectados
-[si hay 2+ observaciones del mismo tipo o componente]
+### Detected patterns
+[if there are 2+ observations of the same kind or component]
 
-### Categorización
-🔧 Fixes de código: [N items]
-⚙️  Mejoras al workflow: [N items]
-📋 Para el plan / análisis: [N items]
+### Categorization
+🔧 Code fixes: [N items]
+⚙️  Workflow improvements: [N items]
+📋 For the plan / analysis: [N items]
 ```
 
-### Paso 3 — Proponer acciones
+### Step 3 — Propose actions
 
-Para cada ítem, proponer una acción concreta:
+For each item, propose a concrete action:
 
-**Fixes de código** — mostrar qué archivo/función hay que corregir y el cambio exacto.
+**Code fixes** — show which file/function needs correcting and the exact change.
 
-**Mejoras al workflow** — mostrar el comando afectado (`wf-*.md`) y el cambio de instrucción propuesto. Ejemplo:
+**Workflow improvements** — show the affected command (`wf-*.md`) and the proposed instruction change. Example:
 ```
-Comando: wf-analyze
-Problema: no pregunta sobre permisos del endpoint antes de generar el plan
-Cambio propuesto: agregar en Paso 2 "Si el plan incluye endpoints nuevos, verificar permisos requeridos"
+Command: wf-analyze
+Problem: it doesn't ask about endpoint permissions before generating the plan
+Proposed change: add to Step 2 "If the plan includes new endpoints, verify the required permissions"
 ```
 
-**Plan / análisis** — notar para el historial; si el ticket sigue abierto, sugerir correr `/wf-analyze` de nuevo.
+**Plan / analysis** — note it for the history; if the ticket is still open, suggest running `/wf-analyze` again.
 
-### Paso 4 — Aplicar con aprobación
+### Step 4 — Apply with approval
 
-Para cada propuesta, pedir confirmación antes de aplicar:
-**"¿Aplico este cambio?"**
+For each proposal, ask for confirmation before applying:
+**"Should I apply this change?"**
 
-- Fixes de código → aplicar con `Edit` tool
-- Mejoras al workflow → editar el archivo en `~/.claude/commands/wf-*.md` con `Edit` tool
+- **Code fixes** → apply with the `Edit` tool on the current project.
+- **Workflow improvements** → edit **`{repoPath}/commands/wf-*.md`**, where `{repoPath}` comes from `repo_path` in `~/.claude/workflow/config.json`. Never edit `~/.claude/commands/`: it's an installation target, and every change made there is lost on the next `install.sh` (that's how `wf-commit.md` and `wf-deploy.md` were lost, left installed with no origin in the repo).
 
-Recordar al usuario que los cambios al workflow también deben reflejarse en el repo fuente (`~/claude-workflow/commands/`) para que persistan en el próximo `install.sh`.
+  If there's no `repo_path` configured, warn and ask for the repo's `install.sh` to be run before applying workflow improvements.
 
-### Paso 5 — Limpiar el log
+After applying a workflow improvement:
+1. Record the evidence in `~/.claude/workflow/improvements.md` — rule §0: without citable evidence, the change isn't applied.
+2. Reinstall: `"{repoPath}/install.sh"`
+3. Verify: `"{repoPath}/install.sh" --check`
 
-Cuando se completó la revisión, preguntar si limpiar el `improvement-log.md` para la próxima sesión.
+The change stays in the repo's working tree, uncommitted.
 
-Si acepta → reemplazar con:
+### Step 5 — Clean the log
+
+Once the review is complete, ask whether to clear `improvement-log.md` for the next session.
+
+If they accept → replace it with:
 ```markdown
 # Improvement Log
 
-_Registrar observaciones durante la sesión con `/wf-improve <observación>`_
+_Record observations during the session with `/wf-improve <observation>`_
 ```
 
-### Paso 6 — Ofrecer guardar en flow-history
+### Step 6 — Offer to save to flow-history
 
-Preguntar si quiere agregar un entry al historial global con las mejoras aplicadas en esta sesión.
+Ask whether they want to add an entry to the global history with the improvements applied in this session.

@@ -1,91 +1,130 @@
 ---
-description: "Retrospectiva del ciclo de desarrollo completado. Analiza la sesión, extrae aprendizajes y propone mejoras al workflow. Guarda en flow-history.json."
+description: "Retrospective of the completed development cycle. Analyzes the session, extracts lessons and proposes workflow improvements. Saves to flow-history.json."
 allowed-tools: Read, Write, Edit, Bash, Glob, TodoRead
 ---
 
-Tu rol es analizar cómo fue el ciclo de desarrollo, extraer aprendizajes y proponer mejoras concretas al sistema de workflow.
+Your role is to analyze how the development cycle went, extract lessons and propose concrete improvements to the workflow system.
 
-## Paso 0 — Identificar ticket activo
+## Step 0 — Ticket context
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
+```bash
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage retro
+```
 
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-## Paso 1 — Recopilar datos de la sesión
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — flow-history.json, improvements.md, command edits — is always in English.
 
-Leer:
-- `{workflowDir}/state.json` → etapas recorridas
-- `{workflowDir}/plan.md` → qué se implementó y desvíos registrados
-- `{workflowDir}/review-findings.md` → hallazgos del plan review
-- `~/.claude/workflow/flow-history.json` → histórico de sesiones anteriores (si existe)
+## Step 1 — Gather session data
 
-## Paso 2 — Análisis de la sesión
+Read:
+- `{workflowDir}/state.json` → stages visited
+- `{workflowDir}/plan.md` → what was implemented and recorded deviations
+- `{workflowDir}/review-findings.md` → findings from the plan review
+- `~/.claude/workflow/flow-history.json` → history of previous sessions (if it exists)
 
-Evaluar:
-- **Etapas completadas** y cuántas iteraciones requirió cada una
-- **Retrabajo detectado**: etapas que se repitieron, correcciones mid-etapa
-- **Fricción**: momentos donde el flujo se interrumpió o fue poco claro
-- **Desvíos del plan**: qué cambió respecto al plan original y por qué
-- **Deuda técnica registrada**: qué quedó pendiente
+## Step 2 — Session analysis
 
-Si hay 3+ entries en `flow-history.json`, cruzar con el histórico:
-- ¿Qué etapas siempre requieren múltiples iteraciones?
-- ¿Hay anomalías recurrentes?
-- ¿Hay hallazgos que se repiten en distintos tickets?
+Evaluate:
+- **Completed stages** and how many iterations each one took
+- **Detected rework**: stages that repeated, mid-stage corrections
+- **Friction**: moments where the flow was interrupted or unclear
+- **Deviations from the plan**: what changed versus the original plan and why
+- **Recorded tech debt**: what was left pending
 
-## Paso 3 — Informe de retrospectiva
+If there are 3+ entries in `flow-history.json`, cross-reference the history:
+- Which stages always require multiple iterations?
+- Are there recurring anomalies?
+- Are there findings repeating across different tickets?
 
-Mostrar al usuario:
+## Step 3 — Retrospective report
+
+Show the user:
 
 ```
-## Retrospectiva — [ticket/tarea]
+## Retrospective — [ticket/task]
 
-### Resumen de la sesión
-- Etapas recorridas: [lista]
-- Retrabajo: [descripción o "ninguno"]
-- Fricción detectada: [descripción o "ninguna"]
+### Session summary
+- Stages visited: [list]
+- Rework: [description or "none"]
+- Friction detected: [description or "none"]
 
-### Aprendizajes
-1. [aprendizaje 1]
-2. [aprendizaje 2]
+### Lessons
+1. [lesson 1]
+2. [lesson 2]
 
-### Patrones del histórico (si aplica)
-- [patrón recurrente detectado]
+### Patterns from history (if applicable)
+- [recurring pattern detected]
 
-### Mejoras propuestas al workflow
-| Componente | Problema | Cambio propuesto |
+### Proposed workflow improvements
+| Component | Problem | Proposed change |
 |---|---|---|
-| [wf-analyze] | [descripción] | [cambio concreto] |
+| [wf-analyze] | [description] | [concrete change] |
 ```
 
-## Paso 4 — Guardar en flow-history
+## Step 4 — Save to flow-history
 
-Preguntar al usuario si quiere guardar esta sesión en el histórico.
+Ask the user whether they want to save this session to the history.
 
-Si acepta, agregar entry a `~/.claude/workflow/flow-history.json`:
+If they accept, append an entry to `~/.claude/workflow/flow-history.json`:
 ```json
 {
-  "date": "[fecha ISO]",
-  "project": "[nombre del proyecto]",
-  "ticket": "[ID o descripción]",
-  "stages_completed": ["[lista]"],
-  "iterations": {"[etapa]": "[N]"},
-  "key_findings": ["[hasta 3 hallazgos]"],
-  "anomalies": ["[desvíos o fricción detectada]"]
+  "date": "[ISO date]",
+  "project": "[project name]",
+  "ticket": "[ID or description]",
+  "stages_completed": ["[list]"],
+  "iterations": {"[stage]": "[N]"},
+  "key_findings": ["[up to 3 findings]"],
+  "anomalies": ["[deviations or friction detected]"]
 }
 ```
 
-## Paso 5 — Aplicar mejoras (con aprobación)
+## Step 4.5 — Close the ticket in telemetry
 
-Si hay mejoras propuestas al workflow, preguntar:
-**"¿Querés que aplique alguna de estas mejoras a los comandos del sistema?"**
+**This step is what gives everything above its point.** `/wf-analyze` recorded an estimated score; without the actual one, that score can never be calibrated and the rubric stays decorative forever.
 
-Si el usuario acepta una mejora:
-1. Identificar el archivo en `~/.claude/commands/wf-*.md` que corresponde
-2. Mostrar el cambio propuesto antes de aplicarlo
-3. Pedir confirmación final
-4. Aplicar con Edit tool
+Read `{workflowDir}/complexity.json` (written by `/wf-analyze`) and the real iterations from the ticket's `state.json`:
 
-Recordar al usuario que para persistir los cambios en el repo fuente: editar el archivo correspondiente en la carpeta de `claude-workflow` y hacer commit.
+```bash
+~/.claude/scripts/wf-lib.sh state '.iterations'
+~/.claude/scripts/wf-event.sh ticket_closed \
+  --iterations_total [N] \
+  --complexity_actual [the points you'd give it today, with the ticket finished] \
+  --iterations_by_stage '{"analyze":2,"implement":3}'
+```
+
+`complexity_actual` is scored with **the same §5.2 rubric**, now with the real data: the files actually touched, the layers that turned out to be involved, whether shared state showed up that hadn't been anticipated. It isn't "how expensive it felt" — it's the same table, with the values you only know at the end.
+
+Scoring it from memory or rounding it toward the estimate ruins the data: the calibration error is precisely the difference between the two, and if the actual is adjusted to match, the metric measures zero by construction.
+
+After closing, see what the history says:
+```bash
+~/.claude/scripts/wf-stats.sh
+```
+
+## Step 5 — Apply improvements (with approval)
+
+If there are proposed workflow improvements, ask:
+**"Do you want me to apply any of these improvements to the system's commands?"**
+
+If the user accepts an improvement:
+
+1. **Resolve the source repo.** Read `repo_path` from `~/.claude/workflow/config.json`.
+   - If it exists and the directory is present → `{repoPath}` is the edit target.
+   - If not → warn: "There's no `repo_path` in the global config. Run the repo's `install.sh` to configure it." and edit `~/.claude/commands/` only as a fallback, noting that the change will be lost on the next install.
+2. Identify the file under **`{repoPath}/commands/wf-*.md`** — never under `~/.claude/commands/`, which is an installation target, not the source.
+3. Show the proposed change before applying it.
+4. Ask for a final confirmation.
+5. Apply it with the Edit tool on the repo's file.
+6. **Record the evidence** in `~/.claude/workflow/improvements.md` (format in the file's header). Rule §0 of the brainstorm: if the evidence can't be written down — `file:line` or the concrete query over `events.jsonl` — the change isn't applied.
+7. **Reinstall** so the change takes effect:
+   ```bash
+   "{repoPath}/install.sh"
+   ```
+8. Verify it's in sync:
+   ```bash
+   "{repoPath}/install.sh" --check
+   ```
+
+Remind the user that the change is in the repo's working tree, uncommitted.

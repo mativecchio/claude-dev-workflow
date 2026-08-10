@@ -1,110 +1,156 @@
 ---
-description: "Inicializa el workflow en el proyecto actual. Escanea el codebase, detecta stack y DoD automáticamente, y genera .claude/workflow/config.json. Correr una vez por proyecto desde la raíz."
+description: "Initializes the workflow in the current project. Scans the codebase, auto-detects the stack and DoD, and generates .claude/workflow/config.json. Run once per project from its root."
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
-Inicializás el sistema de workflow para este proyecto. Tu objetivo es generar un `.claude/workflow/config.json` útil escaneando el proyecto — sin preguntar lo que podés inferir.
+You initialize the workflow system for this project. Your goal is to generate a useful `.claude/workflow/config.json` by scanning the project — without asking what you can infer.
 
-## Paso 1 — Detectar stack
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default — this command usually runs before any project config exists). Everything written to a file — config.json, AGENTS.md, docs — is always in English.
 
-Buscar los siguientes archivos en la raíz del proyecto:
+## Step 1 — Detect the stack
+
+Look for the following files at the project root:
 
 **JavaScript / TypeScript:**
-- `package.json` → leer `dependencies` y `devDependencies` para detectar:
-  - React Native: `react-native` presente
-  - React (web): `react` presente sin `react-native`
-  - Next.js: `next` presente
-  - Vue: `vue` presente
+- `package.json` → read `dependencies` and `devDependencies` to detect:
+  - React Native: `react-native` present
+  - React (web): `react` present without `react-native`
+  - Next.js: `next` present
+  - Vue: `vue` present
   - Testing: `jest`, `vitest`, `cypress`, `playwright`
   - State: `redux`, `zustand`, `jotai`, `mobx`
 
 **Python:**
-- `pyproject.toml` o `setup.py` → detectar FastAPI, Django, Flask, pytest
-- `requirements.txt` → idem
+- `pyproject.toml` or `setup.py` → detect FastAPI, Django, Flask, pytest
+- `requirements.txt` → same
 
 **PHP:**
-- `composer.json` → detectar Laravel, Symfony
+- `composer.json` → detect Laravel, Symfony
 
-**Múltiples stacks:** si hay `package.json` Y `composer.json`, es un proyecto full-stack — registrar ambos.
+**Multiple stacks:** if there's both a `package.json` AND a `composer.json`, it's a full-stack project — record both.
 
-## Paso 2 — Detectar convenciones de calidad
+## Step 2 — Detect quality conventions
 
-Buscar:
-- `.eslintrc*` o `eslint.config.*` → linter activo → agregar "Linter sin errores" al DoD
-- `.prettierrc*` → formatter → agregar "Prettier pasa" al DoD
-- `jest.config.*` o `vitest.config.*` → testing configurado
-- `cypress/` o `e2e/` → E2E disponible
-- `.github/workflows/` → leer el CI para entender qué se corre en cada PR
-- `phpunit.xml` o `pest.config.php` → testing PHP
-- `pytest.ini` o `pyproject.toml [tool.pytest]` → testing Python
+Look for:
+- `.eslintrc*` or `eslint.config.*` → linter active → add "Linter passes with no errors" to the DoD
+- `.prettierrc*` → formatter → add "Prettier passes" to the DoD
+- `jest.config.*` or `vitest.config.*` → testing configured
+- `cypress/` or `e2e/` → E2E available
+- `.github/workflows/` → read the CI to understand what runs on each PR
+- `phpunit.xml` or `pest.config.php` → PHP testing
+- `pytest.ini` or `pyproject.toml [tool.pytest]` → Python testing
 
-## Paso 3 — Detectar proyectos relacionados
+## Step 3 — Detect related projects
 
-Buscar en:
-- `.env` o `.env.example` → variables que apunten a otros servicios (API URLs, service names)
-- `README.md` → menciones de otros repos o servicios
-- `package.json` → workspaces si es un monorepo
+Look in:
+- `.env` or `.env.example` → variables pointing at other services (API URLs, service names)
+- `README.md` → mentions of other repos or services
+- `package.json` → workspaces if it's a monorepo
 
-## Paso 4 — Detectar estructura y patrones
+## Step 4 — Detect structure and patterns
 
-Escanear estructura top-level para entender si hay:
-- `docs/` → tech_debt_log probable en `docs/tech-debt.md`
-- `src/i18n/` o `locales/` → i18n activo → agregar "i18n keys agregadas" al DoD
-- `migrations/` → migraciones activas → agregar "Migraciones incluidas" al DoD
+Scan the top-level structure to see whether there's:
+- `docs/` → likely tech_debt_log at `docs/tech-debt.md`
+- `src/i18n/` or `locales/` → i18n active → add "i18n keys added" to the DoD
+- `migrations/` → migrations active → add "Migrations included" to the DoD
 
-## Paso 5 — Construir el config propuesto
+## Step 5 — Build the proposed config
 
-Generar el config con lo detectado y mostrárselo al usuario antes de escribir:
+Generate the config from what you detected and show it to the user before writing:
 
 ```
-📦 Stack detectado: [stack]
+📦 Detected stack: [stack]
 🧪 Test runner: [jest/pytest/pest/none]
 🔍 Linter: [eslint/none]
+🌿 Base branch: [develop/main/master]
 
-📋 Config propuesto:
+📋 Proposed config:
 
 {
-  "stack": "[stack detectado]",
+  "stack": "[detected stack]",
+  "base_branch": "[detected base branch]",
+  "language": "en",
   "related_projects": [],
+  "checks": {
+    "lint": "[the project's real command]",
+    "types": "[the real command, if applicable]",
+    "test": "[the real command]"
+  },
   "dod_checklist": [
-    "Tests escritos y pasando",
-    "[ítems detectados del proyecto]"
+    "Tests written and passing",
+    "[items detected from the project]"
   ],
-  "tech_debt_log": "[path si existe docs/]"
+  "tech_debt_log": "[path if docs/ exists]"
 }
 
-¿Lo ajustamos o lo escribimos así?
+Adjust it, or write it as-is?
 ```
 
-Preguntar una sola cosa si algo no quedó claro:
-- Si no se detectó el stack → "¿Qué stack es este proyecto?"
-- Si hay proyectos relacionados que no pudo inferir → "¿Hay repos relacionados que usa este proyecto?"
+**`base_branch`** — detect it with `git branch -a`: whichever of `develop`, `main`, `master` exists. If several do, ask which one is the integration branch. Without this field, every command that needs a diff has to guess it.
 
-## Paso 6 — Escribir los archivos
+**`language`** — the language the commands address the user in (`en` by default). Files written to disk are always in English regardless of this value; it only governs what's spoken on screen. Ask only if the user brings it up — don't add a question for it to the flow.
 
-Si el usuario confirma (o ajusta):
+**`checks`** — the highest-impact change in this config. These are the project's **real** commands, taken from the `package.json` scripts, the `Makefile`, or the CI: don't invent `npm run lint` if the script doesn't exist. Verify each one runs before writing it.
 
-1. Crear `.claude/workflow/` si no existe
-2. Escribir `.claude/workflow/config.json`
-3. Crear `.claude/workflow/improvement-log.md` vacío:
+What goes in here stops depending on an agent's judgment: `/wf-validate` runs them before spending an Agent, and `/wf-test` uses them as the final run. A `dod_checklist` item that can be expressed as a command should live in `checks`, not in the prose list.
+
+Ask only one thing if something remained unclear:
+- If the stack wasn't detected → "What stack is this project?"
+- If there are related projects it couldn't infer → "Are there related repos this project uses?"
+
+## Step 6 — Write the files
+
+If the user confirms (or adjusts):
+
+1. Create `.claude/workflow/` if it doesn't exist
+2. Write `.claude/workflow/config.json`
+3. Create an empty `.claude/workflow/improvement-log.md`:
 ```markdown
 # Improvement Log
 
-_Registrar observaciones durante la sesión con `/wf-improve <observación>`_
+_Record observations during the session with `/wf-improve <observation>`_
 ```
 
-Confirmar:
-```
-✅ Proyecto inicializado
+4. **`AGENTS.md` at the project root.** `config.json` is specific to this system; `AGENTS.md` is the format other tools read (Cursor, Codex, Copilot). Ask before creating it, and if it already exists, offer to update it instead of overwriting.
 
-Archivos creados:
+```markdown
+# [Project name]
+
+[One line: what it is.]
+
+## Stack
+[detected stack]
+
+## Commands
+- Install: `[command]`
+- Tests: `[command from checks.test]`
+- Lint: `[command from checks.lint]`
+- Types: `[command from checks.types]`
+- Build: `[command]`
+
+## Conventions
+[What was detected from the project: folder structure, test pattern,
+state management, i18n. Only what was verified in the codebase, not assumed.]
+
+## Base branch
+`[base_branch]`
+```
+
+Keep `AGENTS.md` short and verified: the commands must be the real ones, the same as in `checks`. An `AGENTS.md` with invented commands is worse than not having one.
+
+Confirm:
+```
+✅ Project initialized
+
+Files created:
 - .claude/workflow/config.json
 - .claude/workflow/improvement-log.md
+- AGENTS.md [if confirmed]
 
-Listo para usar. Arrancá con /wf cuando tengas una tarea.
+Ready to use. Start with /wf when you have a task.
 ```
 
-## Nota si ya existe config
+## Note if a config already exists
 
-Si ya existe `.claude/workflow/config.json`, mostrar el contenido actual y preguntar:
-**"Ya existe config. ¿Querés actualizarlo con lo que detecté o dejarlo como está?"**
+If `.claude/workflow/config.json` already exists, show the current contents and ask:
+**"A config already exists. Update it with what I detected, or leave it as-is?"**

@@ -1,0 +1,5 @@
+.DS_Store
+*.swp
+
+# Artefactos locales de diagnóstico (scripts/wf-probe.sh)
+probe.jsonl

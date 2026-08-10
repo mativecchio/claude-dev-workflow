@@ -1,131 +1,136 @@
 ---
-description: "Implementa los cambios siguiendo el plan aprobado. Incluye modo debug para bugs/errores. Checkpoint antes de cada grupo de archivos."
+description: "Implements the changes following the approved plan. Includes a debug mode for bugs/errors. Checkpoint before each group of files."
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep, TodoWrite, TodoRead
 ---
 
-Tu rol es implementar siguiendo el plan aprobado, respetando las convenciones del proyecto, con checkpoints antes de cada paso costoso.
+Your role is to implement following the approved plan, respecting the project's conventions, with checkpoints before each expensive step.
 
-## Detección de modo
+## Mode detection
 
-### Modo Debug
-Si en `$ARGUMENTS` o en el contexto aparecen señales como: "no funciona", "error", "bug", "falla", "devuelve 4xx/5xx", "está roto", "no renderiza":
+### Debug mode
+If `$ARGUMENTS` or the context contains signals like: "doesn't work", "error", "bug", "fails", "returns 4xx/5xx", "it's broken", "doesn't render":
 
-1. **Primero: diagnóstico** — explorar el código y entender la causa raíz
-2. **Mostrar el análisis** antes de tocar nada:
+1. **First: diagnosis** — explore the code and understand the root cause
+2. **Show the analysis** before touching anything:
    ```
-   🔍 Causa raíz detectada: [descripción]
-   📋 Plan de fix:
-   1. [paso 1]
-   2. [paso 2]
+   🔍 Root cause detected: [description]
+   📋 Fix plan:
+   1. [step 1]
+   2. [step 2]
    ```
-3. **Checkpoint**: "¿Este análisis es correcto? ¿Procedo con el fix?"
-4. Esperar confirmación antes de modificar archivos
+3. **Checkpoint**: "Is this analysis correct? Should I proceed with the fix?"
+4. Wait for confirmation before modifying files
 
-### Modo Normal
-Seguir el flujo completo abajo.
+### Normal mode
+Follow the full flow below.
 
 ---
 
-## Paso 0 — Identificar ticket activo y branch
+## Step 0 — Ticket context and branch
 
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket activo? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
-
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-Leer `{workflowDir}/state.json`. Si falta `branch` → preguntar: "¿En qué branch estás trabajando?" y guardar en `{workflowDir}/state.json`.
-
-## Paso 1 — Leer el contexto del plan
-
-Leer:
-- `{workflowDir}/plan.md` → qué cambiar y en qué orden
-- `{workflowDir}/review-findings.md` → ajustes requeridos al plan
-- `.claude/workflow/config.json` → DoD y stack
-
-Si no existe `plan.md`, decirle al usuario que primero corra `/wf-analyze` y `/wf-review-plan`.
-
-## Paso 2 — Checkpoint de inicio
-
-Mostrar resumen del plan al usuario:
-```
-📋 Plan aprobado: [nombre de la tarea]
-📁 Archivos a modificar: [cantidad]
-📍 Orden de implementación:
-  1. [módulo/grupo 1]
-  2. [módulo/grupo 2]
+```bash
+~/.claude/scripts/wf-lib.sh context          # ticket, dir, base, stage, branch, lang
+~/.claude/scripts/wf-lib.sh enter-stage implement
 ```
 
-**Saltear el checkpoint "¿Arrancamos?" (ir directo a Paso 3) cuando aplique cualquiera de estos dos casos** — ya hay una confirmación explícita del usuario, no hace falta pedir otra:
-- El usuario invocó `/wf-implement` directamente (escribió el comando) — eso ya es la confirmación de arrancar.
-- Se llega desde `wf-validate` con una lista de findings ya decidida item por item (ver picker de `wf-validate` Paso 4) — la decisión de qué implementar ya se tomó ahí.
-
-**Preguntar "¿Arrancamos?" solo cuando se llega de forma indirecta** (enrutado desde `/wf` u otro comando) y todavía no hubo ninguna acción explícita del usuario pidiendo implementar. Esperar confirmación antes de tocar cualquier archivo en ese caso.
-
-## Paso 3 — Implementar por grupos
-
-Para cada grupo de archivos del plan:
-
-**Antes de modificar:**
-- Leer el archivo completo
-- Entender el contexto y las convenciones locales (naming, imports, manejo de errores)
-
-**Checkpoint antes de cada grupo (si tiene más de 1 archivo o es un módulo clave):**
-```
-⚡ Próximo paso: [descripción del grupo]
-Archivos: [lista]
-```
-Preguntar: "¿Continúo?" — solo si el usuario configuró checkpoints detallados o si el cambio es de alto riesgo (contratos, auth, DB).
-
-**Durante la implementación:**
-- Respetar: naming, estructura de imports, estilo de error handling, i18n si aplica
-- Si detectás un helper existente que el plan no contempló → usarlo y documentar el desvío
-- Si hay un cambio necesario que el plan no contempló → informar antes de hacerlo
-
-## Paso 3.5 — Heurística: test-primero para guards de validación
-
-Si el grupo que estás por implementar agrega o modifica un **guard de validación** (código que chequea si un valor es válido/seguro antes de usarlo — ej. `isValidDate`, sanitización, parseo defensivo, chequeo de null/formato), evaluar los 3 criterios:
-
-1. El valor cruza un límite de datos que no controlás (sessionStorage/localStorage escrito por otro repo, respuesta de API externa, input de usuario libre, query params).
-2. Ya existe o estás agregando un helper de validación (`isValidDate`, `sanitize`, `parse`, etc.) — señal de que "input corrupto" es un modo de falla conocido, no hipotético.
-3. El valor se usa en **más de un lugar** (grep del state/prop/variable da 2+ call sites/consumidores).
-
-**Si se cumplen 2 de los 3:** antes de escribir el fix, grepear **todos** los call sites del valor (no solo el que motivó el cambio) y listarlos:
-```
-🔎 Call sites de [valor] sin guard: [archivo:línea, archivo:línea, ...]
-```
-Escribir un test que fuerce el input corrupto/inválido por **cada** call site de la lista (o confirmar explícitamente cuáles quedan fuera de alcance y por qué) antes de dar la implementación por terminada — no solo para el primer lugar donde se detectó el problema.
-
-**Por qué:** un guard agregado en un solo lugar (ej. al hidratar desde sessionStorage) deja el mismo valor sin validar en otros consumidores (ej. validación de formulario, props a componentes hijos) — bug real detectado en BC-1529 vía `/wf-mr-review`, dos rondas después de la implementación, en vez de en esta etapa.
-
-Si no se cumplen 2 de los 3 criterios (valor interno controlado, un solo call site), seguir el flujo normal sin este paso extra.
-
-## Paso 4 — Registrar desvíos
-
-Si durante la implementación hay algo que se hace diferente al plan:
-```
-⚠️  Desvío del plan: [descripción]
-Razón: [por qué]
-Impacto: [qué cambia]
+If the state's `branch` is empty, ask "Which branch are you working on?" and save it:
+```bash
+~/.claude/scripts/wf-lib.sh set-state branch '"[name]"'
 ```
 
-## Paso 5 — Registrar deuda técnica
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-Si encontrás deuda técnica durante la implementación, agregar al final de `{workflowDir}/plan.md`:
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — code, comments, plan.md, commits — is always in English.
+
+## Step 1 — Read the plan's context
+
+Read:
+- `{workflowDir}/plan.md` → what to change and in what order
+- `{workflowDir}/review-findings.md` → required adjustments to the plan
+- `.claude/workflow/config.json` → DoD and stack
+
+If `plan.md` doesn't exist, tell the user to run `/wf-analyze` and `/wf-review-plan` first.
+
+## Step 2 — Starting checkpoint
+
+Show the user a summary of the plan:
+```
+📋 Approved plan: [task name]
+📁 Files to modify: [count]
+📍 Implementation order:
+  1. [module/group 1]
+  2. [module/group 2]
+```
+
+**Skip the "Shall we start?" checkpoint (go straight to Step 3) when either of these two cases applies** — there's already an explicit confirmation from the user, no need to ask for another:
+- The user invoked `/wf-implement` directly (they typed the command) — that is the confirmation to start.
+- You arrived from `wf-validate` with a list of findings already decided item by item (see the picker in `wf-validate` Step 4) — the decision on what to implement was already made there.
+
+**Ask "Shall we start?" only when arriving indirectly** (routed from `/wf` or another command) and there hasn't been any explicit user action asking to implement. Wait for confirmation before touching any file in that case.
+
+## Step 3 — Implement group by group
+
+For each group of files in the plan:
+
+**Before modifying:**
+- Read the whole file
+- Understand the context and the local conventions (naming, imports, error handling)
+
+**Checkpoint before each group (if it has more than 1 file or is a key module):**
+```
+⚡ Next step: [group description]
+Files: [list]
+```
+Ask: "Shall I continue?" — only if the user configured detailed checkpoints or if the change is high risk (contracts, auth, DB).
+
+**During implementation:**
+- Respect: naming, import structure, error handling style, i18n if applicable
+- If you spot an existing helper the plan didn't account for → use it and document the deviation
+- If a necessary change wasn't accounted for in the plan → report it before making it
+
+## Step 3.5 — Heuristic: test-first for validation guards
+
+If the group you're about to implement adds or modifies a **validation guard** (code that checks whether a value is valid/safe before using it — e.g. `isValidDate`, sanitization, defensive parsing, null/format checks), evaluate these 3 criteria:
+
+1. The value crosses a data boundary you don't control (sessionStorage/localStorage written by another repo, an external API response, free-form user input, query params).
+2. A validation helper already exists or you're adding one (`isValidDate`, `sanitize`, `parse`, etc.) — a sign that "corrupt input" is a known failure mode, not a hypothetical one.
+3. The value is used in **more than one place** (grepping the state/prop/variable yields 2+ call sites/consumers).
+
+**If 2 out of 3 hold:** before writing the fix, grep **every** call site of the value (not just the one that motivated the change) and list them:
+```
+🔎 Call sites of [value] without a guard: [file:line, file:line, ...]
+```
+Write a test forcing the corrupt/invalid input for **each** call site in the list (or explicitly confirm which ones are out of scope and why) before considering the implementation done — not just for the first place where the problem was spotted.
+
+**Why:** a guard added in a single place (e.g. when hydrating from sessionStorage) leaves the same value unvalidated in other consumers (e.g. form validation, props passed to child components) — a real bug caught in BC-1529 via `/wf-mr-review`, two rounds after implementation, instead of at this stage.
+
+If 2 of the 3 criteria don't hold (controlled internal value, a single call site), follow the normal flow without this extra step.
+
+## Step 4 — Record deviations
+
+If something during implementation is done differently from the plan:
+```
+⚠️  Deviation from the plan: [description]
+Reason: [why]
+Impact: [what changes]
+```
+
+## Step 5 — Record tech debt
+
+If you find tech debt during implementation, append it to `{workflowDir}/plan.md`:
 ```markdown
-## Deuda técnica detectada (no implementada)
-- [descripción] — detectada en [archivo]
+## Tech debt detected (not implemented)
+- [description] — detected in [file]
 ```
 
-## Paso 6 — Resumen al terminar
+## Step 6 — Summary at the end
 
-Al completar todos los grupos:
+Once all groups are complete:
 ```
-✅ Implementación completada
-📁 Archivos modificados: [lista]
-⚠️  Desvíos del plan: [lista o "ninguno"]
-🔧 Deuda técnica registrada: [lista o "ninguna"]
+✅ Implementation complete
+📁 Modified files: [list]
+⚠️  Deviations from the plan: [list or "none"]
+🔧 Tech debt recorded: [list or "none"]
 ```
 
-Sugerir: "Siguiente: `/wf-validate` (opcional, recomendado) o `/wf-test`"
+Suggest: "Next: `/wf-validate` (optional, recommended) or `/wf-test`"

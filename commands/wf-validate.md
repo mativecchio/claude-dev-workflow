@@ -1,149 +1,221 @@
 ---
-description: "Validation gate post-implementación. El usuario elige qué validadores activar. Corre en contexto aislado. Loop hasta 3 iteraciones antes de escalar."
+description: "Post-implementation validation gate. The user chooses which validators to enable. Runs in an isolated context. Loops up to 3 iterations before escalating."
 allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite, TodoRead
 ---
 
-Tu rol es correr validaciones automáticas sobre el diff de la implementación. El usuario elige qué validadores activar.
+Your role is to run automated validations over the implementation's diff. The user chooses which validators to enable.
 
-## Paso 0 — Identificar ticket activo
-
-Leer `.claude/workflow/state.json` → campo `activeTicket`.
-Si no existe o falta → preguntar: "¿Cuál es el número de ticket? (ej. BC-1234)"
-Guardar: `{ "activeTicket": "BC-XXXX" }` en `.claude/workflow/state.json`.
-
-`{ticketId}` = `activeTicket`
-`{workflowDir}` = `.claude/workflow/{ticketId}`
-
-## Paso 1 — Selección de validadores
-
-Preguntar al usuario qué validadores activar:
-
-```
-¿Qué querés validar? (elegí uno o más)
-
-1. 🏛️  Arquitectura — consistencia con patrones del proyecto
-2. 🧪 Tests — cobertura de casos críticos
-3. ⚡ Performance — re-renders innecesarios, queries N+1, operaciones costosas
-4. 🔒 Seguridad — inputs no sanitizados, auth, datos expuestos
-5. ♿ Accesibilidad — a11y básica (solo para cambios de UI)
-6. ✅ Todos
-```
-
-Esperar respuesta antes de continuar.
-
-## Paso 2 — Obtener el diff
-
-Diffear contra el punto real donde el branch divergió de su base (`develop`/`main`/`master`), no contra `HEAD~1` (solo captura el último commit) ni contra la base directo (`develop..HEAD`), que se rompe si la base avanzó después de crear el branch (ej. alguien corrió `git pull --ff-only` sobre `develop` en el medio — el diff naive termina mostrando cambios de terceros como si fueran del feature).
+## Step 0 — Ticket context
 
 ```bash
-BASE=develop  # o main/master, según el proyecto
-MB=$(git merge-base HEAD "$BASE")
-git diff "$MB"..HEAD --stat
-git diff "$MB"..HEAD
+~/.claude/scripts/wf-lib.sh context
+~/.claude/scripts/wf-lib.sh enter-stage validate
 ```
 
-Si no hay commits sobre la base (todo el cambio está en working tree sin commitear), usar:
+If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
+
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — validation reports, plan.md, code — is always in English.
+
+## Step 1 — Validator selection
+
+Ask the user which validators to enable:
+
+```
+What do you want to validate? (pick one or more)
+
+1. 🏛️  Architecture — consistency with the project's patterns
+2. 🧪 Tests — coverage of critical cases
+3. ⚡ Performance — unnecessary re-renders, N+1 queries, expensive operations
+4. 🔒 Security — unsanitized inputs, auth, exposed data
+5. ♿ Accessibility — basic a11y (UI changes only)
+6. 📱 Runtime — bring the app up and verify the real flow
+7. ✅ All
+```
+
+Wait for an answer before continuing.
+
+**About 6 (Runtime):** offer it proactively when the diff touches UI, navigation or shared state — those are the cases where reading the diff isn't enough. It requires the app to be running and an MCP to be available (`metro` for React Native, `claude-in-chrome` for web). If there's neither, say so and continue without that validator instead of pretending it was validated.
+
+## Step 2 — Deterministic checks (before any agent)
+
 ```bash
-git diff --stat
-git diff
+~/.claude/scripts/wf-checks.sh
 ```
 
-## Paso 3 — Lanzar Agent de validación
+Runs lint, types and tests from `config.json`. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
 
-Usar el **Agent tool** con el siguiente prompt (adaptado a los validadores elegidos):
+The reason is economy and precision: a linter answers "is there a console.log?" exactly and for free, while an agent opines on the same thing with a chance of a false positive. The agent is reserved for what only it can do — architecture, external contracts, security.
+
+Exit 2 means the project has no `checks` configured: report it once, suggest adding them with `/wf-init`, and continue.
+
+## Step 2.5 — Get the diff
+
+```bash
+~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh
+```
+
+It resolves the merge-base against the project's base branch on its own, plus the uncommitted-work case. There's no need to reason about the range.
+
+## Step 3 — Launch the validation Agent
+
+Use the **Agent tool** with the following prompt (adapted to the chosen validators):
 
 ---
-**PROMPT DEL AGENT:**
+**AGENT PROMPT:**
 
-Sos un senior engineer haciendo una revisión de calidad sobre código recién implementado. Iteración [N] de máximo 3.
+You are a senior engineer doing a quality review on freshly implemented code. Iteration [N] of a maximum of 3.
 
-**Diff a revisar:**
-[diff completo]
+**Diff to review:**
+[full diff]
 
-**Plan original:**
-[contenido de {workflowDir}/plan.md]
+**Original plan:**
+[contents of {workflowDir}/plan.md]
 
-**Stack:** [stack del config]
+**Stack:** [stack from the config]
 
-**Validadores activos:** [lista de validadores elegidos]
+**Active validators:** [list of chosen validators]
 
-## Instrucciones por validador
+## Instructions per validator
 
-**🏛️ Arquitectura:**
-- ¿El código sigue los patrones del proyecto (sister feature)?
-- ¿Se usaron helpers existentes en lugar de reimplementar?
-- ¿La separación de responsabilidades es correcta?
+**🏛️ Architecture:**
+- Does the code follow the project's patterns (sister feature)?
+- Were existing helpers used instead of reimplementing?
+- Is the separation of concerns correct?
 
 **🧪 Tests:**
-- ¿Los happy paths están cubiertos?
-- ¿Los casos de error críticos tienen test?
-- ¿Los tests son sociables (no mockean componentes hijos, solo servicios externos)?
+- Are the happy paths covered?
+- Do the critical error cases have tests?
+- Are the tests sociable (they don't mock child components, only external services)?
 
 **⚡ Performance:**
-- ¿Hay re-renders innecesarios en componentes?
-- ¿Hay queries N+1 o llamadas a APIs en loops?
-- ¿Las operaciones costosas están memoizadas donde corresponde?
+- Are there unnecessary re-renders in components?
+- Are there N+1 queries or API calls inside loops?
+- Are expensive operations memoized where appropriate?
 
-**🔒 Seguridad:**
-- ¿Los inputs del usuario están sanitizados?
-- ¿Hay datos sensibles expuestos en logs o responses?
-- ¿Los endpoints tienen la auth correcta?
+**🔒 Security:**
+- Are user inputs sanitized?
+- Is sensitive data exposed in logs or responses?
+- Do the endpoints have the right auth?
 
-**🔗 Integración externa (correr siempre, no depende de los validadores elegidos):**
-- ¿El diff toca un estado/storage/contrato que también lee o escribe un `related_project` (config.json)? Si sí, y ese proyecto tiene `path` local, ¿se verificó el comportamiento real grepeando/leyendo ese path (merge vs replace, tipos, formato) en vez de asumirlo?
-- Esto NO se puede aprobar solo por diff — si hay una integración externa involucrada y no se verificó contra el código fuente real, marcarlo explícitamente como riesgo no verificable, no como aprobado.
+**🔗 External integration (always run, independent of the chosen validators):**
+- Does the diff touch state/storage/a contract that a `related_project` (config.json) also reads or writes? If so, and that project has a local `path`, was the real behavior verified by grepping/reading that path (merge vs replace, types, format) instead of assuming it?
+- This CANNOT be approved from the diff alone — if an external integration is involved and it wasn't verified against the real source code, flag it explicitly as an unverifiable risk, not as approved.
 
-**♿ Accesibilidad:**
-- ¿Las imágenes tienen alt text?
-- ¿Los elementos interactivos tienen labels accesibles?
-- ¿El contraste es adecuado?
+**♿ Accessibility:**
+- Do images have alt text?
+- Do interactive elements have accessible labels?
+- Is the contrast adequate?
 
-## Output requerido
+## Required output
 
 ```markdown
-## Validación — Iteración [N]
+## Validation — Iteration [N]
 
-### ❌ Falló
-#### [Validador]
-- **Archivo:** [path]
-- **Problema:** [descripción]
-- **Corrección:** [qué hacer]
-- **Severidad:** [alta/media]
+### ❌ Failed
+#### [Validator]
+- **File:** [path]
+- **Problem:** [description]
+- **Correction:** [what to do]
+- **Severity:** [high/medium]
 
 ### ⚠️ Warnings
-[warnings menores]
+[minor warnings]
 
-### 🔗 Riesgo no verificable por diff
-[si el diff toca integración con un related_project y no se pudo verificar contra su código fuente real: qué queda sin confirmar y por qué. Si no aplica: "Ninguno" / "N/A — sin integración externa en este diff"]
+### 🔗 Risk not verifiable from the diff
+[if the diff touches an integration with a related_project and it couldn't be verified against its real source code: what remains unconfirmed and why. If not applicable: "None" / "N/A — no external integration in this diff"]
 
-### ✅ OK (no tocar)
-[qué está bien]
+### ✅ OK (don't touch)
+[what's fine]
 
-### Veredicto
-[APROBADO / APROBADO CON RIESGO NO VERIFICABLE / REQUIERE CAMBIOS]
+### Verdict
+[APPROVED / APPROVED WITH UNVERIFIABLE RISK / CHANGES REQUIRED]
 ```
 
-Un veredicto de "APROBADO" nunca implica que el comportamiento contra un sistema externo esté confirmado — si hay una sección "🔗 Riesgo no verificable por diff" con contenido, usar "APROBADO CON RIESGO NO VERIFICABLE", no "APROBADO" a secas.
+A verdict of "APPROVED" never implies that behavior against an external system is confirmed — if there's a non-empty "🔗 Risk not verifiable from the diff" section, use "APPROVED WITH UNVERIFIABLE RISK", not a bare "APPROVED".
 
 ---
 
-## Paso 4 — Decisión post-validación
+## Step 3.5 — Runtime validation (only if validator 6 was chosen)
 
-**Si APROBADO:**
-Mostrar resultado y sugerir: "Siguiente: `/wf-test`"
+**Runs in the main context, not inside the Agent.** Subagents aren't guaranteed access to MCP tools, and this validation depends on them. Run it here, after the Agent returns, and add the findings to the output.
 
-**Si REQUIERE CAMBIOS:**
-Mostrar el feedback estructurado completo, y para cada finding de "❌ Falló" (y opcionalmente cada "⚠️ Warning" si el usuario quiere revisarlos también) ofrecer un picker individual:
+The other validators reason about the diff. This one observes the app running, which is the only way to catch a certain class of defect: an execution order between effects, state left inconsistent when returning to a screen, a request that fires twice. `wf-analyze` tries to cover that by asking the user the expected order — here it's observed directly.
+
+**React Native (MCP `metro`):**
 ```
-[N]. [archivo:línea] — [resumen del problema] (severidad: [alta/media])
-    ¿Qué hacemos?
-    a) Implementar el fix
-    b) Ignorar (con motivo)
-    c) Marcar como deuda técnica (registrar en plan.md, no implementar ahora)
+1. mcp__metro__list_devices        → confirm there's a connected target
+2. mcp__metro__get_bundle_errors   → if there are bundle errors, stop and report
+3. mcp__metro__list_routes / get_current_route → locate the screen affected by the diff
+4. mcp__metro__open_deeplink or tap_element → navigate to it
+5. mcp__metro__take_screenshot     → visual evidence of the final state
+6. Depending on the kind of change:
+   - state:      mcp__metro__get_redux_state, get_redux_actions
+   - network:    mcp__metro__get_network_requests, get_response_body
+   - errors:     mcp__metro__get_errors, get_console_logs
+   - re-renders: mcp__metro__get_react_renders
+   - a11y:       mcp__metro__audit_accessibility
 ```
-Esperar la decisión de cada item (se puede responder todo junto, ej. "1a, 2c, 3b") antes de pasar a `/wf-implement`. No asumir "implementar todo" por default.
 
-Pasar a `/wf-implement` **solo con la lista ya decidida** (los items marcados "a"), para que ese comando salte su checkpoint de inicio (ver `wf-implement` Paso 2) — la decisión de qué implementar ya se tomó acá, no hace falta repreguntar "¿Arrancamos?".
+**Web (MCP `claude-in-chrome`):** navigate to the affected route, `read_console_messages` and `read_network_requests`, screenshot of the final state.
 
-Llevar cuenta de iteraciones. Si se llega a 3 sin aprobar, escalar:
-**"⚠️ Se alcanzaron 3 iteraciones sin aprobar. Revisión manual requerida antes de continuar."**
+**What to look for**, in order:
+1. Does the changed flow complete without an error?
+2. Is the state consistent after leaving and returning to the screen?
+3. Are there duplicate requests, or requests firing when they shouldn't?
+4. Are there new console errors or warnings compared to before the change?
+
+**Rules:**
+- If the app isn't running, ask the user to bring it up. Do **not** try to build from here.
+- If something couldn't be verified, say so explicitly. "The app couldn't be brought up" is an honest result; declaring validated what wasn't observed is not.
+- Don't touch elements that trigger native dialogs or confirmation modals: they block the automation session.
+
+**Output**, to be added to Step 3's output:
+```markdown
+### 📱 Runtime
+- **Flow verified:** [what was navigated, with what data]
+- **Observed:** [state, requests, errors — with concrete evidence]
+- **Screenshot:** [path]
+- **Not verifiable:** [what couldn't be observed and why]
+```
+
+> **Explicit hypothesis** (`docs/plan-harness-migration.md` Phase 3): this validator isn't grounded in data. The bet is that races and state defects are better caught by observing the runtime than by reasoning over the diff. If that difference doesn't show up at 15-20 tickets, it gets removed.
+
+## Step 4 — Post-validation decision
+
+**If APPROVED:**
+Show the result and suggest: "Next: `/wf-test`"
+
+**If CHANGES REQUIRED:**
+Show the full structured feedback, and for each "❌ Failed" finding (and optionally each "⚠️ Warning" if the user wants to review those too) offer an individual picker:
+```
+[N]. [file:line] — [problem summary] (severity: [high/medium])
+    What do we do?
+    a) Implement the fix
+    b) Ignore (with a reason)
+    c) Mark as tech debt (record in plan.md, don't implement now)
+```
+Wait for the decision on each item (they can be answered all at once, e.g. "1a, 2c, 3b") before moving to `/wf-implement`. Don't assume "implement everything" by default.
+
+**Record each finding and its decision.** The picker already produced the data; this only writes it down:
+
+```bash
+# one per "❌ Failed"
+~/.claude/scripts/wf-event.sh finding \
+  --category [slug] --severity [high|medium] \
+  --stage_origin [analyze|implement] --stage_detected validate \
+  --detected_by [gate|user] --summary "[one line]"
+
+# and the decision the user made for that finding
+~/.claude/scripts/wf-event.sh finding_decision \
+  --finding_ref "[same slug or index]" --decision [implement|ignore|tech-debt]
+```
+
+`stage_origin` is where the defect was **introduced**: a guard missing because of an incomplete plan originated in `analyze`, not in `implement`, even though the symptom shows up in the code. That's the difference between "the implementer got it wrong" and "the plan didn't ask for it", which are different problems with different gates.
+
+`finding_decision` is what later lets you tell a real finding from a noisy one: a category that's systematically ignored is a validator shouting too much, and that's only visible if the decisions are recorded.
+
+Move to `/wf-implement` **only with the list already decided** (the items marked "a"), so that command skips its starting checkpoint (see `wf-implement` Step 2) — the decision about what to implement was already made here, no need to ask "Shall we start?" again.
+
+Keep track of iterations. If 3 are reached without approval, escalate:
+**"⚠️ 3 iterations reached without approval. Manual review required before continuing."**

@@ -1,78 +1,85 @@
 ---
-description: "Genera descripción de ticket Jira lista para copiar/pegar, o fetchea un ticket existente via MCP. Perspectiva pre-desarrollo."
+description: "Generates a copy/paste-ready Jira ticket description, or fetches an existing ticket via MCP. Pre-development perspective."
 allowed-tools: Read, Bash, Glob, mcp__mcp-atlassian__jira_get_issue, mcp__mcp-atlassian__jira_search, TodoWrite
 ---
 
-Tu rol es generar o enriquecer un ticket de Jira con el nivel de detalle necesario para que pueda implementarse con claridad.
+Your role is to generate or enrich a Jira ticket with the level of detail needed for it to be implemented clearly.
 
-## Paso 1 — Determinar el modo
+## Step 1 — Determine the mode
 
-**Si `$ARGUMENTS` tiene un issue key (ej: BC-1429, PROJ-123):**
-Intentar fetchear el ticket via MCP:
-- Usar `mcp__mcp-atlassian__jira_get_issue` con el issue key
-- Si MCP no está disponible: pedirle al usuario que pegue el contenido del ticket
+**If `$ARGUMENTS` contains an issue key (e.g. BC-1429, PROJ-123):**
+Try to fetch the ticket via MCP:
+- Use `mcp__mcp-atlassian__jira_get_issue` with the issue key
+- If MCP isn't available: ask the user to paste the ticket's content
 
-**Si `$ARGUMENTS` es una descripción libre:**
-Usar esa descripción como base para generar el ticket.
+**If `$ARGUMENTS` is a free-form description:**
+Use that description as the basis for generating the ticket.
 
-**Si no hay argumentos:**
-Preguntar: "¿Tenés un issue key de Jira o querés crear un ticket desde una descripción?"
+**If there are no arguments:**
+Ask: "Do you have a Jira issue key, or do you want to create a ticket from a description?"
 
-## Paso 2 — Enriquecer con contexto del proyecto
+## Step 2 — Enrich with project context
 
-Leer si existen:
-- `.claude/workflow/refinement-summary.md` → si ya se hizo el refinement, usarlo
-- `.claude/workflow/plan.md` → si ya existe el plan técnico, incluir notas técnicas
+Resolve the active ticket: read `.claude/workflow/state.json` → `activeTicket`.
+`{workflowDir}` = `.claude/workflow/{activeTicket}`. If there's no active ticket, skip this step and generate the ticket from `$ARGUMENTS` alone.
 
-## Paso 3 — Generar el ticket
+Read if they exist:
+- `{workflowDir}/refinement-summary.md` → if refinement was already done, use it
+- `{workflowDir}/plan.md` → if the technical plan already exists, include technical notes
 
-**Perspectiva:** escribir desde el punto de vista de antes del desarrollo, aunque ya esté implementado. Sin debates internos, solo el estado final acordado.
+`/wf-jira` is not a stage of the cycle: it records no `stage` and emits no telemetry.
 
-**Nivel de detalle:** suficiente para que Claude (u otro engineer) pueda implementarlo sin preguntas.
+**Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). The generated ticket is always in English.
+
+## Step 3 — Generate the ticket
+
+**Perspective:** write it from the point of view of before development, even if it's already implemented. No internal debates, only the agreed final state.
+
+**Level of detail:** enough for Claude (or another engineer) to implement it without questions.
 
 ```markdown
-## [Título del ticket]
+## [Ticket title]
 
-### Objetivo
-[Qué resuelve y por qué. 2-3 líneas.]
+### Objective
+[What it solves and why. 2-3 lines.]
 
-### Criterios de aceptación
-- [ ] [criterio concreto y verificable]
-- [ ] [criterio concreto y verificable]
+### Acceptance criteria
+- [ ] [concrete, verifiable criterion]
+- [ ] [concrete, verifiable criterion]
 
-### Notas técnicas
-[Decisiones de implementación relevantes, constraints, patrones a seguir.
-Solo lo que no es obvio del criterio de aceptación.]
+### Technical notes
+[Relevant implementation decisions, constraints, patterns to follow.
+Only what isn't obvious from the acceptance criteria.]
 
-### Contrato del endpoint (si aplica)
-**[MÉTODO] /path/to/endpoint**
+### Endpoint contract (if applicable)
+**[METHOD] /path/to/endpoint**
 
 Request:
 ```json
 {
-  "campo": "tipo"
+  "field": "type"
 }
 ```
 
 Response:
 ```json
 {
-  "campo": "tipo"
+  "field": "type"
 }
 ```
 
-### Infraestructura requerida
-- [ ] Variable de entorno: `[NOMBRE]`
-- [ ] Migración: [descripción]
+### Required infrastructure
+- [ ] Environment variable: `[NAME]`
+- [ ] Migration: [description]
 
 ### DoD
-- [ ] Tests escritos y pasando
-- [ ] [ítems del checklist del proyecto]
+- [ ] Tests written and passing
+- [ ] [items from the project's checklist]
 ```
 
-## Paso 4 — Mostrar y ajustar
+## Step 4 — Show and adjust
 
-Mostrar el ticket generado y preguntar:
-**"¿Querés ajustar algo?"**
+Show the generated ticket and ask:
+**"Do you want to adjust anything?"**
 
-Si el usuario confirma, preguntar si quiere que se actualice el ticket en Jira via MCP (si está disponible).
+If the user confirms, ask whether they want the ticket updated in Jira via MCP (if it's available).
