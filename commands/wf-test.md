@@ -109,4 +109,17 @@ Si el ticket toca un estado/storage/contrato compartido con algún `related_proj
 ```
 Esto no lo puede tildar el propio agente: es un gate que requiere confirmación explícita del usuario, porque ningún test in-repo ni revisión de diff puede verificar el comportamiento real de un sistema fuera de este repo.
 
+## Paso 7 — Registrar los gaps encontrados
+
+Por cada hueco que el análisis de cobertura destapó y que **no era** un test faltante trivial — un caso borde sin cubrir, un comportamiento que el plan no contemplaba:
+
+```bash
+~/.claude/scripts/wf-event.sh finding \
+  --category [slug] --severity [high|medium] \
+  --stage_origin [refine|analyze|implement] --stage_detected test \
+  --detected_by gate --summary "[una línea]"
+```
+
+Un caso borde que aparece recién acá casi siempre se originó en `refine` (nadie lo pidió) o en `analyze` (el plan no lo contempló). Atribuirlo a `implement` porque es donde se ve el síntoma es el error que vuelve inútil la métrica de origen.
+
 Al terminar, sugerir: "Siguiente: `/wf-mr-desc` para la descripción del MR y `/wf-mr-review` para la revisión final."

@@ -136,3 +136,22 @@ Evaluar en orden de importancia:
 Leer el output del agente y presentarlo al usuario.
 
 Si hay 🔴 Críticos, preguntar: **"¿Querés que aborde alguno de estos items ahora con `/wf-implement`?"**
+
+## Paso 5 — Registrar findings y peso del MR
+
+```bash
+# uno por cada 🔴 y 🟠
+~/.claude/scripts/wf-event.sh finding \
+  --category [slug] --severity [high|medium] \
+  --stage_origin [refine|analyze|implement] --stage_detected mr-review \
+  --detected_by [gate|user] --summary "[una línea]"
+
+# el peso, tomado de wf-diff.sh --weight (Paso 1)
+~/.claude/scripts/wf-event.sh mr_opened \
+  --weight_prod [N] --weight_tests [N] \
+  --branch "[rama]" --target "[rama base]"
+```
+
+Los findings de esta etapa son los que más pesan en la métrica de fuga: un defecto que llegó hasta el MR atravesó `review-plan`, `validate` y `test` sin que ninguno lo atrapara. `stage_origin` es lo que dice cuál de esos tres gates hay que mirar.
+
+Marcar `detected_by gate` sólo lo que encontró el review (propio o `/code-review`). Lo que viste vos leyendo el diff va como `user` — es exactamente la señal de que los gates se están quedando cortos.

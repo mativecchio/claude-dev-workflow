@@ -138,6 +138,35 @@ Antes de dar por terminado el análisis, preguntar:
 
 Esperar respuesta explícita antes de sugerir el siguiente paso.
 
+## Paso 3.5 — Registrar la estimación de complejidad
+
+Puntuar el plan con la rúbrica de `docs/brainstorm-metricas-y-complejidad.md` §5.2. **No es trabajo de análisis nuevo:** las siete dimensiones ya se resolvieron en los pasos 1-5 del Agent, esto sólo las formaliza.
+
+| Dimensión | Valores → puntos |
+|---|---|
+| Feature hermana | encontrada `0` / parcial `3` / ninguna `6` |
+| Archivos a tocar | 1-3 `0` / 4-8 `2` / 9-15 `4` / >15 `6` |
+| Capas cruzadas | 0-1 `0` / 2-3 `2` / 4-5 `4` / 6 `5` |
+| Proyectos externos | 0 `0` / 1 `3` / 2+ `5` |
+| Estado compartido / races | no `0` / sí `4` |
+| Huecos en el DoD | ninguno `0` / menores `2` / mayores `5` |
+| Infra (migración, env var, flag) | no `0` / sí `3` |
+
+Mapeo a puntos: 0-4→`1`, 5-8→`2`, 9-13→`3`, 14-19→`5`, 20-26→`8`, 27+→`13`.
+
+```bash
+~/.claude/scripts/wf-event.sh complexity_estimate \
+  --raw_score [suma] --points [fibonacci] \
+  --split_recommended [true si points >= 8] \
+  --dimensions '{"sister_feature":{"value":"none","pts":6},"files":{"value":11,"pts":4},"layers":{"value":4,"pts":4},"external_projects":{"value":1,"pts":3},"shared_state":{"value":true,"pts":4},"dod_gaps":{"value":"none","pts":0},"infra":{"value":false,"pts":0}}'
+```
+
+Guardar lo mismo en `{workflowDir}/complexity.json` para que `/wf-retro` cierre el par (estimado, real) sin releer el JSONL.
+
+Mostrar el puntaje al usuario. **Si da ≥ 8, decirlo**: es el umbral donde el ticket es candidato a partirse. No partir automáticamente — sólo señalarlo.
+
+> Los umbrales son provisionales y se eligieron sin datos (§5.4). Hoy su único propósito es generar el lado "estimado" del par, para calibrarlos a los 15-20 tickets. No tratarlos como verdad.
+
 ## Paso 4 — Siguiente paso
 
 Si el usuario confirma, sugerir: "Siguiente: `/wf-review-plan` para verificar el plan contra el codebase real."

@@ -118,7 +118,27 @@ Stage entry counts are persisted to the **ticket's** `state.json` under `iterati
 
 With no `activeTicket`, or an unparseable ticket state, it falls back to session-scoped counting and stamps `"scope": "session"` on the event — the count is still emitted, but marked as unreliable rather than silently wrong. Turn and tool-call counters remain per-session in `~/.claude/workflow/sessions/{session_id}.json`, deleted on `SessionEnd`.
 
-This layer is mechanical only — it cannot know *why* a stage was re-entered. Semantic events (`finding`, `complexity_estimate`, `scope_drift`) are emitted by the `wf-*` commands themselves and carry `"source": "command"`. The `source` field is what makes it possible to detect gaps: a hook-recorded `stage_reentry` with no command-recorded `finding` explaining it means the cause was lost.
+This layer is mechanical only — it cannot know *why* a stage was re-entered. Semantic events (`finding`, `complexity_estimate`, `scope_drift`) are emitted by the `wf-*` commands themselves and carry `"source": "command"`. The `source` field is what makes it possible to detect gaps: a hook-recorded `stage_reentry` with no command-recorded `finding` explaining it means the cause was lost. `wf-stats.sh coverage` reports exactly that number.
+
+### Semantic events
+
+Commands emit them through `wf-event.sh`, never by writing JSON themselves. Handing the model a JSON object to assemble in a prompt is the same prose-as-rule pattern this migration removes, and it fails silently: one malformed line breaks every later query, and nothing surfaces it until the stats come back wrong.
+
+| Command | Emits | Carries |
+|---|---|---|
+| `wf-analyze` | `complexity_estimate` | §5.2 rubric score + per-dimension breakdown; the *estimated* half of the pair |
+| `wf-review-plan` | `finding` × N | `stage_origin`, `detected_by` |
+| `wf-validate` | `finding` × N, `finding_decision` | the picker's implement/ignore/tech-debt outcome |
+| `wf-test` | `finding` × N | coverage gaps, usually originating in `refine`/`analyze` |
+| `wf-mr-review` | `finding` × N, `mr_opened` | MR weight, prod vs tests separately |
+| `wf-retro` | `ticket_closed` | real iterations + `complexity_actual`; the *actual* half of the pair |
+
+Two fields carry most of the value and cannot be reconstructed afterwards:
+
+- **`stage_origin`** — where the defect was *introduced*, not where it surfaced. A missing guard caused by an incomplete plan originates in `analyze`, even though the symptom is in the code. Getting this wrong turns the leak metric into noise.
+- **`detected_by`** — `gate` if a workflow command found it, `user` if the person did. A rising `user` share means the gates are degrading; marking user-found defects as `gate` hides precisely that.
+
+`complexity_estimate` without a matching `ticket_closed` is decorative: calibration is the difference between the two, so `wf-retro` closing the pair is what makes the rubric improvable rather than merely present.
 
 The script never blocks: missing `jq`, missing `state.json`, or malformed input all exit 0 silently. Losing an event is acceptable; interrupting a work session is not.
 
@@ -150,6 +170,8 @@ Installed to `~/.claude/scripts/`; commands invoke them by fixed path. Each repl
 | `wf-lib.sh` | The "Paso 0 — Identificar ticket activo" block, copied verbatim in 8 commands | `context`, `enter-stage`, `set-state`, `base`. `enter-stage` validates against the single stage vocabulary — an invalid stage fails loudly instead of silently breaking the iteration count (H12) |
 | `wf-diff.sh` | The merge-base explanation, duplicated in 4 commands | Also handles the uncommitted-working-tree case, and `--weight` for review load (prod vs tests counted separately) |
 | `wf-checks.sh` | DoD items that a command can answer exactly | Runs `checks` from `config.json`. `/wf-validate` runs it *before* spawning an agent — a linter answers "any console.log?" exactly and for free |
+| `wf-event.sh` | "Append this JSON object to `events.jsonl`" as a prompt instruction | Builds the line with `jq` from named flags, filling `ts`/`project`/`ticket`/`stage`/`source` from state. Rejects unknown events and missing required fields |
+| `wf-stats.sh` | Reasoning over the raw log by hand | One subcommand per §10 question, so a proposal can cite the query that produced it |
 
 `wf_base` is the clearest case for why this matters: it used to be different prose in four files, one of which hardcoded `develop` regardless of the project's actual base branch.
 

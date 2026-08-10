@@ -239,6 +239,25 @@ El sistema se mejora a sí mismo vía `/wf-retro` y `/wf-improve`:
 3. Propone cambios concretos a los comandos
 4. Aplica los cambios con tu aprobación
 
+### Qué dicen los datos
+
+Los comandos registran eventos semánticos vía `wf-event.sh` a medida que corren: qué defecto apareció, en qué etapa se originó, quién lo detectó, qué se decidió. `wf-stats.sh` los consulta:
+
+```bash
+~/.claude/scripts/wf-stats.sh              # resumen
+~/.claude/scripts/wf-stats.sh origins      # ¿qué etapa origina más defectos?
+~/.claude/scripts/wf-stats.sh leak         # ¿cuánto tarda en detectarse cada uno?
+~/.claude/scripts/wf-stats.sh detection    # ¿los gates se están degradando?
+~/.claude/scripts/wf-stats.sh categories   # ¿qué se repite en 3+ tickets?
+~/.claude/scripts/wf-stats.sh coverage     # ¿el log está perdiendo causas?
+```
+
+Dos cosas que el script hace a propósito: **siempre muestra el tamaño de la muestra**, y **se niega a concluir por debajo de 3 tickets** — imprime los números con un aviso explícito en vez de una conclusión. Un porcentaje sobre 2 tickets es ruido, y presentarlo pelado invita a actuar sobre él.
+
+`coverage` es el que audita el propio log: una reentrada registrada por el hook sin ningún `finding` que la explique significa que se perdió la causa. Ese número es la razón de tener dos capas de captura.
+
+**Esperá a tener datos.** Al momento de escribir esto `events.jsonl` está vacío — la telemetría se llena sola a medida que corrés etapas. Conectar `/wf-retro` a consultas sobre un archivo vacío daría peor resultado que su análisis actual de la sesión.
+
 **El repo es la fuente de verdad.** Los cambios se aplican sobre `{repo_path}/commands/`, se asientan con su evidencia en `~/.claude/workflow/improvements.md`, y recién ahí se reinstalan. `repo_path` lo escribe `install.sh` en el config global.
 
 Nunca editar `~/.claude/commands/` directo: es un destino de instalación y todo cambio hecho ahí se pierde en la próxima corrida de `install.sh`.
@@ -265,10 +284,11 @@ claude-workflow/
 │   ├── python/         ← python-architect
 │   ├── laravel/        ← laravel-architect
 │   └── shared/         ← typescript-architect, backend-api
-├── scripts/            ← wf-lib, wf-diff, wf-checks (los invocan los comandos)
+├── scripts/            ← wf-lib, wf-diff, wf-checks, wf-event, wf-stats
 ├── tests/
 │   ├── test-install.sh ← valida install.sh contra un HOME sandbox
-│   └── test-scripts.sh ← valida los scripts y el gate contra un repo temporal
+│   ├── test-scripts.sh ← valida los scripts y el gate contra un repo temporal
+│   └── test-events.sh  ← valida wf-event y las 7 consultas de wf-stats
 ├── config/
 │   └── workflow.json   ← template de config global (repo_path)
 └── docs/

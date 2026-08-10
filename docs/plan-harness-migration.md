@@ -177,10 +177,12 @@ La conclusión importante no es el número sino qué justifica la fase: **no era
 
 Implementa §11 pasos 2-4 y 6 del brainstorm, que quedaron pendientes (H9).
 
-1. Eventos semánticos en los comandos (§3.3): `finding` con `stage_origin`/`detected_by`, `finding_decision`, `complexity_estimate`.
-2. **`scripts/wf-stats.sh`** — responde las 7 preguntas de §10 sobre `events.jsonl`. Sin esto, la telemetría solo acumula.
-3. `wf-improve` y `wf-retro` pasan a consultar `wf-stats.sh` en vez de razonar sobre la sesión suelta.
-4. Reactivar el gate de `flow-history.json` degradado en Fase 1.
+1. ✅ **Eventos semánticos en los comandos** (§3.3). Se emiten vía `scripts/wf-event.sh`, no escribiendo JSON desde la prosa: pedirle al modelo que arme el objeto a mano es el mismo patrón regla-como-prosa que esta migración elimina, y falla en silencio — una línea mal formada rompe todas las consultas posteriores y nadie se entera hasta que las stats vuelven mal. Cubre `complexity_estimate` (`wf-analyze`), `finding` (`review-plan`, `validate`, `test`, `mr-review`), `finding_decision` (`validate`) y `ticket_closed` (`wf-retro`).
+2. ✅ **`scripts/wf-stats.sh`** — un subcomando por pregunta de §10, más `coverage` para auditar la salud del propio log. Impone dos reglas: siempre reporta el tamaño de muestra, y se niega a concluir por debajo de los 3 tickets de §0.
+3. ⏸️ **Diferido — `wf-improve`/`wf-retro` consultando stats.** `events.jsonl` está vacío (el hook se instaló el 2026-08-10 y `/wf` no emite nada por diseño). Cambiar esos comandos para que razonen sobre datos inexistentes los deja **peor** que hoy: hoy al menos analizan la sesión, que es información real. Reactivar cuando `wf-stats.sh` reporte ≥ 10 tickets con etapas registradas.
+4. ⏸️ **Diferido — gate de `flow-history.json`.** Mismo motivo: el archivo tiene 1 entrada.
+
+**Por qué 3 y 4 quedan afuera y no es pereza:** son los únicos dos puntos que *consumen* datos. 1 y 2 los producen y los consultan bajo demanda; activar consumidores automáticos sobre un archivo vacío produce recomendaciones con cero evidencia detrás, que es exactamente lo que §0 prohíbe.
 
 **Prerequisito:** ~~Fase 1 punto 1 (H1)~~ — **desbloqueado.** El experimento se corrió y la vía es `PreToolUse` sobre `Bash` matcheando `enter-stage (\w+)`. Ver Fase 1 punto 3.
 

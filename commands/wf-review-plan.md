@@ -111,6 +111,26 @@ Mostrar el veredicto y preguntar:
 - Si hay 🟠 Importantes → mostrarlos y preguntar si ajustar el plan primero
 - Si el veredicto es APROBADO → esperar "sí" explícito del usuario
 
+## Paso 3.5 — Registrar los findings
+
+Uno por cada 🔴 y 🟠 del review (los 💡 no):
+
+```bash
+~/.claude/scripts/wf-event.sh finding \
+  --category [slug] --severity [high|medium] \
+  --stage_origin [refine|analyze] --stage_detected review-plan \
+  --detected_by [gate|user] --summary "[una línea]"
+```
+
+Los dos campos que importan, y los únicos que no se pueden reconstruir después:
+
+- **`stage_origin`** — en qué etapa se *introdujo* el defecto, no dónde apareció. Un requisito ambiguo que el plan arrastra se originó en `refine`, aunque lo detectes acá. Es lo que responde "¿qué etapa origina más defectos?" y dónde conviene poner el próximo gate.
+- **`detected_by`** — `gate` si lo encontró el review, `user` si lo encontraste vos leyendo el output. Si la proporción de `user` sube con el tiempo, los gates se están degradando. Marcarlo `gate` cuando lo dijiste vos infla la métrica y hace inútil la comparación.
+
+`--category` es un slug corto y **reutilizable** entre tickets (`missing-guard`, `wrong-layer`, `contract-drift`). Una categoría distinta por finding no agrupa con nada: la consulta que importa es cuáles se repiten en 3+ tickets.
+
+Si el comando falla, seguir con el checkpoint igual. Perder un evento es aceptable; frenar el flujo por telemetría, no.
+
 ## Paso 4 — Siguiente paso (solo con aprobación)
 
 Solo si el usuario confirma explícitamente:

@@ -195,6 +195,24 @@ Mostrar el feedback estructurado completo, y para cada finding de "❌ Falló" (
 ```
 Esperar la decisión de cada item (se puede responder todo junto, ej. "1a, 2c, 3b") antes de pasar a `/wf-implement`. No asumir "implementar todo" por default.
 
+**Registrar cada finding y su decisión.** El picker ya produjo el dato; esto sólo lo asienta:
+
+```bash
+# uno por cada "❌ Falló"
+~/.claude/scripts/wf-event.sh finding \
+  --category [slug] --severity [high|medium] \
+  --stage_origin [analyze|implement] --stage_detected validate \
+  --detected_by [gate|user] --summary "[una línea]"
+
+# y la decisión que tomó el usuario para ese finding
+~/.claude/scripts/wf-event.sh finding_decision \
+  --finding_ref "[mismo slug o índice]" --decision [implement|ignore|tech-debt]
+```
+
+`stage_origin` es dónde se **introdujo** el defecto: un guard que faltó por un plan incompleto se originó en `analyze`, no en `implement`, aunque el síntoma aparezca en el código. Es la diferencia entre "el implementador se equivocó" y "el plan no lo pedía", que son problemas distintos con gates distintos.
+
+`finding_decision` es lo que permite después distinguir un finding real de uno ruidoso: una categoría que se ignora sistemáticamente es un validador que está gritando de más, y eso se ve sólo si las decisiones quedan registradas.
+
 Pasar a `/wf-implement` **solo con la lista ya decidida** (los items marcados "a"), para que ese comando salte su checkpoint de inicio (ver `wf-implement` Paso 2) — la decisión de qué implementar ya se tomó acá, no hace falta repreguntar "¿Arrancamos?".
 
 Llevar cuenta de iteraciones. Si se llega a 3 sin aprobar, escalar:

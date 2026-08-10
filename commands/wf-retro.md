@@ -78,6 +78,29 @@ Si acepta, agregar entry a `~/.claude/workflow/flow-history.json`:
 }
 ```
 
+## Paso 4.5 — Cerrar el ticket en la telemetría
+
+**Este paso es el que le da sentido a todo lo anterior.** `/wf-analyze` registró un puntaje estimado; sin el real, ese puntaje no se puede calibrar nunca y la rúbrica queda decorativa para siempre.
+
+Leer `{workflowDir}/complexity.json` (lo escribió `/wf-analyze`) y las iteraciones reales del `state.json` del ticket:
+
+```bash
+~/.claude/scripts/wf-lib.sh state '.iterations'
+~/.claude/scripts/wf-event.sh ticket_closed \
+  --iterations_total [N] \
+  --complexity_actual [puntos que hoy le pondrías, con el ticket terminado] \
+  --iterations_by_stage '{"analyze":2,"implement":3}'
+```
+
+`complexity_actual` se puntúa con **la misma rúbrica de §5.2**, ahora con los datos reales: los archivos que se tocaron de verdad, las capas que resultaron involucradas, si apareció estado compartido que no se había previsto. No es "cuánto costó en sensación" — es la misma tabla, con los valores que se conocen recién al final.
+
+Puntuarlo de memoria o redondear hacia el estimado arruina el dato: el error de calibración es justamente la diferencia entre ambos, y si se ajusta el real para que coincida, la métrica mide cero por construcción.
+
+Después de cerrar, ver qué dice el histórico:
+```bash
+~/.claude/scripts/wf-stats.sh
+```
+
 ## Paso 5 — Aplicar mejoras (con aprobación)
 
 Si hay mejoras propuestas al workflow, preguntar:
