@@ -98,6 +98,19 @@ Correcciones puntuales, sin cambio de arquitectura.
    - (c) `PostToolUse` filtrando `tool_name: "Skill"` — en este harness los `wf-*` se exponen como skills, así que el ruteo puede resolverse por ahí y (b) no dispararía nunca.
 
    **Procedimiento:** instalar un hook temporal de logging que vuelque el JSON crudo de `PostToolUse` y `UserPromptSubmit` a un archivo, correr `/wf` una vez, inspeccionar qué llega realmente. Decidir con ese dato. Sin el experimento, cualquiera de las tres es una apuesta.
+
+   **✅ RESUELTO — 2026-08-10.** Se corrió `/wf` en `PrositeMobile` con el probe instalado (205 eventos capturados). **Los tres candidatos quedaron descartados por observación:**
+   - (b) **no disparó ni una vez.** No hubo ningún `Read` de `wf-*.md`: el harness inyecta el cuerpo del comando directo en el contexto, el modelo nunca lee el archivo. *(Nota: `wf-probe.sh --report` muestra falsos positivos acá — su grep matchea cualquier tool, y listó `Edit`s hechos sobre este mismo repo. La conclusión correcta es cero lecturas.)*
+   - (c) **el tool `Skill` no se invocó.**
+   - El payload de `UserPromptSubmit` trae `prompt` literal `"/wf"` — sin expandir, sin etapa. El hook puede saber que se invocó `/wf`, no adónde ruteó. H1 confirmado, ya no supuesto.
+
+   **Salida adoptada — (d), que no estaba en la lista original y solo existe gracias a la Fase 2:** `wf_enter_stage` es una llamada a `Bash`, y `PreToolUse` sobre `Bash` incluye `tool_input.command` en el payload. La telemetría detecta la entrada a etapa matcheando `enter-stage (\w+)` en el comando, sin importar si se llegó por `/wf` o por invocación directa.
+
+   Es mejor que (a) por una razón estructural: ahí la escritura de estado y el evento de telemetría eran dos acciones que podían divergir. Acá **son la misma acción** — si el Paso 0 corrió, hay estado *y* hay evento; si no corrió, no hay ninguno. Desaparece la clase de bug donde el estado dice una cosa y `events.jsonl` otra.
+
+   **Límite que queda:** no es mecánico del todo — sigue dependiendo de que el comando ejecute su Paso 0. Pero esa dependencia ya existía para el estado; ahora hay **una sola** en vez de dos.
+
+   **Bonus:** el payload trae `cwd` en todos los eventos, así que la telemetría puede segmentar por proyecto sin trabajo adicional.
 4. **H7** — agregar `mr-desc` y `retro` a `stage_index()`, o excluirlos explícitamente del cálculo de fuga con un comentario.
 5. **H5** — `wf-jira.md:31-33` y `wf-commit.md` Paso 1: migrar a `{workflowDir}/`, con el Paso 0 estándar.
 6. **H6** — `wf.md`: mover "Paso 0" antes de "Paso 1".
@@ -169,7 +182,9 @@ Implementa §11 pasos 2-4 y 6 del brainstorm, que quedaron pendientes (H9).
 3. `wf-improve` y `wf-retro` pasan a consultar `wf-stats.sh` en vez de razonar sobre la sesión suelta.
 4. Reactivar el gate de `flow-history.json` degradado en Fase 1.
 
-**Prerequisito:** Fase 1 punto 1 (H1). Sin observar el camino `/wf`, cualquier estadística está sesgada hacia el uso directo de los comandos.
+**Prerequisito:** ~~Fase 1 punto 1 (H1)~~ — **desbloqueado.** El experimento se corrió y la vía es `PreToolUse` sobre `Bash` matcheando `enter-stage (\w+)`. Ver Fase 1 punto 3.
+
+**Primer paso concreto:** `hooks/wf-telemetry.sh` pasa a registrarse también en `PreToolUse`, y deriva `stage_start` / `stage_reentry` del comando `enter-stage` en vez de parsear el prompt. El parseo de `UserPromptSubmit` queda como fallback para la invocación directa sin Paso 0.
 
 ---
 
