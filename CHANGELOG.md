@@ -12,6 +12,18 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.5.1 — 2026-08-10
+
+Findings from reviewing 0.5.0 before merging it to `main`.
+
+### Removed
+- `scripts/wf-probe.sh`. It was a temporary diagnostic for the H1 experiment, which concluded — but it was still being installed on every machine, and it dumps the raw JSON of every tool call (including tool inputs) to disk. Dead code with a privacy footprint is worse than dead code. It stays in git history if the experiment ever needs repeating.
+- `--json` from `wf-stats.sh`. It was advertised in the usage text and accepted as an argument, but never implemented — so it silently produced normal output. An option that lies is worse than a missing one.
+
+### Fixed
+- `install.sh --check` aborted with exit 127 and no message on a machine without `jq`: the version lookup failed under `set -e`. It now degrades with an explicit warning and, importantly, stops reporting a false divergence. This is the machine that most needs a clear diagnosis, since without `jq` the hooks also silently record nothing.
+- `CHANGELOG` claimed 96 tests when there were 107.
+
 ## 0.5.0 — 2026-08-10
 
 The harness migration: rules that used to live as prose in `.md` files, obeyed almost always, become scripts and hooks that cannot be skipped. Plan and diagnosis in `docs/plan-harness-migration.md`.
@@ -28,7 +40,7 @@ The harness migration: rules that used to live as prose in `.md` files, obeyed a
 - `/wf-mr-review` delegates the generic pass to `/code-review high`.
 - `/wf-init` generates `AGENTS.md` and the `checks` / `base_branch` / `language` config keys.
 - `commands/wf-commit.md` and `commands/wf-deploy.md` adopted into the repo (they were installed with no source). `wf-deploy` is now toolchain-agnostic and reports missing CI/branching practices instead of assuming them.
-- `tests/` — 96 checks across install, scripts and events.
+- `tests/` — 107 checks across install, scripts and events.
 
 ### Changed
 - Stage vocabulary unified on `refine` (was `refinement` in one place, which silently broke re-entry counting).

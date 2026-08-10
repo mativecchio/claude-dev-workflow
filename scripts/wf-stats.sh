@@ -26,7 +26,7 @@
 #   wf-stats.sh categories      Q7 — finding categories repeated in 3+ tickets
 #   wf-stats.sh coverage        log health: hook events with no semantic event
 #
-# Options: --project <name>  --ticket <id>  --since <YYYY-MM-DD>  --json
+# Options: --project <name>  --ticket <id>  --since <YYYY-MM-DD>
 
 set -uo pipefail
 
@@ -36,13 +36,12 @@ STAGES='["refine","analyze","review-plan","implement","validate","test","mr-desc
 
 command -v jq >/dev/null 2>&1 || { echo "wf-stats: jq not available" >&2; exit 1; }
 
-CMD="summary"; P_PROJECT=""; P_TICKET=""; P_SINCE=""; AS_JSON=0
+CMD="summary"; P_PROJECT=""; P_TICKET=""; P_SINCE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) P_PROJECT="${2:-}"; shift 2 ;;
     --ticket)  P_TICKET="${2:-}"; shift 2 ;;
     --since)   P_SINCE="${2:-}"; shift 2 ;;
-    --json)    AS_JSON=1; shift ;;
     -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     --*)       echo "wf-stats: unknown option $1" >&2; exit 1 ;;
     *)         CMD="$1"; shift ;;

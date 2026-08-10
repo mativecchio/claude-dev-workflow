@@ -76,12 +76,22 @@ if [ "${1:-}" = "--check" ]; then
   # installed?"; this answers "is what I have the newest there is?" — a repo
   # that was never pulled looks perfectly in sync to every check above.
   V_REPO="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
-  V_INST="$(jq -r '.installed_version // "unknown"' "$WORKFLOW_DIR/config.json" 2>/dev/null)"
   echo ""
-  echo "🏷  version: repo $V_REPO / installed $V_INST"
-  if [ -n "$V_REPO" ] && [ "$V_REPO" != "$V_INST" ]; then
-    echo "  ✗ installed version does not match the repo"
-    DIVERGENCES=$((DIVERGENCES + 1))
+  # Without jq the installed version is unknowable. Reporting a divergence here
+  # would be a false alarm, and letting the substitution fail under `set -e`
+  # aborts the whole check with no message and exit 127 — the worst outcome,
+  # since a machine missing jq is exactly the one that needs a clear diagnosis.
+  if command -v jq >/dev/null 2>&1; then
+    V_INST="$(jq -r '.installed_version // "unknown"' "$WORKFLOW_DIR/config.json" 2>/dev/null || echo unknown)"
+    echo "🏷  version: repo $V_REPO / installed $V_INST"
+    if [ -n "$V_REPO" ] && [ "$V_REPO" != "$V_INST" ]; then
+      echo "  ✗ installed version does not match the repo"
+      DIVERGENCES=$((DIVERGENCES + 1))
+    fi
+  else
+    echo "🏷  version: repo $V_REPO / installed unknown"
+    echo "  ⚠ jq is not installed — cannot read the installed version,"
+    echo "    and the hooks exit without recording anything. brew install jq"
   fi
 
   if [ -d "$REPO_DIR/.git" ] && command -v git >/dev/null 2>&1; then

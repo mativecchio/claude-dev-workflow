@@ -102,6 +102,21 @@ check "hook silent on corrupt config"    "[ -z \"\$OUT\" ]"
 OUT="$(HOME="$SB/nonexistent" "$C/hooks/wf-version.sh" 2>&1)"
 check "hook silent with no config"       "[ -z \"\$OUT\" ]"
 
+echo "═══ CASE 8 — a machine without jq ═══"
+# The one machine that most needs a clear diagnosis is the one missing jq.
+# --check used to abort there with no message and exit 127, because the version
+# lookup failed under `set -e`.
+BIN="$(mktemp -d)"
+for t in bash cat tr find basename diff git sed grep wc mktemp mv rm ls dirname sort comm awk; do
+  p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$BIN/$t"
+done
+HOME="$SB" "$REPO/install.sh" >/dev/null 2>&1
+OUT="$(PATH="$BIN" HOME="$SB" "$REPO/install.sh" --check 2>&1)"; RC=$?
+check "--check without jq doesn't abort"  "[ $RC -ne 127 ]"
+check "--check without jq explains why"   "echo \"\$OUT\" | grep -q 'jq is not installed'"
+check "--check without jq: no false drift" "! echo \"\$OUT\" | grep -q 'installed version does not match'"
+rm -rf "$BIN"
+
 echo ""
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
