@@ -2,119 +2,146 @@
 
 Status: **proposed, not implemented.** Written 2026-08-11.
 
-Goal: every stage runs on the model its work actually demands, chosen deliberately and stated explicitly.
+## The thesis
 
-**This is not a cost plan.** Token spend is not the criterion and no phase here is justified by savings. The criterion is fitness: the analysis stages carry the judgment the whole cycle rests on, and they should run on the strongest model available regardless of what that costs. Where a smaller model is proposed, it is because it is *adequate for that task*, never because it is cheaper.
+> Invest heavily in analysis; with a solid plan, execution does not need the same horsepower.
+
+Analysis and verification decide *what* gets built and whether it holds up. That judgment is the expensive thing to get wrong, and it should run on the strongest model available. Documentation, test writing and implementation-against-an-approved-plan are bounded transformation work with a checkable result — a smaller model is not a compromise there, it is the adequate choice.
+
+This is a design principle, not a cost cut. Spend on the analysis stages goes **up**.
 
 ---
 
-## 1. The actual problem: nothing is chosen
+## 1. The obstacle, and the way around it
 
-Two findings, and the first is the reason this plan is worth doing even with zero measurement behind it.
+Only 4 of 15 commands spawn an `Agent`, and those are the only ones with a `model` parameter. The rest — including `wf-implement`, `wf-test`, `wf-mr-desc` and `wf-commit` — run in the user's session, and no command can change the model of the session running it.
 
-### 1.1 `plan.md` is produced by whatever model the session happens to be set to
+Stating that is not an answer, so here is the actual one. **A main-context command becomes routable by moving its bounded work into an Agent.** Every one of these commands is a mix of two things:
 
-The four Agent-spawning commands (`wf-analyze`, `wf-review-plan`, `wf-validate`, `wf-mr-review`) invoke the Agent tool with **no `model` and no `subagent_type`**. That means a general-purpose agent that **inherits the parent session's model**.
+| | Needs the session | Can be an Agent |
+|---|---|---|
+| `wf-mr-desc` | showing and adjusting the result with you | writing the description from plan + diff |
+| `wf-commit` | confirming before committing | generating the message from the diff |
+| `wf-test` | deciding *which* gaps matter | writing the tests once the gaps are decided |
+| `wf-implement` | checkpoints, decisions, iterating with you | — (see 2.4) |
 
-So the quality of `plan.md` — the artifact `review-plan`, `implement`, `validate`, `test` and `mr-review` all consume — depends on an unrelated UI toggle. Run a session on Sonnet, or with fast mode on, and the analysis that everything else is built on came from there. Nobody decided that; it is what inheritance does when no one states a preference.
+Splitting them that way delivers the routing **and** a second benefit worth as much: the bounded work stops consuming the session's context window. Generating an MR description today burns main-context tokens on a task that never needed to be there.
 
-**This is a consistency defect, not an optimization opportunity.** The same ticket analyzed on two different days can get two different qualities of plan for reasons invisible in the output.
+### 1.2 The defect that exists today
 
-### 1.2 The architecture agents are Sonnet by an unreviewed default
+The four Agent-spawning commands pass **no `model`**, so their agent inherits the session's. `plan.md` — the artifact every later stage consumes — is produced by whatever model the session happens to be set to. Run with `/fast` or on Sonnet and the analysis everything is built on came from there.
 
-All 15 language agents declare `model: sonnet`. That includes `typescript-architect`, `rn-architect`, `react-architect` and `ml-architect` — the four whose job is open-ended design with an unbounded search space, and whose output other code is then written against.
-
-Uniform is not the same as decided. `rn-uiux` arranging a StyleSheet and `typescript-architect` resolving conditional generics are not the same class of problem, and they should not resolve to the same model by accident.
+Under this plan's own thesis that is the worst possible failure: it is precisely the investment that must not be skimped, and it is currently decided by an unrelated toggle.
 
 ---
 
 ## 2. Proposed assignment
 
-### 2.1 The four Agent-spawning commands
+### 2.1 Analysis and verification → Opus, explicit
 
-| Command | Today | Proposed | Reasoning |
-|---|---|---|---|
-| `wf-analyze` | inherits the session | **Opus, explicit** | Produces `plan.md`. Every later stage consumes it, and a weak plan is not visible as a weak plan — it surfaces later as rework nobody attributes to the analysis. The most important thing in this document. |
-| `wf-review-plan` | inherits the session | **Opus, explicit** | Verifies the plan against the real codebase and holds the only hard gate in the system. A gate that misses things is worse than no gate, because it grants confidence. |
-| `wf-validate` | inherits the session | **Opus, explicit** | Its job is finding what the implementation got wrong. Anything it misses reaches the MR, and the cost of a miss is not the tokens saved. |
-| `wf-mr-review` | inherits the session | **Opus, explicit** | Last line before merge. Its scope narrowed in 0.5.0 (the generic pass went to `/code-review`), but what remains is the judgment part: contract verification against another repo's real source, and contrast against the plan. |
-
-**All four end up on Opus, so where is the routing?** There isn't any, and that is the honest answer: under a fitness criterion these four are all judgment work and they all warrant the strongest model. The change is that it becomes **explicit and guaranteed** instead of inherited and accidental.
-
-That is worth doing on its own. Today all four are Opus *only if* the session happens to be. Tomorrow they are Opus because the command says so.
-
-### 2.2 The 15 language agents
-
-Here differentiation is real, because the tasks genuinely differ.
-
-| Model | Agents | Why this is the adequate one |
+| Command | Today | Proposed |
 |---|---|---|
-| **Opus** | `typescript-architect`, `rn-architect`, `react-architect`, `ml-architect` | Open-ended design. No single correct answer to check against, and later code is written against their output — a mediocre abstraction propagates. |
-| **Sonnet** | `rn-debugger`, `rn-performance`, `rn-bridge`, `python-architect`, `laravel-architect`, `backend-api`, `cv-engineer`, `ml-evaluator`, `rn-uiux`, `rn-testing`, `ml-testing` | Bounded work against a known stack with a checkable answer: a stack trace has a cause, a test either passes, a StyleSheet either lays out. These agents are already instructed to read a sister file and match it — recognition and transformation, not design. |
+| `wf-analyze` | inherits the session | **Opus** |
+| `wf-review-plan` | inherits the session | **Opus** |
+| `wf-validate` | inherits the session | **Opus** |
+| `wf-mr-review` | inherits the session | **Opus** |
 
-Sonnet stays for eleven agents because it is **sufficient** for them, which is a different claim from cheap. Promoting `rn-uiux` to Opus would not produce a better StyleSheet.
+`analyze` and `review-plan` are the thesis itself: everything downstream is only as good as they are.
 
-### 2.3 Haiku: dropped entirely
+`validate` and `mr-review` stay on Opus for a different reason — they are what makes the rest of the plan safe. If implementation runs on a smaller model, the checks that catch its mistakes are the last thing to weaken. Cheapening both ends at once is how a cost decision turns into a quality decision without anyone noticing.
 
-The earlier draft of this plan proposed Haiku for the pattern-following agents. Removed, for two reasons:
+### 2.2 Documentation → delegate to Sonnet
 
-1. The work Haiku would suit is no longer model work. `wf-checks.sh`, `wf-diff.sh` and `wf-stats.sh` do it deterministically, for zero tokens and with no chance of a false positive. The harness migration consumed that niche.
-2. What is left in every seat is judgment of some kind, and under a fitness criterion the burden of proof for the smallest model is not met anywhere in this system.
+| Command | Change |
+|---|---|
+| `wf-mr-desc` | Step 2 (writing the description) becomes an Agent call with `model: sonnet`. Steps 0/1/3 — context, showing, adjusting — stay in the session. |
+| `wf-commit` | Step 4 (generating the message) becomes an Agent call with `model: sonnet`. The confirmation before committing stays in the session. |
 
-### 2.4 Complexity-driven routing: dropped
+Both take structured input (plan, refinement, diff) and produce prose in a fixed format. There is no open-ended judgment; there is a template and a diff to describe faithfully.
 
-The earlier draft proposed using the §5.2 complexity score to downgrade simple tickets. Removed: it optimizes for spend, which is not the goal, and it introduces a failure mode where an underestimated ticket silently gets weaker review — the exact case where review matters most.
+Haiku was considered and rejected for these: an MR description that misreads *why* a change was made is worse than no description, because a reviewer trusts it. Sonnet is the adequate floor, not the cheapest one.
 
-The score keeps its existing job (flagging split candidates). It does not choose models.
+### 2.3 Tests → split by what the step actually does
+
+| Step | Model | Why |
+|---|---|---|
+| `wf-test` Step 2 — gap analysis | session (unchanged) | Deciding which uncovered cases *matter* is judgment, and it is interactive with you. |
+| `wf-test` Step 3 — writing the tests | **Agent, `rn-testing` / `ml-testing`** (already `sonnet`) | Once the gaps are agreed, writing them is pattern-following against sister tests, and the result is checkable by running it. |
+
+The tests agents already exist and are already Sonnet. This just routes the work to them instead of writing tests inline.
+
+### 2.4 Implementation → cannot be routed, but the thesis can be supported and tested
+
+`wf-implement` cannot become an Agent without losing what makes it work: checkpoints before each file group, debug mode, and iterating with you. That interactivity is the point, and it lives in the session.
+
+What can be done instead, and it is not a consolation prize:
+
+1. **Tell you when the plan is strong enough to downshift.** At Step 0, `wf-implement` reports whether the conditions for your thesis hold, and recommends a model:
+
+```
+📋 Plan: BC-1429 — complexity 3, sister feature found, review-plan approved
+   with no blocking findings.
+   → Sonnet is adequate for this implementation. Switch with /model sonnet.
+```
+
+versus
+
+```
+📋 Plan: BC-1429 — complexity 8, no sister feature, 2 unresolved findings
+   from review-plan.
+   → Stay on Opus. There is no pattern to follow here and the plan has
+     open questions.
+```
+
+The switch is yours to make; the recommendation is mechanical, derived from `complexity.json` and `review-findings.md`.
+
+2. **Record which model implemented, and test the thesis.** Emit the session model with the implement-stage events. Then the claim "Sonnet is fine when analysis was strong" becomes a query:
+
+> re-entries to `implement`, grouped by model, conditioned on complexity score and whether a sister feature was found.
+
+If Sonnet-implemented tickets with a strong plan re-enter no more often than Opus-implemented ones, the thesis holds and it is written down with the query behind it. If they re-enter more, the condition was wrong and we learn where the line actually is.
+
+### 2.5 Language agents
+
+| Model | Agents | Why |
+|---|---|---|
+| **Opus** | `typescript-architect`, `rn-architect`, `react-architect`, `ml-architect` | Open-ended design with no single correct answer, and later code is written against their output. Currently Sonnet by an unreviewed default — all 15 agents declare the same model, which is uniformity, not a decision. |
+| **Sonnet** | the other 11 | Bounded work against a known stack with a checkable answer: a stack trace has a cause, a test passes or not, a layout works or not. |
 
 ---
 
 ## 3. Phases
 
-### Phase 1 — Make the choice explicit
+### Phase 1 — Fix what is currently accidental
+The four Agent-spawning commands pass `model: "opus"` explicitly. A `models` block in `config.json` allows per-project override; `WF_MODEL` overrides per invocation.
 
-1. The four commands pass `model: "opus"` on their Agent invocation.
-2. `models` block in `config.json` so a project can override, with these as defaults:
-
-```json
-"models": {
-  "analyze": "opus",
-  "review-plan": "opus",
-  "validate": "opus",
-  "mr-review": "opus"
-}
-```
-
-3. `WF_MODEL` as a per-invocation escape hatch, for deliberately running a cheap pass on a trivial ticket.
-
-**Acceptance:** the model each stage runs on no longer depends on the session. Verifiable by reading the command; no data required.
+**No data needed:** this corrects a value nobody chose.
 
 ### Phase 2 — Promote the four architecture agents
+`model: opus` in their frontmatter, and a line in the other eleven recording that Sonnet is deliberate rather than default.
 
-`model: opus` in the frontmatter of `typescript-architect`, `rn-architect`, `react-architect`, `ml-architect`. One line each, trivially reversible.
+### Phase 3 — Delegate documentation
+`wf-mr-desc` Step 2 and `wf-commit` Step 4 become Agent calls with `model: sonnet`. Both keep their confirmation step in the session.
 
-The other eleven stay on Sonnet, now as a recorded decision rather than a default — worth writing down in the agent files themselves so the next person does not read uniformity as intent.
+**Watch for:** a description that reads fluently but misstates the intent. If that appears, the input is underspecified, not the model — fix the prompt before moving the model back.
 
-### Phase 3 — Verify it did what it should (not a gate on 1 and 2)
+### Phase 4 — Delegate test writing
+`wf-test` Step 3 routes to `rn-testing` / `ml-testing`. Gap analysis stays interactive.
 
-Phases 1 and 2 stand on their own argument and do not need to wait. This phase checks the result rather than authorizing it:
-
-1. Add `model` to the `data` of the events the four commands emit.
-2. `wf-stats.sh models` — per stage and model: tickets, mean re-entries, findings originating there, mean leak distance.
-
-**What would falsify the plan:** if findings originating in `analyze` do not fall after Phase 1 on projects where the session used to be Sonnet, then the model was not the binding constraint and the prompt or the rubric is. That is worth knowing, and it is the kind of thing that stays invisible without the instrumentation.
+### Phase 5 — Support and test the implementation thesis
+The Step 0 recommendation, plus `model` on implement-stage events and a `wf-stats.sh models` query. This is the only phase that needs accumulated tickets, and it is the one that turns the thesis into something known rather than believed.
 
 ---
 
 ## 4. Is it worth it?
 
-**Yes, and the reason is consistency, not spend.**
+**Yes, and phases 1-4 do not need data to justify.**
 
-The strongest argument is 1.1: right now the most important artifact in the system is produced by an unstated setting. Two runs of the same ticket can differ for a reason that appears nowhere in the output, which makes every downstream comparison — including the metrics this system just built — noisier than it needs to be.
+Phase 1 removes a real defect: the most important artifact in the system is currently produced by an unstated session setting. Phase 2 corrects a default. Phases 3 and 4 move bounded work off the session, which routes it *and* stops it consuming the context window — two benefits from one change.
 
-Phase 1 costs four lines and removes that variable. Phase 2 costs four more and fixes a default that nobody chose. Neither needs data to justify, which is unusual here and worth naming: they are not behavioral bets like the runtime validator, they are corrections to something that was never decided.
+Phase 5 is the interesting one, because your thesis is genuinely testable and currently untested. "Sonnet is enough for implementation when the analysis was strong" is either true, true under conditions, or false, and the system now records enough to tell which.
 
-Token spend will go **up**, not down, on sessions that were running Sonnet. That is the intended direction.
+Net token spend is not the goal and probably goes up: four stages move from possibly-Sonnet to definitely-Opus, four agents get promoted, and the savings are confined to documentation and test writing.
 
 ---
 
@@ -122,7 +149,6 @@ Token spend will go **up**, not down, on sessions that were running Sonnet. That
 
 | Item | Why |
 |---|---|
-| Routing the main-context commands (`wf-implement`, `wf-commit`, `wf-mr-desc`, …) | Not possible: they run in the user's session, and no command can change the model of the session running it |
-| Haiku anywhere | See 2.3 |
-| Complexity-driven model selection | See 2.4 |
-| Estimating token cost | Not the criterion |
+| Making `wf-implement` an Agent | Would cost the checkpoints, debug mode and interactivity that are the point of the stage |
+| Haiku anywhere | Considered for documentation and rejected in 2.2. The work it would suit is already done by scripts, for zero tokens |
+| Complexity-driven model selection for review stages | Weakens review exactly on tickets whose complexity was underestimated — the case where it matters most. The score recommends, it does not decide |
