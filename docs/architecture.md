@@ -27,6 +27,28 @@ These four are the only commands that spawn an `Agent` — the rest run entirely
 
 `/wf-mr-review` delegates the generic pass (correctness bugs, simplification, reuse, efficiency) to `/code-review high` before spawning its own agent, and keeps for itself only what a generic reviewer can't do: contrast against `plan.md` and the acceptance criteria, `related_projects` contracts verified against the other repo's real source, project conventions, and registered tech debt.
 
+### Model selection
+
+The four Agent-spawning commands pass `model` explicitly, resolved by `wf-lib.sh model <stage>`. They used to pass nothing, so the agent inherited the session's model — which made `plan.md`, the artifact every later stage consumes, a product of whatever the session happened to be set to. The same ticket analysed on two different days could get two different qualities of plan for a reason invisible in the output.
+
+| Stage | Model | Why |
+|---|---|---|
+| `analyze`, `review-plan` | `opus` | They decide *what* gets built and whether it holds up. Everything downstream is only as good as they are |
+| `validate`, `mr-review` | `opus` | They catch what implementation got wrong. If execution ever runs on a smaller model, these are the last thing to weaken — cheapening both ends at once turns a cost decision into a quality one without anyone noticing |
+
+The other eleven commands run in the user's session and have no model to set: a command cannot change the model of the session running it.
+
+Override per project with a `models` block in `config.json`, or per invocation with `WF_MODEL`. An unknown model name falls back to `opus` with a warning rather than being passed through, since a typo would otherwise route a stage somewhere unintended.
+
+Language agents are tiered by what the task demands, not uniformly:
+
+| Model | Agents | Why |
+|---|---|---|
+| `opus` | `typescript-architect`, `rn-architect`, `react-architect`, `ml-architect` | Open-ended design with no single correct answer, and later code is written against their output |
+| `sonnet` | the other 11 | Bounded work against a known stack with a checkable result: a stack trace has a cause, a test passes or not, a layout works or not. Sonnet is *adequate* here, which is a different claim from cheap |
+
+All 15 declared `sonnet` before this — uniformity that read as a decision but was a default nobody revisited.
+
 ### Language agents
 Invoked by workflow commands (or directly by the user) for domain-specific decisions. They have no project-specific context by default — that lives in per-project `.claude/agents/` overrides.
 

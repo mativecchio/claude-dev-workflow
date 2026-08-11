@@ -12,6 +12,26 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.6.0 — 2026-08-11
+
+Phases 1 and 2 of `docs/plan-model-routing.md`. Both correct values nobody chose, rather than making a behavioural bet — so neither needed data to justify.
+
+### Added
+- `wf-lib.sh model <stage>` and a `models` block in `config.json`. `WF_MODEL` overrides per invocation. An unknown model name falls back to `opus` with a warning instead of being passed through, since a typo would otherwise route a stage somewhere unintended.
+- `context` now prints `model=` alongside `stage=` and `lang=`.
+
+### Changed
+- **The four Agent-spawning commands now pass `model` explicitly, defaulting to `opus`.** They passed nothing before, so the agent inherited the session's model — which made `plan.md`, the artifact every later stage consumes, a product of whatever the session happened to be set to. Running with fast mode on, or on Sonnet, silently produced the analysis everything else was built on. The same ticket could get two different qualities of plan on two different days for a reason invisible in the output.
+
+  `validate` and `mr-review` are on `opus` for a distinct reason from `analyze`/`review-plan`: they catch what implementation got wrong, so they are the last thing to weaken if execution ever moves to a smaller model.
+- **Language agents are tiered instead of uniform.** `typescript-architect`, `rn-architect`, `react-architect` and `ml-architect` move to `opus` — open-ended design whose output later code is written against. The other eleven stay on `sonnet`, now as a recorded decision: bounded work against a known stack with a checkable result. All 15 declared `sonnet` before, which read as intent but was a default nobody revisited.
+- `/wf-init` writes the `models` block without asking.
+
+### Fixed
+- `tests/test-scripts.sh` read the real `~/.claude` config in one assertion, so the update notice could leak into it and the result depended on the machine running the suite.
+
+Spend goes **up**, not down. That is the intended direction: four stages move from possibly-Sonnet to definitely-Opus, and four agents are promoted.
+
 ## 0.5.2 — 2026-08-10
 
 ### Changed

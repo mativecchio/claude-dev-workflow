@@ -130,6 +130,37 @@ eq "project without a workflow: stays out" "0" \
    "$(echo "{\"tool_name\":\"Edit\",\"cwd\":\"$NOWF\",\"tool_input\":{\"file_path\":\"$NOWF/x.js\"}}" | \
       WF_GATE=enforce bash "$G" >/dev/null 2>&1; echo $?)"
 
+echo "═══ model selection ═══"
+# The gate section deliberately left a corrupt state behind; restore it so
+# enter-stage can write (it correctly refuses to touch unparseable JSON).
+cp /tmp/wf-good.json .claude/workflow/MA-100/state.json
+# The four Agent-spawning stages used to pass no model, so the agent inherited
+# the session's — making plan.md a product of an unrelated setting.
+eq "analyze defaults to opus"       "opus" "$(bash "$S/wf-lib.sh" model analyze)"
+eq "review-plan defaults to opus"   "opus" "$(bash "$S/wf-lib.sh" model review-plan)"
+eq "validate defaults to opus"      "opus" "$(bash "$S/wf-lib.sh" model validate)"
+eq "mr-review defaults to opus"     "opus" "$(bash "$S/wf-lib.sh" model mr-review)"
+
+# Stages that run in the user's session have no model to choose.
+bash "$S/wf-lib.sh" model implement >/dev/null 2>&1
+eq "main-context stage has no model" "1" "$?"
+
+jq '.models={"validate":"sonnet"}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+eq "config overrides the default"   "sonnet" "$(bash "$S/wf-lib.sh" model validate)"
+eq "unconfigured stage keeps default" "opus" "$(bash "$S/wf-lib.sh" model analyze)"
+eq "WF_MODEL overrides everything"  "haiku"  "$(WF_MODEL=haiku bash "$S/wf-lib.sh" model validate)"
+
+# A typo must not silently route a stage somewhere unintended.
+jq '.models={"analyze":"gtp-4"}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+eq "unknown model falls back to opus" "opus" "$(bash "$S/wf-lib.sh" model analyze 2>/dev/null)"
+has "unknown model warns"  "unknown model" "$(bash "$S/wf-lib.sh" model analyze 2>&1 >/dev/null)"
+
+jq 'del(.models)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+# HOME is redirected so the update notice — which reads the real global config —
+# can't leak into this assertion. A suite must not depend on the machine it runs on.
+bash "$S/wf-lib.sh" enter-stage analyze >/dev/null
+has "context exposes the model" "model=opus" "$(HOME="$SB/nohome" bash "$S/wf-lib.sh" context)"
+
 echo "═══ update notice (wf-lib) ═══"
 # Lives here rather than in a hook because a SessionStart hook fires but its
 # stdout never reaches the terminal — an unseen notice is not a notice.

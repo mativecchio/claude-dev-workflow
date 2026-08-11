@@ -70,6 +70,12 @@ Generate the config from what you detected and show it to the user before writin
   "stack": "[detected stack]",
   "base_branch": "[detected base branch]",
   "language": "en",
+  "models": {
+    "analyze": "opus",
+    "review-plan": "opus",
+    "validate": "opus",
+    "mr-review": "opus"
+  },
   "related_projects": [],
   "checks": {
     "lint": "[the project's real command]",
@@ -87,6 +93,8 @@ Adjust it, or write it as-is?
 ```
 
 **`base_branch`** — detect it with `git branch -a`: whichever of `develop`, `main`, `master` exists. If several do, ask which one is the integration branch. Without this field, every command that needs a diff has to guess it.
+
+**`models`** — which model runs each of the four stages that spawn an Agent. Write it with these defaults and don't ask: analysis and verification carry the judgment the rest of the cycle rests on, so they get the strongest model. The point of writing it out is that it stops being inherited from whatever the session happens to be set to. The other eleven commands run in the user's session and have no model to set.
 
 **`language`** — the language the commands address the user in (`en` by default). Files written to disk are always in English regardless of this value; it only governs what's spoken on screen. Ask only if the user brings it up — don't add a question for it to the flow.
 

@@ -32,6 +32,15 @@ If `refinement-summary.md` doesn't exist, ask the user for a description of the 
 
 Use the **Agent tool** with the following prompt (interpolating the context you read):
 
+**Pass `model` explicitly**, taking it from the `model=` line that `context` printed in Step 0 (or `~/.claude/scripts/wf-lib.sh model analyze`):
+
+```
+Agent(model: "<value from wf-lib>", prompt: ...)
+```
+
+Without it the agent inherits the session's model, which makes this stage's output depend on an unrelated setting rather than on a decision. The default is `opus`: this stage carries judgment the rest of the cycle rests on. A project can override it with a `models` block in `config.json`.
+
+
 ---
 **AGENT PROMPT:**
 

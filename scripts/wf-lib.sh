@@ -83,6 +83,52 @@ wf_language() {
   [ -n "$l" ] && printf '%s' "$l" || printf 'en'
 }
 
+# The model a stage's Agent should run on.
+#
+# Only the four stages that spawn an Agent have a model to choose. The rest run
+# in the user's session, where the model is the user's to pick — a command
+# cannot change the model of the session running it.
+#
+# Why this exists at all: those four commands used to pass no model, so their
+# agent inherited the session's. That made plan.md — the artifact every later
+# stage consumes — a product of whatever the session happened to be set to. The
+# same ticket analysed on two different days could get two different qualities
+# of plan for a reason invisible in the output.
+#
+# The defaults encode a principle, not a budget: analysis and verification carry
+# the judgment the whole cycle rests on, so they get the strongest model. Where
+# a smaller model appears elsewhere in this system it is because it is adequate
+# for that task, never because it is cheaper.
+#
+# Override per project with a "models" block in config.json, or per invocation
+# with WF_MODEL.
+WF_MODEL_DEFAULTS="analyze:opus review-plan:opus validate:opus mr-review:opus"
+WF_VALID_MODELS="opus sonnet haiku fable"
+
+wf_model() {
+  local stage="$1" m d
+  [ -n "$stage" ] || return 1
+
+  if [ -n "${WF_MODEL:-}" ]; then m="$WF_MODEL"
+  else
+    m="$(wf_config ".models[\"$stage\"]" 2>/dev/null)"
+    if [ -z "$m" ]; then
+      for d in $WF_MODEL_DEFAULTS; do
+        case "$d" in "$stage:"*) m="${d#*:}"; break ;; esac
+      done
+    fi
+  fi
+  [ -n "$m" ] || return 1
+
+  # A typo here would silently route a stage somewhere unintended, so an unknown
+  # model falls back to the default rather than being passed through.
+  case " $WF_VALID_MODELS " in
+    *" $m "*) printf '%s' "$m" ;;
+    *) echo "wf-lib: unknown model '$m' for stage '$stage', using opus" >&2
+       printf 'opus' ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Update notice
 # ---------------------------------------------------------------------------
@@ -222,6 +268,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     dir)         wf_dir ;;
     base)        wf_base ;;
     language)    wf_language ;;
+    model)       wf_model "$2" ;;
     config)      wf_config "${2:-.}" ;;
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
@@ -234,11 +281,12 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       wf_version_notice
       # Everything a command needs at startup, in one call.
       t="$(wf_ticket)" || { echo "❌ No active ticket in $(wf_workflow_root)/state.json" >&2; exit 1; }
-      printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\n' \
-        "$t" "$(wf_dir)" "$(wf_base)" "$(wf_state '.stage')" "$(git branch --show-current 2>/dev/null)" "$(wf_language)"
+      st="$(wf_state '.stage')"
+      printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\nmodel=%s\n' \
+        "$t" "$(wf_dir)" "$(wf_base)" "$st" "$(git branch --show-current 2>/dev/null)" "$(wf_language)" "$(wf_model "$st" 2>/dev/null)"
       ;;
     *)
-      echo "usage: wf-lib.sh {ticket|dir|base|language|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
+      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
       exit 1 ;;
   esac
 fi
