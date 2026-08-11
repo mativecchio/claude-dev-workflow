@@ -167,6 +167,35 @@ jq 'del(.models)' .claude/workflow/config.json > t && mv t .claude/workflow/conf
 bash "$S/wf-lib.sh" enter-stage analyze >/dev/null
 has "context exposes the model" "model=opus" "$(HOME="$SB/nohome" bash "$S/wf-lib.sh" context)"
 
+echo "═══ implement advice ═══"
+# Conservative by construction: anything missing means "stay on the strong
+# model". Advising a downgrade on an unverified plan is the worse failure.
+adv() { bash "$S/wf-lib.sh" implement-advice | sed -n '1s/recommended_model=//p'; }
+CX=.claude/workflow/MA-100/complexity.json
+
+jq '.approved=true' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+rm -f "$CX"
+eq "no estimate → strong model"        "opus" "$(adv)"
+
+echo '{"points":2,"dimensions":{"sister_feature":{"value":"found"}}}' > "$CX"
+eq "simple + sister + approved → sonnet" "sonnet" "$(adv)"
+
+echo '{"points":2,"dimensions":{"sister_feature":{"value":"none"}}}' > "$CX"
+eq "no sister feature → strong model"  "opus" "$(adv)"
+
+echo '{"points":8,"dimensions":{"sister_feature":{"value":"found"}}}' > "$CX"
+eq "high complexity → strong model"    "opus" "$(adv)"
+
+echo '{"points":2,"dimensions":{"sister_feature":{"value":"found"}}}' > "$CX"
+jq '.approved=false' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+eq "plan not approved → strong model"  "opus" "$(adv)"
+
+echo 'broken{' > "$CX"
+jq '.approved=true' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+eq "corrupt complexity.json → strong model" "opus" "$(adv)"
+has "advice explains itself" "reason=" "$(bash "$S/wf-lib.sh" implement-advice)"
+rm -f "$CX"
+
 echo "═══ update notice (wf-lib) ═══"
 # Lives here rather than in a hook because a SessionStart hook fires but its
 # stdout never reaches the terminal — an unseen notice is not a notice.

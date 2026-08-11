@@ -1,6 +1,8 @@
 # Plan — the right model per stage and agent
 
-Status: **phases 1-4 implemented** (0.6.0, 0.7.0); phase 5 pending. Written 2026-08-11.
+Status: **fully implemented** (0.6.0, 0.7.0, 0.8.0). Written 2026-08-11.
+
+Phase 5 ships the instrumentation; the thesis it tests needs accumulated tickets before `wf-stats.sh models` says anything.
 
 ## The thesis
 
@@ -128,7 +130,7 @@ The four Agent-spawning commands pass `model: "opus"` explicitly. A `models` blo
 ### Phase 4 — Delegate test writing ✅ done (0.7.0)
 `wf-test` Step 3 routes to `rn-testing` / `ml-testing`. Gap analysis stays interactive.
 
-### Phase 5 — Support and test the implementation thesis ⏳ pending
+### Phase 5 — Support and test the implementation thesis ✅ done (0.8.0)
 The Step 0 recommendation, plus `model` on implement-stage events and a `wf-stats.sh models` query. This is the only phase that needs accumulated tickets, and it is the one that turns the thesis into something known rather than believed.
 
 ---

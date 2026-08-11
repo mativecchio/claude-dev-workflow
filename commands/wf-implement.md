@@ -42,6 +42,28 @@ If `context` fails, ask for the ticket and write `.claude/workflow/state.json` b
 
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — code, comments, plan.md, commits — is always in English.
 
+### Model for this implementation
+
+```bash
+~/.claude/scripts/wf-lib.sh implement-advice
+```
+
+Show the recommendation and move on — **do not wait for an answer, and do not ask them to switch.** This stage runs in the user's session, so nothing here can change the model; the recommendation is information, and stopping the flow for it would cost more than it saves.
+
+The rule behind it: a plan that is approved, scored ≤ 3, and has a sister feature to follow carries enough of the work that a smaller model is adequate. Anything missing — no estimate, not approved, no sister feature — recommends staying on the strong model. It is conservative on purpose: advising a downgrade on a plan that was never verified is a worse failure than not advising one.
+
+Then record what is actually being used:
+
+```bash
+~/.claude/scripts/wf-event.sh implement_started \
+  --model_used "[the model you are running as]" \
+  --model_recommended "[recommended_model from the command above]"
+```
+
+`model_used` is **self-reported** — no environment variable exposes the session's model, so this is the one field here that a script cannot verify. Report it accurately even when it contradicts the recommendation: a disagreement between the two is the most informative row in the table, and `wf-stats.sh models` counts exactly that.
+
+This is what makes the whole approach checkable rather than believed. The claim "a smaller model is fine when the analysis was strong" is either true, true under conditions, or false, and only these events can tell which.
+
 ## Step 1 — Read the plan's context
 
 Read:

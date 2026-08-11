@@ -12,6 +12,24 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.8.0 — 2026-08-11
+
+Phase 5 of `docs/plan-model-routing.md`, which completes it. This phase does not change any model — it makes the premise the rest of the plan rests on checkable.
+
+### Added
+- `wf-lib.sh implement-advice` — reads `complexity.json` and the ticket state and recommends a model for the implementation. `wf-implement` runs in the user's session, so nothing can switch anything: the recommendation is mechanical, the decision is the user's, and the command shows it without blocking.
+
+  Conservative by construction. Approved plan, complexity ≤ 3, and a sister feature to follow recommends the smaller model; anything missing recommends staying strong. Advising a downgrade on a plan that was never verified is a worse failure than not advising one.
+
+  It reads only structured data. Parsing prose out of `review-findings.md` was the obvious alternative and was rejected: a recommendation derived from a regex over markdown is wrong in ways nobody can predict, and this one has to be trustworthy or it will be ignored.
+- `implement_started` event carrying `model_recommended` and `model_used`.
+- `wf-stats.sh models` — re-entries to `implement` grouped by model, **restricted to strong plans**. The unconditional aggregate mixes in hard tickets implemented on a small model against advice, which buries the signal the query exists to find. It also counts how often the advice was followed.
+
+### Notes
+`model_used` is **self-reported**: no environment variable exposes the session's model, so it is the one field in the system a script cannot verify. `wf-implement` is instructed to report it accurately even when it contradicts the recommendation, because a disagreement between the two is the most informative row in the table.
+
+The thesis — "a smaller model is fine for implementation when the analysis was strong" — is still a claim. This release is what will eventually confirm or refute it; `events.jsonl` needs accumulated tickets first.
+
 ## 0.7.0 — 2026-08-11
 
 Phases 3 and 4 of `docs/plan-model-routing.md`: the bounded half of three commands moves into an Agent so it can be routed at all.

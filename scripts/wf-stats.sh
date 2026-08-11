@@ -25,6 +25,7 @@
 #   wf-stats.sh split           Q6 — did splitting reduce iterations
 #   wf-stats.sh categories      Q7 — finding categories repeated in 3+ tickets
 #   wf-stats.sh coverage        log health: hook events with no semantic event
+#   wf-stats.sh models          does a smaller model on implement cost re-entries?
 #
 # Options: --project <name>  --ticket <id>  --since <YYYY-MM-DD>
 
@@ -231,6 +232,47 @@ categories() {
   printf '\n   Only the ✅ ones satisfy §0 and can justify a workflow change.\n'
 }
 
+# --- model thesis --------------------------------------------------------------
+# "Invest in analysis and implementation doesn't need the same model" is a claim,
+# not a finding. This is what turns it into one — or refutes it.
+#
+# The comparison that matters is conditional: Sonnet on a ticket with a strong
+# plan is the claim. Sonnet on a ticket with no sister feature and complexity 8
+# is not, and lumping them together would bury the signal.
+models() {
+  hdr "Model — did a smaller model on implement cost re-entries?"
+  q -r '[.[]|select(.event=="implement_started")] as $i
+     | [.[]|select(.event=="stage_reentry" and .stage=="implement")] as $r
+     | [.[]|select(.event=="complexity_estimate")] as $c
+     | if ($i|length)==0
+       then "  (no implement_started events yet — nothing to compare)"
+       else ([ $i[] | . as $x
+               | (($c[]|select(.ticket==$x.ticket)) // null) as $cx
+               | {ticket:$x.ticket,
+                  model:($x.data.model_used // "?"),
+                  advised:($x.data.model_recommended // "?"),
+                  pts:(($cx.data.points) // null),
+                  sister:(($cx.data.dimensions.sister_feature.value) // "?"),
+                  re:([ $r[] | select(.ticket==$x.ticket) ] | length)} ]) as $t
+            | ($t | group_by(.model)
+               | map("  \(.[0].model): \(length) tickets, mean re-entries to implement \(((map(.re)|add)/length)*100|round/100)")
+               | join("\n"))
+              + "\n\n  Restricted to strong plans (sister feature found, complexity <= 3):\n"
+              + (([$t[] | select(.sister != "none" and .pts != null and .pts <= 3)]) as $strong
+                 | if ($strong|length)==0 then "  (no tickets meet the condition yet)"
+                   else ($strong | group_by(.model)
+                         | map("  \(.[0].model): \(length) tickets, mean re-entries \(((map(.re)|add)/length)*100|round/100)")
+                         | join("\n"))
+                   end)
+              + "\n\n  Advice followed: "
+              + "\([$t[]|select(.model == .advised)]|length)/\($t|length)"
+       end'
+  printf '\n   The thesis holds if, restricted to strong plans, sonnet re-enters no\n'
+  printf '   more than opus. If it re-enters more, the condition is wrong and the\n'
+  printf '   line is somewhere else — record which in improvements.md either way.\n'
+  evidence_note "$(q '[.[]|select(.event=="implement_started").ticket]|unique|length')"
+}
+
 # --- log health ----------------------------------------------------------------
 # The whole reason for two layers: a hook-recorded re-entry with no semantic
 # event explaining it means the cause was lost. That gap is itself the signal.
@@ -260,6 +302,7 @@ case "$CMD" in
   split)       split ;;
   categories)  categories ;;
   coverage)    coverage ;;
+  models)      models ;;
   summary)
     printf '📊 wf-stats — %s events, %s tickets\n' "$PARSED" "$(n_tickets)"
     [ "$BAD" -gt 0 ] && printf '⚠️  %s unreadable line(s), ignored\n' "$BAD"

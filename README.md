@@ -190,6 +190,8 @@ The commands read this file to adapt the DoD, know about related projects and un
 
 `WF_MODEL=opus` overrides everything for one invocation.
 
+`/wf-implement` can't be routed — it runs in your session, and the checkpoints and back-and-forth are the point of the stage. So it advises instead: at Step 0 it tells you whether the plan is solid enough to implement on a smaller model (approved, complexity ≤ 3, sister feature found) and leaves the switch to you. It records which model actually did the work, so `wf-stats.sh models` can answer whether the smaller model cost re-entries — comparing only tickets that had a strong plan, since mixing in the hard ones buries the answer.
+
 **`language`.** The language the commands address you in (`en` by default; set `"es"` for Spanish). It governs only what's spoken on screen — **everything written to disk is always in English**, regardless of this value: commit messages, plan.md, code, docs. The two are separate on purpose: a conversation has one reader, while a file gets read by other people and other tools long after the session ends.
 
 **`base_branch`.** Each command used to resolve it on its own, and `/wf-refine` had `develop` hardcoded, which broke in any repo on `main`.

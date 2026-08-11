@@ -52,6 +52,12 @@ Each delegating step also names the failure to watch for, because a smaller mode
 
 The remaining commands run entirely in the user's session and have no model to set: a command cannot change the model of the session running it.
 
+`wf-implement` is the one that stays. Making it an Agent would cost the checkpoints, debug mode and interactivity that are the stage. Instead it *advises*: `wf-lib.sh implement-advice` reads `complexity.json` and the ticket state and recommends a model, which the user may act on or ignore. The rule is conservative — approved plan, score ≤ 3 and a sister feature to follow recommends the smaller model; anything missing recommends staying strong, because advising a downgrade on a plan that was never verified is the worse failure. It reads only structured data: a recommendation derived from a regex over `review-findings.md` would be wrong in unpredictable ways, and this one has to be trustworthy or ignored.
+
+It then emits `implement_started` with `model_recommended` and `model_used`. **`model_used` is self-reported** — no environment variable exposes the session's model, so it is the one field in the system a script cannot verify. `wf-stats.sh models` compares re-entries to `implement` by model, *restricted to strong plans*: the unconditional aggregate mixes hard tickets implemented on a small model against advice, which buries the signal the query exists to find.
+
+That closes the loop on the premise the whole assignment rests on. "A smaller model is fine when the analysis was strong" is a claim, and these events are what make it checkable rather than believed.
+
 Override per project with a `models` block in `config.json`, or per invocation with `WF_MODEL`. An unknown model name falls back to `opus` with a warning rather than being passed through, since a typo would otherwise route a stage somewhere unintended.
 
 Language agents are tiered by what the task demands, not uniformly:

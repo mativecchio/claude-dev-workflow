@@ -133,6 +133,55 @@ wf_model() {
   esac
 }
 
+# Whether the plan is solid enough to implement on a smaller model.
+#
+# The thesis this supports: invest heavily in analysis, and with a strong plan
+# the implementation does not need the same model. `wf-implement` runs in the
+# user's session, so nothing here can switch anything — the recommendation is
+# mechanical, the decision is the user's.
+#
+# It reads only structured data (complexity.json, state.json). Parsing prose out
+# of review-findings.md was the obvious alternative and was rejected: a
+# recommendation derived from a regex over markdown would be wrong in ways
+# nobody could predict, and this one has to be trustworthy or ignored.
+#
+# Conservative by construction: anything missing or unreadable means "stay on
+# the strong model". The failure mode of advising a downgrade on a plan that was
+# never verified is worse than the cost of not advising one.
+wf_implement_advice() {
+  local d c points sister approved rec reason
+  d="$(wf_dir)" || return 1
+  c="$d/complexity.json"
+
+  points=""; sister=""
+  if [ -f "$c" ] && command -v jq >/dev/null 2>&1; then
+    points="$(jq -r '.points // empty' "$c" 2>/dev/null)"
+    sister="$(jq -r '.dimensions.sister_feature.value // empty' "$c" 2>/dev/null)"
+  fi
+  approved="$(wf_state '.approved' 2>/dev/null)"
+
+  rec="opus"
+  if [ -z "$points" ]; then
+    reason="no complexity estimate — /wf-analyze did not record one"
+  elif [ "$approved" != "true" ]; then
+    reason="the plan is not approved yet"
+  elif [ "$sister" = "none" ]; then
+    reason="no sister feature: there is no pattern in the codebase to follow"
+  elif [ "$points" -gt 3 ] 2>/dev/null; then
+    reason="complexity $points — above the threshold where a plan carries the work"
+  else
+    rec="sonnet"
+    reason="complexity $points, sister feature found, plan approved"
+  fi
+
+  printf 'recommended_model=%s\nreason=%s\n' "$rec" "$reason"
+  if [ "$rec" = "sonnet" ]; then
+    printf '\n📋 %s.\n   → Sonnet is adequate here. Switch with /model sonnet.\n\n' "$reason"
+  else
+    printf '\n📋 %s.\n   → Stay on the strong model for this one.\n\n' "$reason"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Update notice
 # ---------------------------------------------------------------------------
@@ -273,6 +322,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     base)        wf_base ;;
     language)    wf_language ;;
     model)       wf_model "$2" ;;
+    implement-advice) wf_implement_advice ;;
     config)      wf_config "${2:-.}" ;;
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
@@ -290,7 +340,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         "$t" "$(wf_dir)" "$(wf_base)" "$st" "$(git branch --show-current 2>/dev/null)" "$(wf_language)" "$(wf_model "$st" 2>/dev/null)"
       ;;
     *)
-      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
+      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|implement-advice|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
       exit 1 ;;
   esac
 fi

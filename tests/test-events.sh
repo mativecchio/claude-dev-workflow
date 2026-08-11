@@ -135,6 +135,24 @@ if echo "$OUT" | grep -qi "jq: error\|syntax error\|unbound variable"; then
   bad "summary runs clean" "$(echo "$OUT" | grep -i 'error' | head -2)"
 else ok "summary runs clean"; fi
 
+# The model thesis. The aggregate is misleading on purpose here: T-3 was a hard
+# ticket implemented on sonnet against advice, and lumping it in buries the signal.
+cat >> "$WF_EVENTS_FILE" <<'EOJ'
+{"ts":"2026-08-05T10:00:00Z","project":"p","ticket":"T-1","stage":"analyze","event":"complexity_estimate","source":"command","data":{"points":2,"dimensions":{"sister_feature":{"value":"found"}}}}
+{"ts":"2026-08-05T11:00:00Z","project":"p","ticket":"T-1","stage":"implement","event":"implement_started","source":"command","data":{"model_used":"sonnet","model_recommended":"sonnet"}}
+{"ts":"2026-08-06T10:00:00Z","project":"p","ticket":"T-2","stage":"analyze","event":"complexity_estimate","source":"command","data":{"points":3,"dimensions":{"sister_feature":{"value":"found"}}}}
+{"ts":"2026-08-06T11:00:00Z","project":"p","ticket":"T-2","stage":"implement","event":"implement_started","source":"command","data":{"model_used":"opus","model_recommended":"sonnet"}}
+{"ts":"2026-08-06T12:00:00Z","project":"p","ticket":"T-2","stage":"implement","event":"stage_reentry","source":"hook","data":{"iteration_n":2}}
+{"ts":"2026-08-07T10:00:00Z","project":"p","ticket":"T-3","stage":"analyze","event":"complexity_estimate","source":"command","data":{"points":8,"dimensions":{"sister_feature":{"value":"none"}}}}
+{"ts":"2026-08-07T11:00:00Z","project":"p","ticket":"T-3","stage":"implement","event":"implement_started","source":"command","data":{"model_used":"sonnet","model_recommended":"opus"}}
+{"ts":"2026-08-07T12:00:00Z","project":"p","ticket":"T-3","stage":"implement","event":"stage_reentry","source":"hook","data":{"iteration_n":2}}
+EOJ
+OUT="$("$S" models 2>&1)"
+has "models groups by model used"      "$OUT" "sonnet: 2 tickets"
+has "models restricts to strong plans" "$OUT" "Restricted to strong plans"
+has "restricted view separates signal" "$OUT" "sonnet: 1 tickets, mean re-entries 0"
+has "models counts advice followed"    "$OUT" "Advice followed: 1/3"
+
 OUT="$("$S" does_not_exist 2>&1)"; check "invalid subcommand → exit 1" "$?" "1"
 
 echo

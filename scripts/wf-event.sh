@@ -42,7 +42,7 @@ EVENTS="$HOME/.claude/workflow/events.jsonl"
 # writing a row that no query will ever match.
 WF_EVENTS="complexity_estimate finding finding_decision scope_drift size_check
 size_exceeded split_suggested split_applied mr_opened ticket_closed
-ticket_abandoned contract_verified"
+ticket_abandoned contract_verified implement_started"
 
 # Required data keys per event, so a half-filled event fails at the call site
 # rather than showing up as a hole in the stats weeks later.
@@ -54,6 +54,7 @@ req_for() {
     mr_opened)           echo "weight_prod" ;;
     ticket_closed)       echo "iterations_total" ;;
     size_check)          echo "weight_prod" ;;
+    implement_started)   echo "model_used" ;;
     *)                   echo "" ;;
   esac
 }
@@ -69,6 +70,7 @@ events: $(echo $WF_EVENTS)
   complexity_estimate  --raw_score --points [--split_recommended]
   mr_opened            --weight_prod [--weight_tests --branch --target]
   ticket_closed        --iterations_total [--complexity_actual]
+  implement_started    --model_used [--model_recommended]
 
 overrides: --_stage --_ticket --_subtask
 EOF
