@@ -102,7 +102,11 @@ wf_language() {
 #
 # Override per project with a "models" block in config.json, or per invocation
 # with WF_MODEL.
-WF_MODEL_DEFAULTS="analyze:opus review-plan:opus validate:opus mr-review:opus"
+# analyze/review-plan decide what gets built; validate/mr-review catch what the
+# implementation got wrong, so they are the last thing to weaken. mr-desc/commit/
+# test cover bounded transformation with a checkable result — sonnet is the
+# adequate model there, not merely the cheaper one.
+WF_MODEL_DEFAULTS="analyze:opus review-plan:opus validate:opus mr-review:opus mr-desc:sonnet commit:sonnet test:sonnet"
 WF_VALID_MODELS="opus sonnet haiku fable"
 
 wf_model() {

@@ -41,9 +41,25 @@ Show the gap analysis to the user before starting to write:
 
 Ask: "Shall we start writing the missing tests?"
 
-## Step 3 — Write the tests
+## Step 3 — Write the tests (delegated)
 
-**Principles:**
+Step 2 decided *which* gaps matter — that is judgment, and it stayed with you. Writing the tests once the gaps are agreed is pattern-following against the project's existing tests, and the result is checkable by running it in Step 5. Delegate it.
+
+**Pick the agent by stack** (`config.json` → `stack`):
+
+| Stack | Agent |
+|---|---|
+| React Native | `rn-testing` |
+| ML / CV | `ml-testing` |
+| anything else | a general Agent with `model` from `~/.claude/scripts/wf-lib.sh model test` (default `sonnet`) |
+
+The dedicated agents already declare their own model and carry the stack's testing conventions, so don't override `model` when using them — that is what their frontmatter is for.
+
+Give the agent the agreed gap list from Step 2, the paths of the existing tests to mirror, and the principles below. It has no context otherwise.
+
+**A delegated test that passes is not automatically a good test.** Read what comes back before Step 5, and check the two things a green run does not: that it asserts the behavior the gap described, and that it fails for the right reason. A test written to match a pattern can pass while asserting nothing.
+
+**Principles** (include these in the agent's prompt):
 - Read the project's existing tests before writing (follow the same pattern)
 - Sociable tests: don't mock child components, only external services and APIs
 - Use the project's test utilities (existing factories, helpers, fixtures)

@@ -29,9 +29,15 @@ Get the summarized diff:
 ~/.claude/scripts/wf-diff.sh --log
 ```
 
-## Step 2 — Generate the description
+## Step 2 — Generate the description (delegated)
 
-**Principles:**
+**Use the Agent tool**, with `model` from `~/.claude/scripts/wf-lib.sh model mr-desc` (default `sonnet`).
+
+Two reasons, and the second matters as much as the first. Writing an MR description from a plan and a diff is bounded work against a fixed template — there is no open-ended judgment, so the strongest model buys nothing. And delegating keeps the plan, the refinement and the full diff out of the session's context window, where they were being loaded for a task that never needed to be there.
+
+Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, the `--stat` and `--log` output from Step 1, and the structure below. Ask it to return the finished markdown and nothing else.
+
+**Principles** (include these in the Agent's prompt):
 - Don't start with the title
 - Start with the context: why this MR exists
 - Don't list modified files (reviewers can see the diff)
@@ -66,6 +72,10 @@ For example: "The X flow now does Y when Z" instead of "Modified file.ts".]
 ```
 
 ## Step 3 — Show and adjust
+
+**Read what came back before showing it.** A description can be fluent and still misstate *why* a change was made, and a reviewer will trust it — that is the specific failure to watch for when this step is delegated. If the intent is wrong, the Agent's input was underspecified, not its model: add what was missing and re-run, rather than reaching for a stronger model.
+
+This step stays in the session: adjusting the wording with you is a conversation, not a generation task.
 
 Show the generated description to the user. Instead of an open question, offer the two exits directly and show right away what the next steps are:
 

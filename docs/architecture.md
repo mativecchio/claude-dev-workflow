@@ -36,7 +36,21 @@ The four Agent-spawning commands pass `model` explicitly, resolved by `wf-lib.sh
 | `analyze`, `review-plan` | `opus` | They decide *what* gets built and whether it holds up. Everything downstream is only as good as they are |
 | `validate`, `mr-review` | `opus` | They catch what implementation got wrong. If execution ever runs on a smaller model, these are the last thing to weaken — cheapening both ends at once turns a cost decision into a quality one without anyone noticing |
 
-The other eleven commands run in the user's session and have no model to set: a command cannot change the model of the session running it.
+Three further pieces of work are delegated to an Agent specifically so they *can* be routed:
+
+| Delegated step | Model | Why |
+|---|---|---|
+| `wf-mr-desc` Step 2 — writing the description | `sonnet` | Fixed template, structured input, no open-ended judgment |
+| `wf-commit` Step 4 — generating the message | `sonnet` | A diff to a Conventional Commits string: transformation with a checkable shape |
+| `wf-test` Step 3 — writing the tests | the stack's testing agent (`rn-testing`, `ml-testing`), else `sonnet` | Pattern-following against sister tests; Step 5 runs them |
+
+These three used to run inline in the session, which had a second cost beyond the model: the plan, the refinement and the full diff were loaded into the session's context for work that never needed to be there. Delegating routes them *and* frees that context.
+
+In each case the judgment half stays in the session — deciding which gaps matter, adjusting the wording with the user, confirming before committing. The split is between deciding and producing, not between important and unimportant.
+
+Each delegating step also names the failure to watch for, because a smaller model fails quietly here: a description that reads well but misstates *why*, or a test that passes while asserting nothing. Both are input problems more often than model problems, and the instruction is to fix the prompt before reaching for a stronger model.
+
+The remaining commands run entirely in the user's session and have no model to set: a command cannot change the model of the session running it.
 
 Override per project with a `models` block in `config.json`, or per invocation with `WF_MODEL`. An unknown model name falls back to `opus` with a warning rather than being passed through, since a typo would otherwise route a stage somewhere unintended.
 

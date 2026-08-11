@@ -1,6 +1,6 @@
 # Plan — the right model per stage and agent
 
-Status: **proposed, not implemented.** Written 2026-08-11.
+Status: **phases 1-4 implemented** (0.6.0, 0.7.0); phase 5 pending. Written 2026-08-11.
 
 ## The thesis
 
@@ -112,23 +112,23 @@ If Sonnet-implemented tickets with a strong plan re-enter no more often than Opu
 
 ## 3. Phases
 
-### Phase 1 — Fix what is currently accidental
+### Phase 1 — Fix what is currently accidental ✅ done (0.6.0)
 The four Agent-spawning commands pass `model: "opus"` explicitly. A `models` block in `config.json` allows per-project override; `WF_MODEL` overrides per invocation.
 
 **No data needed:** this corrects a value nobody chose.
 
-### Phase 2 — Promote the four architecture agents
+### Phase 2 — Promote the four architecture agents ✅ done (0.6.0)
 `model: opus` in their frontmatter, and a line in the other eleven recording that Sonnet is deliberate rather than default.
 
-### Phase 3 — Delegate documentation
+### Phase 3 — Delegate documentation ✅ done (0.7.0)
 `wf-mr-desc` Step 2 and `wf-commit` Step 4 become Agent calls with `model: sonnet`. Both keep their confirmation step in the session.
 
 **Watch for:** a description that reads fluently but misstates the intent. If that appears, the input is underspecified, not the model — fix the prompt before moving the model back.
 
-### Phase 4 — Delegate test writing
+### Phase 4 — Delegate test writing ✅ done (0.7.0)
 `wf-test` Step 3 routes to `rn-testing` / `ml-testing`. Gap analysis stays interactive.
 
-### Phase 5 — Support and test the implementation thesis
+### Phase 5 — Support and test the implementation thesis ⏳ pending
 The Step 0 recommendation, plus `model` on implement-stage events and a `wf-stats.sh models` query. This is the only phase that needs accumulated tickets, and it is the one that turns the thesis into something known rather than believed.
 
 ---

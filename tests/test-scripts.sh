@@ -141,6 +141,12 @@ eq "review-plan defaults to opus"   "opus" "$(bash "$S/wf-lib.sh" model review-p
 eq "validate defaults to opus"      "opus" "$(bash "$S/wf-lib.sh" model validate)"
 eq "mr-review defaults to opus"     "opus" "$(bash "$S/wf-lib.sh" model mr-review)"
 
+# Bounded transformation with a checkable result: sonnet is adequate, and
+# delegating also keeps the diff out of the session's context window.
+eq "mr-desc defaults to sonnet"     "sonnet" "$(bash "$S/wf-lib.sh" model mr-desc)"
+eq "commit defaults to sonnet"      "sonnet" "$(bash "$S/wf-lib.sh" model commit)"
+eq "test defaults to sonnet"        "sonnet" "$(bash "$S/wf-lib.sh" model test)"
+
 # Stages that run in the user's session have no model to choose.
 bash "$S/wf-lib.sh" model implement >/dev/null 2>&1
 eq "main-context stage has no model" "1" "$?"

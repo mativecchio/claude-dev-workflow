@@ -182,7 +182,13 @@ The commands read this file to adapt the DoD, know about related projects and un
 
 **`checks` vs `dod_checklist`.** Every DoD item that can be expressed as a command should live in `checks`. `/wf-validate` runs them **before** launching an agent: if the linter fails, there's no point spending an agent to opine on the same thing, with a chance of a false positive on top. `dod_checklist` is left for what genuinely requires judgment.
 
-**`models`.** Which model runs each of the four stages that spawn an Agent. Defaults to `opus` for all four: analysis and verification carry the judgment the rest of the cycle rests on. Writing it down is the point — without it the agent inherits whatever your session is set to, so the quality of `plan.md` would depend on an unrelated toggle. The other eleven commands run in your session and have no model to set. `WF_MODEL=sonnet` overrides for one invocation.
+**`models`.** Which model runs each delegated piece of work.
+
+`analyze`, `review-plan`, `validate` and `mr-review` default to `opus` — they decide what gets built and catch what the implementation got wrong. Writing it down is the point: without it the agent inherits whatever your session is set to, so the quality of `plan.md` would depend on an unrelated toggle.
+
+`mr-desc`, `commit` and `test` default to `sonnet`. Those three are delegated to an Agent on purpose: writing an MR description, a commit message or a test against an agreed gap is bounded work with a checkable result, and moving it out of the session also stops the full diff from occupying your context window. The deciding half of each — which gaps matter, adjusting the wording, confirming the commit — stays with you.
+
+`WF_MODEL=opus` overrides everything for one invocation.
 
 **`language`.** The language the commands address you in (`en` by default; set `"es"` for Spanish). It governs only what's spoken on screen — **everything written to disk is always in English**, regardless of this value: commit messages, plan.md, code, docs. The two are separate on purpose: a conversation has one reader, while a file gets read by other people and other tools long after the session ends.
 

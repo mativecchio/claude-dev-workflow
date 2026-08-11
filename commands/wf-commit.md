@@ -50,7 +50,13 @@ git diff HEAD -- ':!pnpm-lock.yaml' ':!*.lock' ':!*.png' ':!*.jpg' ':!*.svg'
 
 **Scope**: derive it from the ticket ID in `state.json` (e.g. `MA-770`) or from the most affected module (e.g. `PlayerControls`, `chat`, `auth`). If there's a ticket ID, use it as the scope.
 
-## Step 4 — Generate the message
+## Step 4 — Generate the message (delegated)
+
+**Use the Agent tool**, with `model` from `~/.claude/scripts/wf-lib.sh model commit` (default `sonnet`).
+
+Turning a diff into a Conventional Commits message is a transformation with a fixed output shape and a checkable result. Delegating it also keeps the full diff out of the session's context.
+
+Give the Agent the diff, the ticket context from Step 1, the type/scope decided in Step 3, and the rules below. Ask for the message and nothing else.
 
 Format:
 ```

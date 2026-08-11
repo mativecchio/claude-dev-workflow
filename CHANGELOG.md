@@ -12,6 +12,22 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.7.0 — 2026-08-11
+
+Phases 3 and 4 of `docs/plan-model-routing.md`: the bounded half of three commands moves into an Agent so it can be routed at all.
+
+### Changed
+- **`wf-mr-desc` Step 2, `wf-commit` Step 4 and `wf-test` Step 3 are delegated to an Agent** (`sonnet` by default; `wf-test` prefers the stack's testing agent, which declares its own model).
+
+  These commands run in the user's session, where a command cannot choose the model. Moving their bounded half into an Agent is what makes routing possible — and it has a second payoff worth as much: the plan, the refinement and the full diff stop being loaded into the session's context window for work that never needed to be there.
+
+  The split is between deciding and producing, not between important and unimportant. Choosing which gaps matter, adjusting the wording, and confirming before committing all stay in the session.
+- `models` gains `mr-desc`, `commit` and `test`, all `sonnet`. Bounded transformation with a checkable result: sonnet is the adequate model there, not merely the cheaper one.
+- `/wf-init` writes all seven keys.
+
+### Notes
+Each delegated step names the failure it has to watch for, because a smaller model fails quietly here: a description that reads well but misstates *why* a change was made, and a test that passes while asserting nothing. Both are usually input problems, and the instruction is to fix the prompt before reaching for a stronger model.
+
 ## 0.6.0 — 2026-08-11
 
 Phases 1 and 2 of `docs/plan-model-routing.md`. Both correct values nobody chose, rather than making a behavioural bet — so neither needed data to justify.
