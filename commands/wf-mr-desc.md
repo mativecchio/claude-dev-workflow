@@ -61,8 +61,11 @@ if the TL;DR already covers it — don't restate the same thing twice.]
 [One line per behavior change. "The X flow now does Y when Z" — not a walkthrough of the diff.]
 
 ### Technical decisions
-[Omit this section entirely if every choice was obvious. Include only the decisions
-a reviewer would otherwise question — why this approach, what trade-off was made.]
+[Omit this section entirely if every choice was obvious. Include only the *design* decisions
+a reviewer would otherwise question — why this approach, what trade-off was made. Never use
+this section to narrate process: how a merge conflict was resolved, which side of a diff was
+kept, how a bug was tracked down. That belongs in the commit message or nowhere, not here —
+a reviewer evaluating this MR's design doesn't need the story of how you produced the diff.]
 
 ### Infrastructure
 [Omit this section entirely if none apply. Only include the items that are actually true:
