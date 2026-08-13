@@ -68,8 +68,9 @@ Format:
 Rules:
 - Description in the imperative, lowercase, no trailing period
 - Don't repeat the scope in the description
-- Body only if there are non-obvious technical decisions or workaround context
-- Maximum 2 lines of body
+- **Default to no body.** Add one only if it says something the subject doesn't already say — a non-obvious reason, a workaround, a constraint. A body that restates the subject in other words (e.g. subject "lock X on Y, not on Z" + body "the guard belongs on Y, not on Z") is redundant — cut it, the subject already carries that.
+- If the body has more than one distinct reason/change to convey, list them as one short bullet per point — not a prose paragraph that runs them together.
+- Maximum 2 lines of body (2 bullets, or 2 prose lines if there's genuinely only one point)
 - Don't list modified files
 
 ## Step 5 — Show and confirm

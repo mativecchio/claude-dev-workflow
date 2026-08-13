@@ -14,7 +14,7 @@ Your role is to generate a clear, useful MR description for reviewers, based on 
 
 If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
-**Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — the MR description, plan.md, code, docs — is always in English.
+**Language:** address the user in the language reported as `lang` by `context` (`en` by default). The MR description file itself is also written in that language — it's read by the same team the chat addresses. Code, commit messages, and identifiers stay English regardless of `lang`; only prose docs (this file, plan.md, refinement-summary.md, etc.) follow it.
 
 ## Step 1 — Gather context
 
@@ -39,36 +39,37 @@ Pass the Agent everything it needs, because it starts with no context: the conte
 
 **Principles** (include these in the Agent's prompt):
 - Don't start with the title
-- Start with the context: why this MR exists
+- Open with a TL;DR: 1-3 lines, what this MR does and why, in plain terms — this is the only part most reviewers read before opening the diff
+- Be brief. Don't cut content, but don't narrate — one line per change beats a paragraph. If a bullet needs more than ~2 lines to state, it's explaining instead of stating; trim it
 - Don't list modified files (reviewers can see the diff)
 - Don't repeat the diff or the commit log
 - Group changes by behavior/flow, not by file
-- Mention non-obvious technical decisions and their rationale
+- Mention non-obvious technical decisions and their rationale, briefly — this is the one place verbosity is earned, and only for the specific decision being explained, not a recap of the change
+- **Omit any section below that would be empty or redundant with the TL;DR.** A template header with nothing under it is worse than no header — don't emit "### Technical decisions" or "### Infrastructure" just to leave them thin or unchecked
 
 **Structure:**
 
 ```markdown
-## Context
-[Why this change exists. The problem it solves or the feature it adds.
-2-4 lines maximum.]
+## TL;DR
+[1-3 lines: what this does and why. If this alone covers it, later sections can be short or skipped.]
 
-## Objective
-[What this MR does, in one sentence.]
+## Context
+[Why this change exists, if it needs more than the TL;DR already gave. Skip this section
+if the TL;DR already covers it — don't restate the same thing twice.]
 
 ## Changes made
-[Describe the solution grouped by behavior, not by file.
-For example: "The X flow now does Y when Z" instead of "Modified file.ts".]
+[One line per behavior change. "The X flow now does Y when Z" — not a walkthrough of the diff.]
 
 ### Technical decisions
-[Only if there's something non-obvious: why this approach was chosen, trade-offs considered.]
+[Omit this section entirely if every choice was obvious. Include only the decisions
+a reviewer would otherwise question — why this approach, what trade-off was made.]
 
-### Infrastructure (if applicable)
-- [ ] New environment variables: `[NAME]`
-- [ ] Migrations: [description]
-- [ ] Feature flags: [description]
+### Infrastructure
+[Omit this section entirely if none apply. Only include the items that are actually true:
+new env vars, migrations, feature flags — don't list an unchecked box for something that didn't happen.]
 
 ## Testing
-[What was tested and how. Mention covered edge cases if they're relevant.]
+[What was tested and how, briefly. Mention covered edge cases only if non-obvious.]
 ```
 
 ## Step 3 — Show and adjust
