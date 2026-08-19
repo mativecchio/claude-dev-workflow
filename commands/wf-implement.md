@@ -130,12 +130,20 @@ If 2 of the 3 criteria don't hold (controlled internal value, a single call site
 
 ## Step 4 — Record deviations
 
-If something during implementation is done differently from the plan:
+If something during implementation is done differently from the plan, show it:
 ```
 ⚠️  Deviation from the plan: [description]
 Reason: [why]
 Impact: [what changes]
 ```
+
+Then append it to `{workflowDir}/plan.md` — don't leave it only on screen:
+```markdown
+## Deviations from the plan
+- [description] — Reason: [why]. Impact: [what changes].
+```
+
+`wf-retro` and `wf-mr-review` read this section directly from `plan.md`; a deviation that never leaves the chat is invisible to both.
 
 ## Step 5 — Record tech debt
 
