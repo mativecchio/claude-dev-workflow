@@ -66,6 +66,14 @@ function handle(result: Result<User>) {
 - `ReturnType<T>` — for types inferred from functions
 - `Parameters<T>` — to reuse parameter types
 
+## Clean code
+
+- No `any` — `unknown` + narrowing, or a real type; `any` defeats the point of typing
+- Small, single-purpose functions — a function that returns a union of unrelated shapes should be split
+- No duplicated types — derive with `Pick`/`Omit`/`ReturnType` instead of hand-copying a shape
+- Names that state intent (`isLoading`, `hasError`) over abbreviations
+- No dead code, no commented-out code, no unused types/imports
+
 ## For TypeScript errors
 
 ```

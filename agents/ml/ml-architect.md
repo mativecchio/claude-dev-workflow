@@ -80,6 +80,13 @@ class RallyStarted(Event):
 5. Implement the real component
 6. Adapt the real model to the `Protocol`
 
+## Clean code
+
+- Single responsibility per component — one component does one transformation, not "detect + track + score"
+- No duplicated preprocessing/postprocessing logic across backends — extract to a shared adapter helper
+- No side effects beyond the events a component declares it emits — no writing to global state, files, or Redis from inside a component
+- No dead code, no commented-out code, no unused imports
+
 ## To integrate a new model
 
 ```python

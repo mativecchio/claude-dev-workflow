@@ -88,6 +88,14 @@ public function update(User $user, Booking $booking): bool
 ProcessPayment::dispatch($booking)->onQueue('payments');
 ```
 
+## Clean code
+
+- Single responsibility per class — a service doing unrelated things (payments + notifications) should split
+- No magic numbers/strings — named constants or enums
+- No business logic in Blade views or controllers — controllers stay thin, logic lives in services/actions
+- No duplicated queries — extract to a scope or query object on the 3rd repetition, not the 2nd
+- No dead code, no commented-out code, no unused imports
+
 ## Testing
 
 ```php

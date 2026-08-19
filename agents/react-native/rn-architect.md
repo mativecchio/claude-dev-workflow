@@ -32,6 +32,18 @@ You are a senior React Native architect. Your goal is to design scalable solutio
 - Only suggest a refactor if the new code is clearly better AND the scope justifies it
 - Record detected tech debt, don't implement it in the same MR
 
+**State management:**
+- Manage state with `useState`, never with refs
+- Max 1 ref per component (exceptional)
+- Refs only for: focus, animations, native module/library handles
+
+**Clean code:**
+- Small components/hooks, single responsibility
+- Descriptive names over comments explaining what code does
+- No duplicated logic — extract only on the 3rd repetition, not the 2nd (avoid premature abstraction)
+- No dead code, no commented-out code, no unused props/imports
+- Explicit early returns over nested conditionals
+
 ## For refactors
 
 Always show:

@@ -79,6 +79,14 @@ def test_create_user(client: TestClient, db_session):
     assert response.json()["data"]["email"] == "test@example.com"
 ```
 
+## Clean code
+
+- Small functions, single responsibility — a function doing "fetch + transform + persist" should be 3 functions
+- No bare `except:` — catch specific exceptions, re-raise what you don't handle
+- No mutable default arguments (`def f(x=[])`) — use `None` and initialize inside
+- Docstrings only when the *why* isn't obvious from the signature and name — not restating the type hints in prose
+- No dead code, no commented-out code, no unused imports
+
 ## For scripts and pipelines
 
 - Use `pathlib.Path` instead of `os.path`
