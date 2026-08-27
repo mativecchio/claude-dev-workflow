@@ -54,8 +54,16 @@ git show-ref --verify --quiet "refs/remotes/origin/$BASE" 2>/dev/null && HAS_ORI
 if [ "$DO_FETCH" -eq 1 ]; then
   # Explicit refspec on purpose: this updates refs/remotes/origin/<base> and
   # nothing else. No local branch moves, no merge, no working-tree change.
-  git fetch --quiet origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" 2>/dev/null &&
+  if git fetch --quiet origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" 2>/dev/null; then
     HAS_ORIGIN=1
+  elif [ "$HAS_ORIGIN" -eq 1 ]; then
+    # Keep the ref we already have: falling back to the local base here would
+    # reintroduce the very fork-point bug --fetch exists to avoid. But the
+    # refresh was asked for and did not happen, so the base may be behind.
+    printf 'wf-diff: git fetch failed (offline or no access) — using the origin/%s ref already on disk, which may be stale.\n' "$BASE" >&2
+  else
+    printf 'wf-diff: git fetch failed and there is no origin/%s ref — falling back to the local %s branch, which may give a fork point that is too early.\n' "$BASE" "$BASE" >&2
+  fi
 fi
 
 MB_LOCAL="$(git merge-base "$REF" "$BASE" 2>/dev/null)"
