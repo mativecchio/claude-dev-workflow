@@ -102,7 +102,7 @@ wf_related_path() {
 # the path did not resolve, and the claim was accepted from notes anyway.
 # Prints one line per entry; returns 1 if any path is broken.
 wf_related_projects_check() {
-  local root n i name p abs want slug kind bad=0
+  local root n i idx name p abs want slug kind bad=0
   root="$(wf_repo_root)"
   n="$(wf_config '.related_projects | length')" || return 0
   case "$n" in ''|*[!0-9]*) return 0 ;; esac
@@ -138,7 +138,8 @@ wf_related_projects_check() {
       # confidently wrong, with nothing to signal it. Compare the checkout's
       # origin remote against the expected repo name; `remote` in config.json
       # overrides when the directory or the remote is named differently.
-      want="$(wf_config ".related_projects[$i - 1].remote")"
+      idx=$((i - 1))
+      want="$(wf_config ".related_projects[$idx].remote")"
       [ -n "$want" ] || want="$name"
       slug="$(wf_repo_slug "$abs")"
       if [ -z "$slug" ]; then
@@ -455,11 +456,27 @@ wf_ticket_repo_check() {
   return 1
 }
 
+# Rewrites a JSON file through jq atomically. Never leaves the temp file behind
+# and never reports a success it did not achieve — wf_set_state and
+# wf_enter_stage already do this inline; this is the same contract for callers
+# that need it more than once.
+wf_json_update() {
+  local f="$1" tmp rc=1
+  shift
+  [ -f "$f" ] || return 1
+  tmp="$(mktemp)" || return 1
+  if jq "$@" "$f" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+    mv "$tmp" "$f" && rc=0
+  fi
+  [ -f "$tmp" ] && rm -f "$tmp"
+  return "$rc"
+}
+
 # Moves a ticket's workflow directory to the repo its code lives in and points
 # the active-ticket pointers at the result. Only the location was wrong, so the
 # ticket's own state is carried over untouched.
 wf_relocate_ticket() {
-  local t src want abs dest here_root there_root tmp
+  local t src want abs dest here_root there_root fail=0
   t="${1:-}"
   [ -n "$t" ] || t="$(wf_ticket)" || { echo "wf-lib: no ticket given and none active" >&2; return 1; }
   here_root="$(wf_workflow_root)"
@@ -481,19 +498,31 @@ wf_relocate_ticket() {
   mkdir -p "$there_root" || return 1
   mv "$src" "$dest" || return 1
 
+  # The move already happened, so from here a failure cannot be undone by
+  # returning early: say exactly what is left half-done instead of reporting a
+  # success that did not occur.
+  printf 'moved %s -> %s\n' "$src" "$dest"
+
   # Drop the pointer here only if it named the ticket that just left.
   if [ -f "$here_root/state.json" ] && [ "$(jq -r '.activeTicket // empty' "$here_root/state.json" 2>/dev/null)" = "$t" ]; then
-    tmp="$(mktemp)" && jq 'del(.activeTicket)' "$here_root/state.json" > "$tmp" 2>/dev/null &&
-      [ -s "$tmp" ] && mv "$tmp" "$here_root/state.json"
+    if ! wf_json_update "$here_root/state.json" 'del(.activeTicket)'; then
+      printf 'wf-lib: could not clear activeTicket in %s — it still names %s, which has moved. Fix it by hand.\n' \
+        "$here_root/state.json" "$t" >&2
+      fail=1
+    fi
   fi
 
   # Adopt it there, preserving whatever else that state file holds.
   [ -f "$there_root/state.json" ] || echo '{}' > "$there_root/state.json"
-  tmp="$(mktemp)" && jq --arg t "$t" '.activeTicket = $t' "$there_root/state.json" > "$tmp" 2>/dev/null &&
-    [ -s "$tmp" ] && mv "$tmp" "$there_root/state.json"
+  if wf_json_update "$there_root/state.json" --arg t "$t" '.activeTicket = $t'; then
+    printf 'active ticket in %s is now %s\n' "$abs" "$t"
+  else
+    printf 'wf-lib: %s moved but %s could not be updated — set activeTicket to %s there by hand.\n' \
+      "$t" "$there_root/state.json" "$t" >&2
+    fail=1
+  fi
 
-  printf 'moved %s -> %s\n' "$src" "$dest"
-  printf 'active ticket in %s is now %s\n' "$abs" "$t"
+  [ "$fail" -eq 0 ] || return 1
   printf 'run the workflow for %s from %s from now on\n' "$t" "$abs"
 }
 
