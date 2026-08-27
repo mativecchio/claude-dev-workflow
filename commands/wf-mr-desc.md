@@ -25,9 +25,16 @@ Read:
 
 Get the summarized diff:
 ```bash
-~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh --stat --fetch
 ~/.claude/scripts/wf-diff.sh --log
 ```
+
+**The first `wf-diff.sh` call of the stage carries `--fetch`.** It refreshes `origin/<base>` (the
+remote-tracking ref only — no local branch, no merge, no working-tree change) so the fork point is
+computed against the real base rather than a stale local one. If it warns that the local base is
+behind, **that warning is the whole point** — without the refresh the diff would have carried other
+tickets' merged commits as if this feature had written them. Do not silence it and do not "fix" it
+by pulling the base branch.
 
 ## Step 2 — Generate the description (delegated)
 
