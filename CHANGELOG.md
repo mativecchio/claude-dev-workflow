@@ -12,6 +12,35 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.9.0 — 2026-08-27
+
+Came out of a `/wf-retro` on BC-1624. Every item below carries its evidence in `improvements.md`.
+
+### Added
+- `wf-lib.sh related-check` — verifies each `related_projects[].path` resolves, and that the checkout it points at is the repo the entry claims (via its `origin` remote; `remote` overrides `name`). Runs inside `context`, so a broken path surfaces at the start of every stage instead of as a review finding three stages later.
+- `wf-lib.sh commits [ticket]` — resolves a ticket's commits with `git log --grep`. Paired with a rule in `wf-commit` never to store a hash in a workflow artifact: a rebase turns every stored hash into a pointer to nothing while the content ships unchanged under a new one.
+- `wf-lib.sh repo-check` and `relocate [ticket]` — a ticket may declare `"repo"` in its state; when it names another project, stages refuse to advance and `relocate` moves it into that repo's workflow. Each repo already runs its own workflow, so this is a guard that keeps a ticket in the right one, not multi-repo support.
+- `wf-diff.sh --fetch` — refreshes `origin/<base>` through an explicit refspec before resolving the fork point. Remote-tracking ref only: no local branch moves, no merge, no working-tree change.
+- `contracts.md`, written by `/wf-analyze` when `related_projects` is non-empty and the change touches a shared surface. Records both sides of each cross-repo contract with `file:line`; `review-plan`, `mr-review` and `validate` read it instead of re-deriving the same check.
+- `/wf-implement` step 3.6: a new test must be proven to fail against the pre-change source. One that passes both before and after may stand as a non-regression guard but cannot be cited as an acceptance criterion's coverage.
+
+### Changed
+- **`related_projects` has a schema.** Entries are local checkouts addressed by a path relative to the project root: `{name, path, description?}`. URLs and entries with no `path` are now rejected loudly instead of skipped — a skipped entry made a broken config indistinguishable from an empty one. `/wf-init` populates the field from what it finds on disk (Step 3 already detected them; Step 5's template discarded them) and verifies it with `related-check` before writing. The `env_var` key is gone: nothing ever read it, and where a project is deployed says nothing about its source on disk.
+- `wf-diff.sh` resolves the fork point against the tightest of `<base>` and `origin/<base>`. merge-base alone was not enough: a local base behind origin yields a fork point *earlier* than the real one. Measured on a real branch with a local base 12 commits behind — 31 files / 1165 lines / 20 commits against the local ref, versus 4 / 685 / 8 against origin's.
+- `/wf-mr-review` runs `/code-review` sequentially and feeds its findings to the Step 3 Agent, with a rule for which reviewers run at all. In parallel the "don't repeat a finding" instruction was unenforceable — neither can see the other's output — and both had independently reported the same race in different words.
+- `/wf-validate` requires a clean working tree, gains a scoped-checks mode for re-runs, reads `mr-review.md` and cuts the validators it already covers (skipping the Agent entirely is a valid outcome), and forbids its Agent from writing to the repo.
+- `wf_model` resolves the model before judging the name, so `commit` — which carries a default without being a pipeline stage — still resolves. Exit codes now distinguish a resolved model (0), a real stage with no Agent (1, silent), and a name that exists nowhere (2, loud).
+
+### Fixed
+- `set-state stage` validated nothing, so any string could reach `.stage` through it and bypass `enter-stage`'s guard. Both doors now validate and suggest the closest real stage on a near-miss, ignoring separators and case.
+- `wf_relocate_ticket` reported success it had not achieved: with a corrupt destination `state.json` it moved the directory, printed every success line and returned 0, leaving the ticket with no active pointer on either side. It now announces the move when it happens, names exactly what is left half-done, and returns non-zero. New `wf_json_update` performs each rewrite atomically and never leaks its temp file.
+- `wf-diff.sh --fetch` degraded silently when the fetch failed. It now distinguishes "keeping the origin ref already on disk, which may be stale" from "no origin ref at all, falling back to the local branch" — and keeps the remote ref either way, because falling back to local is the defect `--fetch` exists to prevent.
+
+### Tests
+- `tests/test-scripts.sh` grew from 65 to 98 assertions, covering the stage vocabulary and its exit codes, `related_projects` validation, ticket-repo ownership, and both the failing and clean paths of `relocate` including the temp-file check.
+
+---
+
 ## 0.8.0 — 2026-08-11
 
 Phase 5 of `docs/plan-model-routing.md`, which completes it. This phase does not change any model — it makes the premise the rest of the plan rests on checkable.
