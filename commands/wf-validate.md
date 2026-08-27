@@ -38,11 +38,40 @@ Wait for an answer before continuing.
 
 ## Step 2 — Deterministic checks (before any agent)
 
+**First, the working tree must be clean:**
+
+```bash
+git status --porcelain
+```
+
+If it prints anything, **stop and show it.** Validating a tree that does not match any commit
+produces a verdict about code that exists nowhere: the next stage reads the branch, the reviewer
+reads the MR, and neither sees what was approved. Offer to commit, stash, or — if the user says the
+uncommitted state is deliberately what should be reviewed — get an **explicit ack** and record it in
+the stage notes. Never proceed silently.
+
+This has already gone wrong: a validate run closed over a dirty tree carrying three high-severity
+fixes, and left no `stage_end` behind.
+
+**Then the checks:**
+
 ```bash
 ~/.claude/scripts/wf-checks.sh
 ```
 
 Runs lint, types and tests from `config.json`. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
+
+**Scoped mode for re-runs.** The full suite is the slowest gate in the cycle and most of its cost is
+fixed startup, not the tests themselves — a project can spend ~90% of a 25-minute run on module
+imports. Paying that on every validate iteration is waste when the diff is small.
+
+- **First validate iteration of a ticket, or a diff touching shared/config/infra code** → full run.
+- **Re-run after a fix that touched N test files and their sources** → run only those files, and say
+  so: `⚙️ Scoped checks: <files> — full suite pending before /wf-mr-desc`.
+- **The full suite must run at least once, green, before `/wf-mr-desc`.** Scoped mode defers the cost,
+  it does not remove it. A "pure internal move can't affect other modules" argument is an argument,
+  not a measurement — record it as such if you rely on it.
+- Lint and types are cheap: always run them unscoped.
 
 The reason is economy and precision: a linter answers "is there a console.log?" exactly and for free, while an agent opines on the same thing with a chance of a false positive. The agent is reserved for what only it can do — architecture, external contracts, security.
 
@@ -51,13 +80,47 @@ Exit 2 means the project has no `checks` configured: report it once, suggest add
 ## Step 2.5 — Get the diff
 
 ```bash
-~/.claude/scripts/wf-diff.sh --stat
+~/.claude/scripts/wf-diff.sh --stat --fetch
 ~/.claude/scripts/wf-diff.sh
 ```
+
+**The first `wf-diff.sh` call of the stage carries `--fetch`.** It refreshes `origin/<base>` (the
+remote-tracking ref only — no local branch, no merge, no working-tree change) so the fork point is
+computed against the real base rather than a stale local one. If it warns that the local base is
+behind, **that warning is the whole point** — without the refresh the diff would have carried other
+tickets' merged commits as if this feature had written them. Do not silence it and do not "fix" it
+by pulling the base branch.
 
 It resolves the merge-base against the project's base branch on its own, plus the uncommitted-work case. There's no need to reason about the range.
 
 ## Step 3 — Launch the validation Agent
+
+**First: has this diff already been reviewed?** If `{workflowDir}/mr-review.md` exists and covers the
+current diff, this stage is not a third opinion on the same code. Read it, and **cut from the Agent's
+scope every validator whose ground it already covers** — in practice Architecture, Tests and
+Performance overlap `/code-review`'s scope almost entirely. What is genuinely left is the external
+integration check and the runtime validator.
+
+State the reduction out loud before launching:
+
+```
+📋 mr-review.md covers: architecture, tests, performance
+⚙️ This validate run: external integration + runtime only
+```
+
+If the reduction leaves nothing, **say so and skip the Agent.** Going straight to Step 4 with
+"already covered by mr-review" is a valid outcome, not a gap. Three agents reviewing one diff has
+already produced the same finding twice in different words, at full cost each time.
+
+Pass the contents of `mr-review.md` into the prompt under `**Already reported:**` so the Agent cannot
+rediscover what is in it.
+
+**Working tree ownership:** the Agent reviews, it does not write. It must not run `git pull`, `git
+fetch` with merge, `git checkout`, `git stash`, or create/delete scratch files in the repo — the main
+session owns the working tree and the user may be editing it. A background agent has already
+rewritten commit hashes on an active branch with an unrequested `git pull`, and another created and
+deleted a throwaway repro inside the repo. If the Agent needs to run something that writes, it
+reports what it needs and the main thread runs it.
 
 Use the **Agent tool** with the following prompt (adapted to the chosen validators):
 
@@ -107,8 +170,15 @@ You are a senior engineer doing a quality review on freshly implemented code. It
 - Is sensitive data exposed in logs or responses?
 - Do the endpoints have the right auth?
 
-**🔗 External integration (always run, independent of the chosen validators):**
-- Does the diff touch state/storage/a contract that a `related_project` (config.json) also reads or writes? If so, and that project has a local `path`, was the real behavior verified by grepping/reading that path (merge vs replace, types, format) instead of assuming it?
+**🔗 External integration (run unless `contracts.md` says there is nothing shared):**
+- **Read `{workflowDir}/contracts.md` first.** `/wf-analyze` resolved the cross-repo contracts once
+  and recorded both sides with `file:line`. Re-verify only the entries this diff touches. If the file
+  says `No shared surfaces`, **skip this validator and say so** — do not repeat the search. If the
+  file is missing, do the verification and write it, so no later stage pays for it again.
+- Trust `related-check`: if `~/.claude/scripts/wf-lib.sh related-check` warned that a path does not
+  resolve, every claim about that repo is `NOT VERIFIABLE`. Report it as an unverifiable risk and as
+  a config defect. Do not substitute notes, memory or a sister ticket for the real source.
+- For the entries the diff does touch: was the real behavior verified by grepping/reading that path (merge vs replace, types, format) instead of assuming it?
 - This CANNOT be approved from the diff alone — if an external integration is involved and it wasn't verified against the real source code, flag it explicitly as an unverifiable risk, not as approved.
 
 **♿ Accessibility:**
