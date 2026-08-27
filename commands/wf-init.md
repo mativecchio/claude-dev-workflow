@@ -42,10 +42,33 @@ Look for:
 
 ## Step 3 — Detect related projects
 
-Look in:
-- `.env` or `.env.example` → variables pointing at other services (API URLs, service names)
-- `README.md` → mentions of other repos or services
-- `package.json` → workspaces if it's a monorepo
+**An entry is a local checkout, addressed by a path relative to this project.** Not a URL. The
+whole point of the field is that a later stage can run Grep/Read over that project's real source
+instead of assuming its behaviour, and a URL cannot be read from disk. If repository URLs are ever
+needed they get their own field; they do not belong here.
+
+```json
+{ "name": "monorepo", "path": "../monorepo", "description": "shared frontend monorepo" }
+```
+
+- `name` — short label, how the other stages will refer to it.
+- `path` — **required**, relative to this project's root (`../sibling`, `../../other/tree`). An entry
+  without a resolvable `path` is worse than no entry: it reads as coverage while verifying nothing.
+- `description` — optional.
+
+Those three are the whole schema. Nothing else goes in an entry — in particular not where the other
+project is deployed: a service URL or the env var holding it says nothing about the source on disk,
+which is the only thing any stage reads this field for.
+
+Find them on disk, in this order:
+1. Sibling directories of this project's root — that is where checkouts of the same org usually live.
+2. `.env` / `.env.example` → service URLs whose host or name matches one of those directories.
+3. `README.md` and `package.json` workspaces → names of other repos; then **look for each name on
+   disk** and record the path you found, not the URL you read.
+
+If a project is referenced but is not checked out locally, **leave it out** and say so to the user.
+The field exists to make cross-repo claims verifiable; an entry nobody can read makes them look
+verified when they are not.
 
 ## Step 4 — Detect structure and patterns
 
@@ -79,7 +102,9 @@ Generate the config from what you detected and show it to the user before writin
     "commit": "sonnet",
     "test": "sonnet"
   },
-  "related_projects": [],
+  "related_projects": [
+    { "name": "[name]", "path": "[relative path found on disk]" }
+  ],
   "checks": {
     "lint": "[the project's real command]",
     "types": "[the real command, if applicable]",
@@ -108,6 +133,16 @@ What goes in here stops depending on an agent's judgment: `/wf-validate` runs th
 Ask only one thing if something remained unclear:
 - If the stack wasn't detected → "What stack is this project?"
 - If there are related projects it couldn't infer → "Are there related repos this project uses?"
+
+Carry the projects found in Step 3 into `related_projects` — an empty array only if nothing was
+found on disk. Then verify what you wrote before moving on:
+
+```bash
+~/.claude/scripts/wf-lib.sh related-check
+```
+
+Every entry must print a `related_project=` line. A warning means the config is wrong, not that the
+check is noisy: fix the path or drop the entry.
 
 ## Step 6 — Write the files
 
