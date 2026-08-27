@@ -232,11 +232,6 @@ wf_model() {
   local stage="$1" m d
   [ -n "$stage" ] || return 1
 
-  # An empty result is the correct answer for refine/implement/retro and the
-  # other stages that run in the user's own session. It is the WRONG answer for
-  # a stage name that does not exist, and the two used to be indistinguishable
-  # from the outside: same empty output, same exit 1.
-  wf_is_stage "$stage" || { wf_reject_stage "$stage" >&2; return 2; }
 
   if [ -n "${WF_MODEL:-}" ]; then m="$WF_MODEL"
   else
@@ -247,7 +242,19 @@ wf_model() {
       done
     fi
   fi
-  [ -n "$m" ] || return 1
+  # Resolve first, judge after. An empty result is the correct answer for the
+  # stages that run in the user's own session (refine, implement, retro), and
+  # the WRONG answer for a name that does not exist at all — the two used to be
+  # indistinguishable from outside: same empty output, same exit 1.
+  #
+  # The check is "did anything claim this name", not "is it a stage": `commit`
+  # carries a model default without being a pipeline stage, because /wf-commit
+  # is a command and not something state.json tracks. Validating against
+  # WF_STAGES alone rejected it.
+  if [ -z "$m" ]; then
+    wf_is_stage "$stage" || { wf_reject_stage "$stage"; return 2; }
+    return 1
+  fi
 
   # A typo here would silently route a stage somewhere unintended, so an unknown
   # model falls back to the default rather than being passed through.
