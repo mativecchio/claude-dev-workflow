@@ -128,6 +128,33 @@ Write a test forcing the corrupt/invalid input for **each** call site in the lis
 
 If 2 of the 3 criteria don't hold (controlled internal value, a single call site), follow the normal flow without this extra step.
 
+## Step 3.6 — A new test must fail against the pre-change source
+
+Before calling a group done, prove that each test you added actually discriminates. Stash the
+production change (not the tests) and run them:
+
+```bash
+git stash push -- <the source files you changed>
+<the project's test command, scoped to the touched test file>
+git stash pop
+```
+
+Report the result explicitly, per test:
+
+```
+🧪 Discriminating: [test name] — FAILS pre-fix ✅
+🧪 Non-discriminating: [test name] — passes pre-fix (guard against over-correction, not evidence of the change)
+```
+
+A test that passes both before and after is not automatically wrong — it can be a legitimate
+non-regression guard — but it **cannot be cited as the coverage for an acceptance criterion**, and
+its name must not read as if it pins the new behaviour. Either rename it, or add the AC's real test.
+
+**Why:** a test named after the new rule that passes on the old source hides the fact that the rule
+has no coverage at all. This has shipped: a promocode-persistence test read as the AC's evidence
+while passing identically on the pre-fix source, and it was only caught because someone thought to
+stash by hand. Nothing in the flow required it.
+
 ## Step 4 — Record deviations
 
 If something during implementation is done differently from the plan, show it:
