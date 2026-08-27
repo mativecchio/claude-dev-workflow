@@ -25,7 +25,25 @@ Save the ticket's state in `.claude/workflow/BC-XXXX/state.json`:
 { "stage": "refine", "completed": [], "started_at": "[ISO timestamp]" }
 ```
 
-> The value of `stage` is `refine`, not `refinement`. The stage vocabulary is singular and defined by `hooks/wf-telemetry.sh` (`stage_index`): `refine`, `analyze`, `review-plan`, `implement`, `validate`, `test`, `mr-desc`, `mr-review`, `retro`. Any other value silently breaks the iteration count and `/wf`'s routing.
+> **Write these files through `wf-lib.sh`, not by hand:** `wf-lib.sh enter-stage <stage>` and
+> `wf-lib.sh set-state <key> <json-value>`. Both validate the stage name; a hand-written JSON file
+> does not, and that is how `"stage": "testing"` reached a real ticket and sat there unnoticed —
+> `wf_model` returned nothing for it, which is indistinguishable from a stage that legitimately
+> spawns no Agent, so the stage's Agent silently inherited the session's model.
+>
+> The stage vocabulary is singular and its single source of truth is `WF_STAGES` in
+> `scripts/wf-lib.sh`: `refine`, `analyze`, `review-plan`, `implement`, `validate`, `test`,
+> `mr-desc`, `mr-review`, `retro`. It is `refine`, not `refinement`; `test`, not `testing`. Any
+> other value is now rejected outright, with the closest match suggested.
+
+> **A ticket belongs in the repo whose code it changes.** Each repo runs its own workflow — its own
+> `.claude/workflow/`, its own `config.json`, its own base branch and checks — so a ticket filed
+> under a different project leaves the state in one tree and the code in another, and `branch`,
+> `diff`, `base` and `checks` all quietly describe the wrong repo. If the work happens in a
+> `related_project`, run the workflow from **that** repo. When a ticket's state carries a `repo`
+> field naming a different project, every stage refuses to advance until it is moved with
+> `wf-lib.sh relocate <ticket>`, and naming a repo that is not in `related_projects` is refused
+> outright: the workflow does not drive a repo the config has no record of.
 
 **Language:** address the user in the language returned by `~/.claude/scripts/wf-lib.sh language` (`en` by default). Everything written to a file — refinement-summary.md, plan.md, code, commits — is always in English.
 

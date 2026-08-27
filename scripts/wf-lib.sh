@@ -56,6 +56,106 @@ wf_config() {
   jq -r "${1:-.} // empty" "$f" 2>/dev/null
 }
 
+# What repo a checkout actually is, taken from its origin remote. Two callers
+# need this and they need the same answer: verifying a related_project points
+# where it claims, and telling whether a ticket is filed under the project whose
+# code it changes. Empty exit 1 when there is no origin — identity unknown, which
+# callers must treat as "cannot tell", never as "mismatch".
+wf_repo_slug() {
+  local dir="${1:-}" url slug
+  [ -n "$dir" ] || dir="$(wf_repo_root)"
+  url="$(git -C "$dir" remote get-url origin 2>/dev/null)" || return 1
+  [ -n "$url" ] || return 1
+  slug="${url##*/}"
+  printf '%s' "${slug%.git}"
+}
+
+# Absolute path of a related_project by name. Empty exit 1 if it is not listed
+# or has no path.
+wf_related_path() {
+  local want="${1:-}" root n i name p abs
+  [ -n "$want" ] || return 1
+  root="$(wf_repo_root)"
+  n="$(wf_config '.related_projects | length')"
+  case "$n" in ''|*[!0-9]*) return 1 ;; esac
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    name="$(wf_config ".related_projects[$i].name")"
+    p="$(wf_config ".related_projects[$i].path")"
+    i=$((i + 1))
+    [ "$name" = "$want" ] || continue
+    [ -n "$p" ] || return 1
+    case "$p" in /*) abs="$p" ;; *) abs="$root/$p" ;; esac
+    # Collapse the ../ so the path in an error message is one the reader can
+    # paste, not main/../other.
+    if [ -d "$abs" ]; then abs="$(cd "$abs" 2>/dev/null && pwd)" || return 1; fi
+    printf '%s' "$abs"
+    return 0
+  done
+  return 1
+}
+
+# Verifies that every related_projects[].path in the project config resolves to
+# a real directory. A broken path never fails loudly — it silently degrades the
+# cross-repo contract check into second-hand guessing. That is exactly how the
+# "verifying related_projects is mandatory" rule was defeated: the rule fired,
+# the path did not resolve, and the claim was accepted from notes anyway.
+# Prints one line per entry; returns 1 if any path is broken.
+wf_related_projects_check() {
+  local root n i name p abs want slug bad=0
+  root="$(wf_repo_root)"
+  n="$(wf_config '.related_projects | length')" || return 0
+  case "$n" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$n" -eq 0 ] && return 0
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    name="$(wf_config ".related_projects[$i].name")"
+    p="$(wf_config ".related_projects[$i].path")"
+    i=$((i + 1))
+    [ -n "$p" ] || continue
+    case "$p" in /*) abs="$p" ;; *) abs="$root/$p" ;; esac
+    if [ -d "$abs" ]; then
+      # Existing is not the same as correct. A path can resolve to some other
+      # checkout entirely and every cross-repo claim made against it is then
+      # confidently wrong, with nothing to signal it. Compare the checkout's
+      # origin remote against the expected repo name; `remote` in config.json
+      # overrides when the directory or the remote is named differently.
+      want="$(wf_config ".related_projects[$i - 1].remote")"
+      [ -n "$want" ] || want="$name"
+      slug="$(wf_repo_slug "$abs")"
+      if [ -z "$slug" ]; then
+        printf 'related_project=%s:%s (not a git checkout - identity unverified)\n' "${name:-?}" "$p"
+      else
+        if [ -n "$want" ] && [ "$slug" != "$want" ]; then
+          printf '\xe2\x9a\xa0 related_project %s -> %s resolves to a DIFFERENT repo: origin is %s, expected %s.\n   Either the path or the name is wrong. Do not make claims about %s from this checkout.\n' \
+            "${name:-?}" "$p" "$slug" "$want" "${name:-?}" >&2
+          bad=1
+        else
+          printf 'related_project=%s:%s\n' "${name:-?}" "$p"
+        fi
+      fi
+    else
+      printf '\xe2\x9a\xa0 related_project %s -> %s DOES NOT RESOLVE (%s).\n   Fix config.json before making ANY claim about that repo.\n' \
+        "${name:-?}" "$p" "$abs" >&2
+      bad=1
+    fi
+  done
+  return "$bad"
+}
+
+# Resolves a ticket's commits from git rather than from a stored hash. Hashes
+# written into state.json or a doc die on the first rebase and leave the reader
+# with a pointer to nothing, even though the content shipped unchanged under a
+# new hash. Never store a hash: resolve it here at read time.
+wf_commits() {
+  local t b
+  t="${1:-}"
+  [ -n "$t" ] || t="$(wf_ticket)" || return 1
+  [ -n "$t" ] || return 1
+  b="$(wf_base)"
+  git log --format='%h %s' --grep="$t" "$b..HEAD" 2>/dev/null
+}
+
 # The project's base branch. Precedence: config > existing branch > main.
 # This used to be prose ("develop/main/master, depending on the project") that
 # the model re-resolved on every run, and wf-refine hardcoded develop outright.
@@ -112,6 +212,12 @@ WF_VALID_MODELS="opus sonnet haiku fable"
 wf_model() {
   local stage="$1" m d
   [ -n "$stage" ] || return 1
+
+  # An empty result is the correct answer for refine/implement/retro and the
+  # other stages that run in the user's own session. It is the WRONG answer for
+  # a stage name that does not exist, and the two used to be indistinguishable
+  # from the outside: same empty output, same exit 1.
+  wf_is_stage "$stage" || { wf_reject_stage "$stage" >&2; return 2; }
 
   if [ -n "${WF_MODEL:-}" ]; then m="$WF_MODEL"
   else
@@ -264,8 +370,14 @@ wf_state() {
 # Writes a key, preserving the rest of the file.
 # Usage: wf_set_state approved true   |   wf_set_state branch '"MA-123-fix"'
 wf_set_state() {
-  local d f tmp key="$1" val="$2"
+  local d f tmp key="$1" val="$2" bare
   [ -n "$key" ] || return 1
+  # enter-stage guards the front door; without this, any caller can write an
+  # arbitrary string straight into .stage through here and bypass it entirely.
+  if [ "$key" = "stage" ]; then
+    bare="${val%\"}"; bare="${bare#\"}"
+    wf_is_stage "$bare" || { wf_reject_stage "$bare"; return 1; }
+  fi
   d="$(wf_dir)" || return 1
   f="$d/state.json"
   [ -f "$f" ] || echo '{}' > "$f"
@@ -284,14 +396,120 @@ wf_set_state() {
 # with a vocabulary that didn't match the consumers' (H12). Here the vocabulary
 # is validated: an invalid stage fails loudly instead of being written and
 # silently breaking the counts.
+# True if the name is one of the pipeline's stages.
+# The repo a ticket's code lives in, declared as "repo" in its state. Empty for
+# every ticket that does not say — which is the normal case and means "this one".
+wf_ticket_repo() {
+  local d
+  d="$(wf_dir 2>/dev/null)" || return 1
+  [ -f "$d/state.json" ] || return 1
+  jq -r '.repo // empty' "$d/state.json" 2>/dev/null
+}
+
+# A ticket belongs in the workflow directory of the repo whose code it changes.
+# That repo is where its base branch, its checks and its config.json are; filing
+# it elsewhere leaves the state in one tree and the code in another, and every
+# git-facing answer — branch, diff, base, checks — then describes the wrong repo
+# without saying so. This is not multi-repo support: each repo already runs its
+# own workflow. It is the guard that keeps a ticket in the right one.
+#
+# Returns 0 when the ticket is here, declares nothing, or identity cannot be
+# established. Returns 1 with an actionable message otherwise.
+wf_ticket_repo_check() {
+  local want here t abs
+  want="$(wf_ticket_repo 2>/dev/null)" || return 0
+  [ -n "$want" ] || return 0
+
+  here="$(wf_repo_slug)" || return 0     # no origin: cannot tell, do not accuse
+  [ -n "$here" ] || return 0
+  [ "$want" = "$here" ] && return 0
+
+  t="$(wf_ticket 2>/dev/null)"
+  if abs="$(wf_related_path "$want")"; then
+    printf '\xe2\x9a\xa0 ticket %s declares repo %s but this project is %s.\n' "$t" "'$want'" "'$here'" >&2
+    printf '   Its code is in %s, so its workflow belongs there too. Move it with:\n     wf-lib.sh relocate %s\n' "$abs" "$t" >&2
+    printf '   Until then branch, diff, base and checks resolved here all describe the wrong repo.\n' >&2
+  else
+    printf '\xe2\x9a\xa0 ticket %s declares repo %s, which is neither this project (%s) nor a\n' "$t" "'$want'" "'$here'" >&2
+    printf '   related_project in config.json. Add it there with its path, or fix .repo.\n' >&2
+    printf '   The workflow will not drive a repo it has no record of.\n' >&2
+  fi
+  return 1
+}
+
+# Moves a ticket's workflow directory to the repo its code lives in and points
+# the active-ticket pointers at the result. Only the location was wrong, so the
+# ticket's own state is carried over untouched.
+wf_relocate_ticket() {
+  local t src want abs dest here_root there_root tmp
+  t="${1:-}"
+  [ -n "$t" ] || t="$(wf_ticket)" || { echo "wf-lib: no ticket given and none active" >&2; return 1; }
+  here_root="$(wf_workflow_root)"
+  src="$here_root/$t"
+  [ -d "$src" ] || { echo "wf-lib: no ticket directory at $src" >&2; return 1; }
+
+  want="$(jq -r '.repo // empty' "$src/state.json" 2>/dev/null)"
+  [ -n "$want" ] || { echo "wf-lib: $t declares no .repo — nothing to relocate" >&2; return 1; }
+  [ "$want" != "$(wf_repo_slug)" ] || { echo "wf-lib: $t already belongs to this project" >&2; return 1; }
+
+  abs="$(wf_related_path "$want")" || {
+    echo "wf-lib: repo '$want' is not a related_project with a path in config.json — add it first" >&2; return 1; }
+  [ -d "$abs/.git" ] || [ -f "$abs/.git" ] || { echo "wf-lib: $abs is not a git checkout" >&2; return 1; }
+
+  there_root="$abs/.claude/workflow"
+  dest="$there_root/$t"
+  [ -e "$dest" ] && { echo "wf-lib: $dest already exists — resolve by hand, refusing to merge" >&2; return 1; }
+
+  mkdir -p "$there_root" || return 1
+  mv "$src" "$dest" || return 1
+
+  # Drop the pointer here only if it named the ticket that just left.
+  if [ -f "$here_root/state.json" ] && [ "$(jq -r '.activeTicket // empty' "$here_root/state.json" 2>/dev/null)" = "$t" ]; then
+    tmp="$(mktemp)" && jq 'del(.activeTicket)' "$here_root/state.json" > "$tmp" 2>/dev/null &&
+      [ -s "$tmp" ] && mv "$tmp" "$here_root/state.json"
+  fi
+
+  # Adopt it there, preserving whatever else that state file holds.
+  [ -f "$there_root/state.json" ] || echo '{}' > "$there_root/state.json"
+  tmp="$(mktemp)" && jq --arg t "$t" '.activeTicket = $t' "$there_root/state.json" > "$tmp" 2>/dev/null &&
+    [ -s "$tmp" ] && mv "$tmp" "$there_root/state.json"
+
+  printf 'moved %s -> %s\n' "$src" "$dest"
+  printf 'active ticket in %s is now %s\n' "$abs" "$t"
+  printf 'run the workflow for %s from %s from now on\n' "$t" "$abs"
+}
+
+wf_is_stage() {
+  case " $WF_STAGES " in *" ${1:-} "*) return 0 ;; *) return 1 ;; esac
+}
+
+# Rejects an unknown stage, pointing at the closest real one. Stage names reach
+# state.json from several directions and a near-miss (`testing` for `test`) is
+# not a harmless typo: it silently routes the stage to "no model", which is
+# indistinguishable from a stage that legitimately spawns no Agent, so the Agent
+# ends up inheriting the session's model — the exact failure wf_model exists to
+# prevent.
+wf_reject_stage() {
+  local stage="$1" v hint="" norm vnorm
+  # Compare with separators stripped so mrreview/mr_review reach mr-review, and
+  # allow either side to extend the other so testing reaches test.
+  norm="$(printf '%s' "$stage" | tr -d '_ -' | tr '[:upper:]' '[:lower:]')"
+  for v in $WF_STAGES; do
+    vnorm="$(printf '%s' "$v" | tr -d '_-')"
+    case "$norm" in "$vnorm"*|*"$vnorm") hint="  Did you mean '$v'?"; break ;; esac
+  done
+  echo "wf-lib: invalid stage '$stage' (valid: $WF_STAGES)$hint" >&2
+  return 1
+}
+
 wf_enter_stage() {
   local stage="$1" d f tmp
   [ -n "$stage" ] || return 1
 
-  case " $WF_STAGES " in
-    *" $stage "*) ;;
-    *) echo "wf-lib: invalid stage '$stage' (valid: $WF_STAGES)" >&2; return 1 ;;
-  esac
+  wf_is_stage "$stage" || { wf_reject_stage "$stage"; return 1; }
+  # Refuse to advance a ticket whose code is not in this repo: every later step
+  # of the stage would read the wrong tree.
+  wf_ticket_repo_check || return 1
 
   d="$(wf_dir)" || return 1
   f="$d/state.json"
@@ -324,6 +542,10 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     model)       wf_model "$2" ;;
     implement-advice) wf_implement_advice ;;
     config)      wf_config "${2:-.}" ;;
+    commits)     wf_commits "${2:-}" ;;
+    related-check) wf_related_projects_check ;;
+    repo-check)  wf_ticket_repo_check ;;
+    relocate)    wf_relocate_ticket "${2:-}" ;;
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
     enter-stage) wf_enter_stage "$2" ;;
@@ -338,9 +560,15 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       st="$(wf_state '.stage')"
       printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\nmodel=%s\n' \
         "$t" "$(wf_dir)" "$(wf_base)" "$st" "$(git branch --show-current 2>/dev/null)" "$(wf_language)" "$(wf_model "$st" 2>/dev/null)"
+      wf_ticket_repo_check || true
+      wf_is_stage "$st" || printf '\xe2\x9a\xa0 stage %s is not a pipeline stage, so no model can be resolved for it and any Agent would inherit the session model. Fix it with: wf-lib.sh set-state stage %s\n' \
+        "'$st'" "'<one of: $WF_STAGES>'" >&2
+      # A broken related_projects path has to surface at startup, not three
+      # stages later when a cross-repo claim is already in a document.
+      wf_related_projects_check || true
       ;;
     *)
-      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|implement-advice|config <path>|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
+      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|implement-advice|config <path>|commits [ticket]|related-check|repo-check|relocate [ticket]|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
       exit 1 ;;
   esac
 fi
