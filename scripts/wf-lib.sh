@@ -102,17 +102,35 @@ wf_related_path() {
 # the path did not resolve, and the claim was accepted from notes anyway.
 # Prints one line per entry; returns 1 if any path is broken.
 wf_related_projects_check() {
-  local root n i name p abs want slug bad=0
+  local root n i name p abs want slug kind bad=0
   root="$(wf_repo_root)"
   n="$(wf_config '.related_projects | length')" || return 0
   case "$n" in ''|*[!0-9]*) return 0 ;; esac
   [ "$n" -eq 0 ] && return 0
   i=0
   while [ "$i" -lt "$n" ]; do
-    name="$(wf_config ".related_projects[$i].name")"
-    p="$(wf_config ".related_projects[$i].path")"
+    kind="$(wf_config ".related_projects[$i] | type")"
+    name="$(wf_config ".related_projects[$i].name" 2>/dev/null)"
+    p="$(wf_config ".related_projects[$i].path" 2>/dev/null)"
     i=$((i + 1))
-    [ -n "$p" ] || continue
+
+    # A malformed entry used to be skipped in silence, which made a broken
+    # config indistinguishable from an empty one: the stages that consume this
+    # field read .path, found nothing, and carried on as if there were nothing
+    # to verify. Entries are local checkouts addressed by a path relative to
+    # this project; a URL cannot be read from disk, so it verifies nothing.
+    if [ "$kind" != "object" ]; then
+      printf '\xe2\x9a\xa0 related_projects[%s] is a %s, not an object.\n   Entries are {\"name\": \"...\", \"path\": \"../relative/path\"} pointing at a LOCAL checkout.\n   A repository URL belongs in its own field, not here - it cannot be read from disk.\n' \
+        "$((i - 1))" "${kind:-malformed}" >&2
+      bad=1
+      continue
+    fi
+    if [ -z "$p" ]; then
+      printf '\xe2\x9a\xa0 related_project %s has no \"path\".\n   Without a path relative to this project nothing can be verified against it; give it one or drop the entry.\n' \
+        "${name:-"[$((i - 1))]"}" >&2
+      bad=1
+      continue
+    fi
     case "$p" in /*) abs="$p" ;; *) abs="$root/$p" ;; esac
     if [ -d "$abs" ]; then
       # Existing is not the same as correct. A path can resolve to some other
