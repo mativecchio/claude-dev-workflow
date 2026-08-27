@@ -1,5 +1,5 @@
 ---
-description: "Generates the MR/PR description aimed at technical reviewers. No title at the top, context first, doesn't repeat the diff."
+description: "Generates the MR/PR description aimed at technical reviewers. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) first. No title at the top, context first, doesn't repeat the diff."
 allowed-tools: Read, Bash, Glob, TodoWrite
 ---
 
@@ -23,6 +23,32 @@ Read:
 - `{workflowDir}/refinement-summary.md` → objective and acceptance criteria
 - `{workflowDir}/review-findings.md` → whether there were significant adjustments to the plan
 
+### If `$ARGUMENTS` carries an MR/PR reference, read the real MR first
+
+A link (`https://gitlab.com/.../merge_requests/123`, `https://github.com/.../pull/123`) or a bare
+`!123` / `#123` means the MR already exists on the host. **Go there before touching the local diff.**
+In order:
+
+1. **MCP for that host**, if this session has one (`mcp__gitlab__*`, `mcp__github__*`). Add the tools
+   you use to `allowed-tools` for the session; the frontmatter can't list servers that may not exist.
+2. **CLI**, otherwise:
+   ```bash
+   glab mr view <ref> --comments   # GitLab
+   gh pr view <ref> --comments     # GitHub
+   ```
+3. **Neither reachable** (no MCP, CLI missing or unauthenticated, host unreachable) → continue with
+   the local diff and **say so in Step 3**: the description was written blind to the published MR.
+
+What the MR gives that the local branch cannot:
+- **Its current description** — this is a rewrite, not a first draft. Anything the author already
+  wrote there that the plan doesn't cover (a rollout note, a linked incident, a reviewer instruction)
+  is content to keep, not to drop.
+- **Its target branch** — if it targets something other than the project's base branch, that target
+  wins, and `--branch`/base assumptions taken from the local repo are wrong.
+- **Its source branch head SHA** — if it differs from the local branch, the description must describe
+  what is published, not unpushed local work.
+- **Reviewer comments** — a question asked twice in the thread is a gap the description should close.
+
 Get the summarized diff:
 ```bash
 ~/.claude/scripts/wf-diff.sh --stat --fetch
@@ -42,7 +68,7 @@ by pulling the base branch.
 
 Two reasons, and the second matters as much as the first. Writing an MR description from a plan and a diff is bounded work against a fixed template — there is no open-ended judgment, so the strongest model buys nothing. And delegating keeps the plan, the refinement and the full diff out of the session's context window, where they were being loaded for a task that never needed to be there.
 
-Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, the `--stat` and `--log` output from Step 1, and the structure below. Ask it to return the finished markdown and nothing else.
+Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
 
 **Principles** (include these in the Agent's prompt):
 - Don't start with the title
@@ -88,7 +114,8 @@ new env vars, migrations, feature flags — don't list an unchecked box for some
 
 This step stays in the session: adjusting the wording with you is a conversation, not a generation task.
 
-Show the generated description to the user. Instead of an open question, offer the two exits directly and show right away what the next steps are:
+Show the generated description to the user. If the MR was resolved from the host, say so; if it was
+not reachable and the description came from the local branch alone, say that instead. Instead of an open question, offer the two exits directly and show right away what the next steps are:
 
 ```
 Adjust anything, or move on?
