@@ -90,3 +90,21 @@ Use this message, adjust it, or write a different one?
 Wait for the answer. If the user approves or adjusts → return the final message ready to use.
 
 **Do not make the commit** — only generate the message. The caller (wf-deploy or another) runs the commit.
+
+## Step 6 — Never store the resulting hash
+
+Once the commit exists, **do not write its hash into `state.json`, `plan.md`, `mr-review.md` or any
+other workflow artifact.** A rebase, an amend, or a background agent's `git pull` rewrites it, and
+the stored value becomes a pointer to nothing while the content ships unchanged under a new hash.
+One ticket left four such dead pointers across three different files.
+
+Refer to commits by their subject, and resolve hashes at read time:
+
+```bash
+~/.claude/scripts/wf-lib.sh commits          # active ticket
+~/.claude/scripts/wf-lib.sh commits BC-1234  # a specific one
+```
+
+The same applies to symbol names recorded in notes: if a later commit renames a hook or a state
+flag, the note still says the old name and the next reader greps for something that no longer
+exists. When you rename, fix the notes in the same turn or don't name the symbol at all.
