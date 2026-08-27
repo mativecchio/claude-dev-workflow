@@ -231,6 +231,84 @@ eq "silent when repo_path is gone"    "" "$OUT"
 rm -rf "$VH" "$FAKE"
 
 echo ""
+echo "═══ stage vocabulary ═══"
+# `commit` carries a model default without being a pipeline stage; validating
+# model lookups against WF_STAGES alone used to reject it.
+eq "commit resolves a model without being a stage" "sonnet" "$(bash "$S/wf-lib.sh" model commit 2>/dev/null)"
+bash "$S/wf-lib.sh" model implement >/dev/null 2>&1
+eq "a stage with no agent exits 1, silently" "1" "$?"
+eq "a stage with no agent prints nothing" "" "$(bash "$S/wf-lib.sh" model implement 2>/dev/null)"
+bash "$S/wf-lib.sh" model testing >/dev/null 2>&1
+eq "an unknown stage exits 2" "2" "$?"
+has "an unknown stage suggests the closest one" "Did you mean 'test'" "$(bash "$S/wf-lib.sh" model testing 2>&1)"
+has "separators are ignored when suggesting" "Did you mean 'mr-review'" "$(bash "$S/wf-lib.sh" enter-stage mrreview 2>&1)"
+eq "a name close to nothing gets no suggestion" "" "$(bash "$S/wf-lib.sh" enter-stage zzz 2>&1 | grep -o "Did you mean")"
+bash "$S/wf-lib.sh" set-state stage '"testing"' >/dev/null 2>&1
+eq "set-state refuses an invalid stage" "1" "$?"
+eq "set-state left the state untouched" "analyze" "$(bash "$S/wf-lib.sh" state '.stage')"
+
+echo "═══ related_projects ═══"
+mkdir -p "$SB/../sibling" && (cd "$SB/../sibling" && git init -q . && git remote add origin git@x:g/sibling.git)
+jq '.related_projects=[{"name":"sibling","path":"../sibling"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+has "a resolvable entry is reported" "related_project=sibling" "$(bash "$S/wf-lib.sh" related-check 2>&1)"
+bash "$S/wf-lib.sh" related-check >/dev/null 2>&1
+eq "a valid config exits 0" "0" "$?"
+jq '.related_projects=["https://example.com/org/repo"]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+has "a URL entry is rejected, not skipped" "not an object" "$(bash "$S/wf-lib.sh" related-check 2>&1)"
+bash "$S/wf-lib.sh" related-check >/dev/null 2>&1
+eq "a malformed config exits 1" "1" "$?"
+jq '.related_projects=[{"name":"nopath"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+has "an entry with no path is rejected" 'has no' "$(bash "$S/wf-lib.sh" related-check 2>&1)"
+jq '.related_projects=[{"name":"sibling","path":"../does-not-exist"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+has "a broken path is reported" "DOES NOT RESOLVE" "$(bash "$S/wf-lib.sh" related-check 2>&1)"
+jq '.related_projects=[{"name":"wrongname","path":"../sibling"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+has "a path pointing at another repo is caught" "DIFFERENT repo" "$(bash "$S/wf-lib.sh" related-check 2>&1)"
+
+echo "═══ ticket repo ownership ═══"
+jq '.related_projects=[{"name":"sibling","path":"../sibling"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+# The guard compares this checkout's identity against the ticket's `repo`, so it
+# is deliberately inert until the repo has an origin to be identified by.
+bash "$S/wf-lib.sh" repo-check >/dev/null 2>&1
+eq "without an origin the guard stays silent" "0" "$?"
+git remote add origin "git@x:g/$(basename "$SB").git"
+jq --arg n "$(basename "$SB")" '.related_projects=[{"name":"sibling","path":"../sibling"}]' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+bash "$S/wf-lib.sh" repo-check >/dev/null 2>&1
+eq "a ticket with no repo field is fine" "0" "$?"
+jq '.repo="sibling"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+bash "$S/wf-lib.sh" repo-check >/dev/null 2>&1
+eq "a ticket belonging elsewhere is refused" "1" "$?"
+has "the refusal names the relocate command" "relocate MA-100" "$(bash "$S/wf-lib.sh" repo-check 2>&1)"
+bash "$S/wf-lib.sh" enter-stage implement >/dev/null 2>&1
+eq "enter-stage refuses a misfiled ticket" "1" "$?"
+eq "the refused stage was not written" "analyze" "$(bash "$S/wf-lib.sh" state '.stage')"
+jq '.repo="ghost"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+has "a repo absent from config is refused on that ground" "related_project in config.json" "$(bash "$S/wf-lib.sh" repo-check 2>&1)"
+
+echo "═══ relocate ═══"
+jq '.repo="sibling"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+TMPBEFORE="$(ls /tmp/tmp.* 2>/dev/null | wc -l)"
+# Destination state.json is corrupt, so the adopt step must fail.
+mkdir -p "$SB/../sibling/.claude/workflow"
+printf 'not json{{' > "$SB/../sibling/.claude/workflow/state.json"
+OUT="$(bash "$S/wf-lib.sh" relocate 2>&1)"; RC=$?
+eq "a half-done relocate exits non-zero" "1" "$RC"
+has "it says the move happened" "moved" "$OUT"
+has "it names what is left by hand" "by hand" "$OUT"
+eq "it does not claim the ticket is ready" "" "$(printf '%s' "$OUT" | grep -o 'from now on')"
+eq "the directory did move" "yes" "$([ -d "$SB/../sibling/.claude/workflow/MA-100" ] && echo yes || echo no)"
+eq "no temp file was leaked" "$TMPBEFORE" "$(ls /tmp/tmp.* 2>/dev/null | wc -l)"
+# Now the happy path. The failed run correctly cleared the pointer here before
+# it hit the corrupt destination, so put both the directory and the pointer back.
+mv "$SB/../sibling/.claude/workflow/MA-100" .claude/workflow/MA-100
+echo '{"activeTicket":"MA-100"}' > .claude/workflow/state.json
+echo '{}' > "$SB/../sibling/.claude/workflow/state.json"
+OUT="$(bash "$S/wf-lib.sh" relocate 2>&1)"; RC=$?
+eq "a clean relocate exits 0" "0" "$RC"
+has "it says where to work from now on" "from now on" "$OUT"
+eq "the destination adopted the ticket" "MA-100" "$(jq -r .activeTicket "$SB/../sibling/.claude/workflow/state.json")"
+eq "the origin dropped its pointer" "" "$(jq -r '.activeTicket // empty' .claude/workflow/state.json)"
+rm -rf "$SB/../sibling"
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json
