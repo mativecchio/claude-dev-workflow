@@ -107,7 +107,7 @@ Write TWO files in `{workflowDir}/`:
 [endpoint, method, request/response]
 
 ## Contracts with related projects (if applicable)
-[what was verified against the real source code of each related_project touched, with file:line — or "no shared contracts" if not applicable]
+[one line per contract, pointing at `contracts.md` for the evidence — or "no shared contracts"]
 
 ## Infrastructure
 - [ ] [env var / migration / feature flag]
@@ -123,6 +123,32 @@ Write TWO files in `{workflowDir}/`:
 - [debt 1]
 ```
 
+**`contracts.md`** — written **only if `related_projects` is non-empty and this change touches a
+shared surface**. This is the artifact every later stage reads instead of re-deriving the contract
+from scratch. Re-deriving is not free and it is not reliable: the same cross-repo check has been
+run three times in one ticket, twice from zero, each run re-discovering the same broken config path.
+
+`~/.claude/scripts/wf-lib.sh related-check` must print no warning before you write a single claim
+here. If a path does not resolve, **say so in this file and mark every claim about that repo
+`NOT VERIFIABLE`** — never fill it in from notes, memory or a sister ticket.
+
+A "shared surface" is any of: a key written to storage another repo reads (`sessionStorage`,
+`localStorage`, shared search params), an endpoint or DTO field, a URL/deeplink built for another
+app, an env var another repo consumes.
+
+```markdown
+# Cross-repo contracts — [task name]
+
+## [shared symbol / storage key / endpoint]
+**Our side:** `file:line` — [what we write/read, and when]
+**Their side:** `repo/file:line` — [what they do with it]
+**Status:** VERIFIED against real source | NOT VERIFIABLE — [why]
+**Breaks if:** [the concrete change that would break the other side]
+```
+
+If nothing is shared, write the file with a single line: `No shared surfaces — nothing to verify.`
+Later stages read that and skip their own external check instead of redoing the search.
+
 **`design-decisions.md`** — context for the MR reviewer:
 ```markdown
 # Design decisions — [task name]
@@ -136,7 +162,7 @@ Write TWO files in `{workflowDir}/`:
 ...
 ```
 
-When you're done, say: "Plan written to {workflowDir}/plan.md and design-decisions.md"
+When you're done, say: "Plan written to {workflowDir}/plan.md, design-decisions.md and contracts.md"
 
 ---
 
