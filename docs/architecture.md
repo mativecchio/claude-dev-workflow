@@ -209,11 +209,54 @@ Installed to `~/.claude/scripts/`; commands invoke them by fixed path. Each repl
 
 | Script | Replaces | Notes |
 |---|---|---|
-| `wf-lib.sh` | The "Paso 0 — Identificar ticket activo" block, copied verbatim in 8 commands | `context`, `enter-stage`, `set-state`, `base`. `enter-stage` validates against the single stage vocabulary — an invalid stage fails loudly instead of silently breaking the iteration count (H12) |
-| `wf-diff.sh` | The merge-base explanation, duplicated in 4 commands | Also handles the uncommitted-working-tree case, and `--weight` for review load (prod vs tests counted separately) |
+| `wf-lib.sh` | The "Paso 0 — Identificar ticket activo" block, copied verbatim in 8 commands | `context`, `enter-stage`, `set-state`, `base`, `model`, `commits`, `related-check`, `repo-check`, `relocate`. `enter-stage` **and** `set-state stage` validate against the single stage vocabulary — a name that reaches state.json by either door fails loudly instead of silently breaking the iteration count (H12) |
+| `wf-diff.sh` | The merge-base explanation, duplicated in 4 commands | Resolves the fork point against the *tightest* of `<base>` and `origin/<base>`; `--fetch` refreshes the remote-tracking ref first. Also handles the uncommitted-working-tree case, and `--weight` for review load (prod vs tests counted separately) |
 | `wf-checks.sh` | DoD items that a command can answer exactly | Runs `checks` from `config.json`. `/wf-validate` runs it *before* spawning an agent — a linter answers "any console.log?" exactly and for free |
 | `wf-event.sh` | "Append this JSON object to `events.jsonl`" as a prompt instruction | Builds the line with `jq` from named flags, filling `ts`/`project`/`ticket`/`stage`/`source` from state. Rejects unknown events and missing required fields |
 | `wf-stats.sh` | Reasoning over the raw log by hand | One subcommand per §10 question, so a proposal can cite the query that produced it |
+
+### Stage vocabulary, and the two names that are not stages
+
+`WF_STAGES` in `wf-lib.sh` is the single source of truth. `enter-stage` and `set-state stage` both
+validate against it and suggest the closest match on a near-miss, comparing with separators stripped
+so `testing`→`test` and `mrreview`→`mr-review`.
+
+`wf_model` validates differently on purpose: it resolves the model **first** and judges the name
+only if nothing claimed it. `commit` carries a model default without being a pipeline stage —
+`/wf-commit` is a command, not something `state.json` tracks — so checking against `WF_STAGES` alone
+rejects it. The three outcomes are distinct: a resolved model (exit 0), a real stage that spawns no
+Agent and therefore has none (exit 1, silent), and a name that exists nowhere (exit 2, loud). The
+first two used to be indistinguishable from outside, which let a stage silently fall back to the
+session's model.
+
+### Which repo a ticket belongs to
+
+Each repo runs its own workflow — its own `.claude/workflow/`, `config.json`, base branch and
+checks. A ticket therefore belongs in the workflow of the repo whose code it changes; filed
+anywhere else, its state is in one tree and its code in another, and `branch`, `diff`, `base` and
+`checks` all describe the wrong repo without saying so.
+
+A ticket may declare `"repo": "<name>"` in its state. When it names something other than the current
+project, `context` warns and `enter-stage` refuses, pointing at `wf-lib.sh relocate <ticket>`, which
+moves the directory and hands the active-ticket pointer over. A `repo` that is not in
+`related_projects` is refused on that ground alone: the workflow does not drive a repo the config has
+no record of.
+
+The check identifies the current project by its `origin` remote, so **it is inert in a checkout with
+no origin** — deliberately, because the alternative is accusing a ticket of being misfiled on no
+evidence. A repo without a remote gets no protection here.
+
+### `related_projects`
+
+Entries are local checkouts addressed by a path relative to the project root: `{name, path,
+description?}`. Not URLs. The field exists so a later stage can Grep/Read the other project's real
+source instead of assuming its behaviour, and a URL cannot be read from disk — which is why
+`related-check` rejects a non-object entry or one with no `path` rather than skipping it. A skipped
+entry made a broken config indistinguishable from an empty one, and the stages that consume the
+field read `.path`, found nothing, and carried on as if there were nothing to verify.
+
+`/wf-analyze` resolves these contracts once into `{workflowDir}/contracts.md`, recording both sides
+with `file:line`; `review-plan`, `mr-review` and `validate` read that file instead of re-deriving it.
 
 `wf_base` is the clearest case for why this matters: it used to be different prose in four files, one of which hardcoded `develop` regardless of the project's actual base branch.
 
