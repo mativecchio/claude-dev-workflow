@@ -7,6 +7,14 @@ You are a senior engineer facilitating the refinement of a task. Your goal is to
 
 ## Step 0 — Identify the ticket
 
+```bash
+~/.claude/scripts/wf-lib.sh version-notice
+```
+
+Print whatever it outputs verbatim before anything else. This stage runs before the ticket exists,
+so `context` — which is where every later stage gets the same notice — is not available here.
+Silence means the installation is current.
+
 Detect the ticket ID in this order:
 1. `$ARGUMENTS` — if it contains a pattern like `BC-1234`, `PROJ-99`, use it
 2. `.claude/workflow/state.json` → `activeTicket` field

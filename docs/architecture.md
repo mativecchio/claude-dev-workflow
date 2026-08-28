@@ -301,7 +301,7 @@ Every workflow change is recorded in `~/.claude/workflow/improvements.md` with i
 | `installed_version` ≠ `VERSION` | edited or pulled the repo, never reinstalled | no |
 | `HEAD` behind `@{u}` | someone pushed, never pulled | yes |
 
-`wf_version_notice` in `wf-lib.sh` reports both, printed by `context` at the top of every stage command.
+`wf_version_notice` in `wf-lib.sh` reports both. Every stage command that starts with an active ticket gets it through `context`, which calls it first. `/wf` and `/wf-refine` run *before* a ticket exists — `context` exits 1 there — so they call `version-notice` directly. Between them that covers every way into the pipeline, which is the property that matters: the entry point is exactly where a stale install is still cheap to fix.
 
 It was a `SessionStart` hook first, which would have covered every project on the machine. That doesn't work, and the failure is worth recording: **the hook fires — confirmed with a logging probe — but its stdout never reaches the terminal.** A notice nobody sees is not a notice, and depending on the model to relay what it read in context is the prose-as-mechanism pattern this system exists to remove. Moving it into `context` costs coverage outside the workflow and buys a notice that is actually visible.
 

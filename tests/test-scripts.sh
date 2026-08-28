@@ -230,6 +230,18 @@ OUT="$(HOME="$VH" "$S/wf-lib.sh" version-notice 2>&1)"
 eq "silent when repo_path is gone"    "" "$OUT"
 rm -rf "$VH" "$FAKE"
 
+# Every way into the pipeline has to surface the notice, or it reaches nobody:
+# `/wf` and `/wf-refine` run before a ticket exists and call `version-notice`
+# directly, the rest inherit it from `context`. This asserts the wiring in the
+# command files, which is the part a refactor silently drops.
+for c in wf wf-refine wf-analyze wf-review-plan wf-implement wf-validate wf-test wf-mr-desc wf-mr-review wf-retro; do
+  if grep -qE 'wf-lib\.sh (context|version-notice)' "$REPO/commands/$c.md"; then
+    ok "/$c surfaces the update notice"
+  else
+    bad "/$c surfaces the update notice" "a context or version-notice call" "neither"
+  fi
+done
+
 echo ""
 echo "═══ stage vocabulary ═══"
 # `commit` carries a model default without being a pipeline stage; validating

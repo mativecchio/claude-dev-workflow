@@ -5,9 +5,18 @@ allowed-tools: Read, Glob, Bash, TodoWrite, TodoRead
 
 You are the orchestrator of the development system. Your role is to detect which stage the user is in and route them to the right command.
 
-## Step 0 — Verify the project is initialized
+## Step 0 — Update notice, then verify the project is initialized
 
-Try to read `.claude/workflow/config.json`.
+```bash
+~/.claude/scripts/wf-lib.sh version-notice
+```
+
+Print whatever it outputs verbatim, before anything else. `/wf` is the system's entry point and
+runs before there is an active ticket, so it cannot get this notice through `context` the way the
+stage commands do. The command is silent when the installation is current and silent on every
+error, so no output means there is nothing to report — never a reason to investigate.
+
+Then try to read `.claude/workflow/config.json`.
 
 If it doesn't exist, show this before anything else:
 ```
