@@ -12,6 +12,17 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## 0.9.1 — 2026-08-28
+
+### Fixed
+- The update notice never reached `/wf` or `/wf-refine`. `wf_version_notice` is printed by `context`, and those two run before an active ticket exists — `context` exits 1 there — so the two commands people actually start a session with were the only ones that stayed quiet about a stale install. Both now call `wf-lib.sh version-notice` directly in Step 0. Found by a user asking why `/wf` had not mentioned a new version; it had nothing to mention that time, but it could not have.
+
+### Tests
+- `tests/test-scripts.sh` asserts that all ten pipeline commands surface the notice, through `context` or directly. The wiring is a one-line call in a markdown file, which is exactly the kind of thing a refactor drops without a failing test.
+
+### Docs
+- `docs/architecture.md` claimed `context` printed the notice "at the top of every stage command". It described the intent, not the wiring, and the two commands it was wrong about were the entry points.
+
 ## 0.9.0 — 2026-08-27
 
 Came out of a `/wf-retro` on BC-1624. Every item below carries its evidence in `improvements.md`.
