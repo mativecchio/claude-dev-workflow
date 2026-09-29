@@ -356,5 +356,14 @@ Last step, always. List anything this review created locally — a worktree, a c
 followed there is normally nothing to list; say so in one line.
 
 Before removing anything, including directories the user points to, check it for work that isn't
-on the remote: `git status` (uncommitted changes) and `git log @{u}..` (unpushed commits). If there
-is any, keep it and tell the user what is there.
+on the remote. Compare by content, not by SHA — after a rebase and force push every local commit
+looks unpushed:
+
+```bash
+git fetch origin <branch>
+git cherry -v origin/<branch> HEAD     # '+' = patch not on the remote; '-' = already there
+git diff origin/<branch> --stat        # working tree vs the remote head, uncommitted edits included
+```
+
+Only a `+` line or a non-empty diff is real pending work: keep it and tell the user what it is.
+Otherwise the directory is safe to remove, even if `git status` shows it ahead or dirty.
