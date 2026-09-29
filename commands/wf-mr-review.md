@@ -82,6 +82,43 @@ Read:
 - `CLAUDE.md` or `README.md` → stack and conventions
 - `.claude/workflow/config.json` → the project's stack
 
+## Step 2.2 — Design reference (MRs that change the UI)
+
+**Applies when** the diff changes what the user sees: components, pages, templates, styles,
+SVG/image assets, visible copy (locale files). A backend-only or test-only diff skips this step.
+
+**Look for the design, in order**, and stop at the first hit:
+1. A spec for the feature (Spec Kit repos: `specs/<feature>/spec.md`) — its `**Design**` header
+   line and, if it exists, the **Design Study** in its `plan.md`.
+2. The MR description (from Step 1a) — Figma URLs.
+3. The ticket (Jira via MCP, when available) — Figma URLs.
+4. `{workflowDir}/plan.md` and `refinement-summary.md`.
+
+**Nothing found → ask the user before launching Step 3.** Do not infer the interface from the diff
+or from screenshots in the MR. Accept the same four answers as the Spec Kit rule (constitution
+VIII in `booking-center-specs`):
+- a Figma frame URL with its `node-id`;
+- `None` — nothing visual actually changes;
+- `[NEEDS DESIGN]` — the design does not exist; the review goes on, and adds to *Questions for the
+  author*: "This MR changes the UI and links no design. Which design was it built against?";
+- `Agent-proposed` — only if the author asked for that in so many words; review for internal
+  consistency and against the design system only.
+
+**What the Step 3 Agent compares against:**
+- A **Design Study** exists → compare the diff against the Design Study, not against Figma. The study
+  is the frozen reading; re-reading Figma at review time is how the review and the implementation
+  reach two different conclusions about the same frame.
+- Only a **Figma URL** → read the frame(s) through the Figma MCP, in this order of authority:
+  `get_context_for_code_connect`, `get_variable_defs`, `get_design_context`, and `get_screenshot` for
+  the visual check only. Pass the extracted values, not the raw dump, into the Step 3 prompt. One
+  frame per breakpoint when the MR says it covers more than one (e.g. desktop and mobile).
+- **Figma MCP unavailable or the frame not readable** → say so in the executive summary and review
+  without it. Never estimate measurements from a screenshot.
+
+**Why:** a UI MR reviewed without its design can only check that the code is internally consistent.
+Whether the spacing, copy, breakpoints and pieces on screen match what was designed goes unreviewed.
+In practice the Figma links sat in the MR description and the review never opened them.
+
 ## Step 2.5 — Delegate the generic review
 
 Two reviewers exist because they cover different things, not because two passes are safer:
@@ -105,7 +142,8 @@ logic. Running both on *every* diff is not.
   edits → **Agent only**. There is no new logic for a generic reviewer to find bugs in.
 - **No `plan.md` / no `refinement-summary.md`** (a retroactive ticket, an ad-hoc MR) →
   **`/code-review` only**. The Agent has nothing to contrast against; its whole remaining scope is
-  the part that needs those files.
+  the part that needs those files. **Exception:** Step 2.2 produced a design reference → the Agent
+  runs too, with design fidelity as its main scope. The design is the thing to contrast against.
 - MR focused on security → add `/security-review`.
 
 **Run it and wait for it to finish before launching Step 3.** Then paste its findings into the Step 3
@@ -154,6 +192,11 @@ You are a senior engineer doing a code review of an MR. Your goal is to find rea
 - **Comments already left by other reviewers** — treat each as covered. Do not re-report it. Where
   the diff does not address one, flag it as unaddressed instead of restating it as your own finding.
 
+**Design reference** (from Step 2.2; omit this block if the diff does not change the UI):
+- Source: Design Study / Figma URL(s) with `node-id` / `None` / `[NEEDS DESIGN]` / `Agent-proposed` / Figma not reachable
+- [the Design Study table, or the values extracted from each frame: layout, spacing, typography,
+  colours as design-system variables, copy, breakpoints, which pieces the frame contains]
+
 **Stack:** [stack from the config]
 **Project conventions:** [summary of CLAUDE.md]
 
@@ -180,6 +223,11 @@ Evaluate in order of importance:
 - ~~Performance — N+1, re-renders, expensive operations~~ *(`/code-review`'s — do not report)*
 - **Tests: coverage gaps against the refinement's edge cases** — not generic, but against the cases the ticket identified
 - **Modified contracts and their consumers**, including those in other repos
+- **Design fidelity** — only when a design reference was provided. Compare against it, not against
+  your taste: missing or extra pieces, copy that differs, spacing/typography/colour that does not map
+  to the design's variables, a breakpoint the design does not have. Cite the frame or the Design
+  Study row for each finding. A deviation the MR description explains and justifies is not a
+  finding; one it does not mention goes to *Questions for the author*.
 
 ### 3. Side effects
 - Are there contracts (API, types, events) being modified that have consumers?
@@ -200,6 +248,7 @@ Evaluate in order of importance:
 ### 📋 Executive summary
 [1-2 lines: what the MR does and the overall verdict]
 [source: published MR (host) or local diff — and, if local, why the host was not reachable]
+[design: what the UI was compared against (Design Study / Figma node-ids / none, and why) — omit for non-UI diffs]
 
 ### 🔴 Critical (blocking)
 - **[file:line]** — [problem] → [required correction]

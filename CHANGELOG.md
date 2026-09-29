@@ -12,6 +12,11 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ---
 
+## Unreleased
+
+### Added
+- `/wf-mr-review` Step 2.2 — design reference for MRs that change the UI. The review looks for the design (spec `**Design**` + Design Study, MR description, ticket, plan) and asks the user when none is found, with the same four answers as constitution VIII in `booking-center-specs` (Figma URL, `None`, `[NEEDS DESIGN]`, `Agent-proposed`). The Agent compares against the Design Study when one exists, otherwise against the frame read through the Figma MCP, and reports design-fidelity findings. It also runs when there is no `plan.md` if a design reference exists. Found on booking-center-app !492: the Figma links were in the MR description and the review never opened them.
+
 ## 0.9.1 — 2026-08-28
 
 ### Fixed
