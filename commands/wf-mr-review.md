@@ -43,6 +43,12 @@ In order:
 From the MR, carry into Step 3: **title and description, target branch, source branch and its head
 SHA, state, CI/pipeline status, and existing review comments**.
 
+**An empty or `null` comment list is not proof there are none.** On GitLab, `mr_discussions` has
+returned `null` for an MR with eleven reviewer notes. Before writing "no previous comments", cross-check
+with `get_merge_request_notes` (filter `system == false`); if the two disagree, trust the one that
+returned notes. Resolved threads count too: a suggestion the author already answered and deferred
+is covered, not a new finding.
+
 **Then compare the MR's head SHA against the local branch.** If they differ, say which way and review
 the MR's diff — the local tree may hold unpushed commits, or the MR may be ahead of it. Same for the
 target branch: if the MR targets something other than the project's base branch, the MR's target
