@@ -16,6 +16,11 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 
 ### Added
 - `/wf-mr-review` Step 2.2 — design reference for MRs that change the UI. The review looks for the design (spec `**Design**` + Design Study, MR description, ticket, plan) and asks the user when none is found, with the same four answers as constitution VIII in `booking-center-specs` (Figma URL, `None`, `[NEEDS DESIGN]`, `Agent-proposed`). The Agent compares against the Design Study when one exists, otherwise against the frame read through the Figma MCP, and reports design-fidelity findings. It also runs when there is no `plan.md` if a design reference exists. Found on booking-center-app !492: the Figma links were in the MR description and the review never opened them.
+- `/wf-mr-review` Step 6: offer to add the review to the MR as draft comments. There is one per finding, anchored with `diff_refs` to a verified line, plus one general draft. They are written in the MR's language and never published by the agent.
+- `/wf-mr-review` Step 7: the last step lists anything the review created locally and offers to remove it. Before removing anything, it checks for unpushed commits or uncommitted changes.
+
+### Changed
+- `/wf-mr-review` reads the MR's code from `origin/<source-branch>` (`git show`, `wf-diff.sh --branch`) and never creates a worktree, branch or clone (Step 1c). Reviewing a teammate's MR no longer writes `state.json` over the checkout's active ticket (Step 0). Found on booking-center-app !488: the review created a detached worktree and wrote a ticket state that had to be cleaned up by hand. An older review clone sat next to a worktree with unpushed commits and uncommitted changes, so deleting the "leftovers" blindly would have lost work.
 
 ## 0.9.1 — 2026-08-28
 

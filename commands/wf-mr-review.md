@@ -14,6 +14,11 @@ Your role is to prepare the context and launch a full MR review in an agent with
 
 If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
 
+**Exception — reviewing someone else's MR.** When the MR's ticket has no workflow directory in this
+repo (a teammate's MR, a ticket this machine never worked on), do not write `state.json`: it would
+replace the active ticket of whoever is working in this checkout. Take the ticket from the MR title,
+skip `enter-stage` and Step 5, and carry on. `lang` then comes from `.claude/workflow/config.json`.
+
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — the review, plan.md, code — is always in English.
 
 ## Step 1 — Get the MR
@@ -73,6 +78,24 @@ If the diff is very large (>500 lines), show the `--stat` to the user and ask wh
 ```
 
 `weight_prod` is what matters — `weight_tests` is kept separate, because a 300-line MR where 220 are tests isn't a big MR, it's a well-covered one.
+
+### 1c — Read the code without checking it out
+
+A review never creates a worktree, a branch or a clone, and never switches the current checkout.
+When the MR's source branch is not the one checked out, read it from the remote-tracking ref:
+
+```bash
+git fetch origin <source-branch>
+~/.claude/scripts/wf-diff.sh --branch origin/<source-branch>
+git show origin/<source-branch>:<path>          # any file, at the MR's head
+```
+
+Pass the same ref to `/code-review` in Step 2.5 and to the Step 3 Agent, so both read the MR's code
+rather than whatever the checkout holds.
+
+**Why:** a review is read-only work. A worktree per review leaves a directory, a `.git/worktrees`
+entry and possibly a `state.json` behind on every run, and the user has to find and delete them by
+hand. If something local is ever unavoidable, note its path and offer to remove it in Step 7.
 
 ## Step 2 — Gather context
 
@@ -297,3 +320,35 @@ If there are 🔴 Critical findings, ask: **"Do you want me to tackle any of the
 This stage's findings weigh the most in the leak metric: a defect that made it all the way to the MR passed through `review-plan`, `validate` and `test` without any of them catching it. `stage_origin` is what says which of those three gates to look at.
 
 Mark `detected_by gate` only for what the review found (ours or `/code-review`'s). What you spotted yourself reading the diff goes as `user` — that's exactly the signal that the gates are falling short.
+
+## Step 6 — Offer the review as draft comments on the MR
+
+Only when Step 1a read the MR from the host. Ask: **"Do you want me to add the review to the MR as
+draft comments?"** On yes:
+
+- **One draft per 🔴 / 🟠 / 💡 finding, anchored to its line** (`create_draft_note` on GitLab, a
+  pending review on GitHub). Anchor with the MR's `diff_refs` (`base_sha`, `start_sha`, `head_sha`)
+  and a `new_line` that is an added or changed line in the diff; verify the number against
+  `git show origin/<source-branch>:<path>` first. An added or changed line (`+` in the hunk) takes
+  `new_line` only; `old_line` + `new_line` is for unchanged context lines alone. Mixing them on a
+  changed line leaves the draft without a `line_code`, and GitLab renders it repeated across the file.
+- **One general draft** with the summary, the merge blockers (rebase, missing or red pipeline) and
+  the *Questions for the author*.
+- Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
+  inline one with its weight (**Important** / **Suggestion** / **Nit**).
+- Drop any finding the MR description already explains and justifies — it is not a finding.
+- **Never publish them.** Drafts are visible only to the user until they publish from the host's UI;
+  that last read is theirs.
+
+Check each created draft's `line_code`. If it is null, the anchor is wrong: delete that draft and
+create it again with the corrected position before reporting. Then report the draft IDs.
+
+## Step 7 — Leave nothing behind
+
+Last step, always. List anything this review created locally — a worktree, a clone, a branch, a
+`state.json` or ticket directory — and **offer** to remove it. Do not remove it unasked. With 1c
+followed there is normally nothing to list; say so in one line.
+
+Before removing anything, including directories the user points to, check it for work that isn't
+on the remote: `git status` (uncommitted changes) and `git log @{u}..` (unpushed commits). If there
+is any, keep it and tell the user what is there.
