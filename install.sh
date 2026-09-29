@@ -306,6 +306,29 @@ Supports multiple tickets. The root state only records which one is active:
 - `.claude/workflow/{ticketId}/` — refinement-summary.md, plan.md, review-findings.md
 - `.claude/workflow/config.json` — stack, DoD, related_projects
 
+### Machine resources — do not saturate the box
+Test suites and builds default to one worker per core, and running two or three of
+them as background tasks at once locks the machine up. Before starting any suite,
+build, install or long background command, read the budget:
+
+```
+~/.claude/scripts/wf-resources.sh          # human-readable
+~/.claude/scripts/wf-resources.sh workers  # just the number
+```
+
+Then respect it:
+- **Never exceed `WF_MAX_BACKGROUND` concurrent heavy background tasks** (suites,
+  builds, installs, `pnpm install`, docker builds). Wait for one to finish before
+  starting the next. Light commands (`git status`, `grep`, file reads) don't count.
+- **Always cap the runner's workers at `WF_MAX_WORKERS`** instead of letting it
+  pick: `vitest --maxWorkers=N` (or `--poolOptions.forks.maxForks=N` when the
+  project sets `pool: 'forks'`), `jest --maxWorkers=N`, `pytest -n N`,
+  `make -jN`, `cargo test -- --test-threads=N`.
+- Re-read the budget when a run takes much longer than expected — it accounts for
+  the load already on the machine, so it shrinks to 1 when the box is busy.
+- A per-test timeout firing under parallel load is a **resource** symptom, not a
+  broken test. Re-run that file on its own before treating it as a real failure.
+
 ### Improving the system
 The source repo (`repo_path` in `~/.claude/workflow/config.json`) is the source of truth.
 Never edit `~/.claude/commands/` directly — it's lost on the next install.
