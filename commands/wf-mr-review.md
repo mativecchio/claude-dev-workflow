@@ -41,7 +41,13 @@ In order:
    not against the published MR.
 
 From the MR, carry into Step 3: **title and description, target branch, source branch and its head
-SHA, state, CI/pipeline status, and existing review comments**.
+SHA, state, and existing review comments**.
+
+**Pipeline and rebase state are not findings.** CI gates the merge: a red, missing or running
+pipeline, or a branch that needs a rebase, cannot be merged anyway, so the author already sees it.
+Never list it in the review, the executive summary, the action list or the drafts. Open a failed
+job's log only if the failure may reveal a defect in the diff itself; if it does, report the defect
+at its line, not the pipeline.
 
 **An empty or `null` comment list is not proof there are none.** On GitLab, `mr_discussions` has
 returned `null` for an MR with eleven reviewer notes. Before writing "no previous comments", cross-check
@@ -55,7 +61,7 @@ target branch: if the MR targets something other than the project's base branch,
 wins.
 
 **Why the host first:** the link is not a label. Without it the review is blind to the MR's real
-state — a wrong target branch, a red pipeline, unpushed local work, and comments other reviewers
+state — a wrong target branch, unpushed local work, and comments other reviewers
 already left (which it will then repeat back at the author).
 
 ### 1b — The diff
@@ -217,7 +223,7 @@ You are a senior engineer doing a code review of an MR. Your goal is to find rea
 [contents of refinement-summary.md and plan.md]
 
 **Published MR** (from Step 1a; omit this block if the MR was not reachable and the diff is local):
-- Title / description / target branch / state / pipeline status
+- Title / description / target branch / state
 - **Comments already left by other reviewers** — treat each as covered. Do not re-report it. Where
   the diff does not address one, flag it as unaddressed instead of restating it as your own finding.
 
@@ -338,8 +344,8 @@ draft comments?"** On yes:
   `git show origin/<source-branch>:<path>` first. An added or changed line (`+` in the hunk) takes
   `new_line` only; `old_line` + `new_line` is for unchanged context lines alone. Mixing them on a
   changed line leaves the draft without a `line_code`, and GitLab renders it repeated across the file.
-- **One general draft** with the summary, the merge blockers (rebase, missing or red pipeline) and
-  the *Questions for the author*.
+- **One general draft** with the summary and the *Questions for the author*. No pipeline or rebase
+  state (see Step 1a).
 - Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
   inline one with its weight (**Important** / **Suggestion** / **Nit**).
 - Drop any finding the MR description already explains and justifies — it is not a finding.
