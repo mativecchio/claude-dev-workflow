@@ -190,6 +190,46 @@ Read:
 - `CLAUDE.md` or `README.md` → stack and conventions
 - `.claude/workflow/config.json` → the project's stack
 
+## Step 2.1 — Architecture and scaffolding rules
+
+Every review checks the diff against the repo's own written rules on where code goes and what it is
+called. A summary of `CLAUDE.md` is not enough: in many repos `CLAUDE.md` is only a pointer, and the
+rules live in other files.
+
+**Collect the rules from the MR's target branch** (`git show origin/<target-branch>:<path>`), not
+from the source branch, so that an MR cannot pass review by changing the rules it is judged against.
+If the diff itself edits one of these files, review that edit as a change to the rules and say so.
+
+1. **Agent instructions, following pointers.** Start at `CLAUDE.md` / `AGENTS.md`. When one says the
+   instructions live elsewhere (`.github/copilot-instructions.md`, `docs/…`), read that file too.
+   Stop at the file that holds the content.
+2. **Architecture documents** named by those instructions, plus the usual places when they exist:
+   `docs/project-architecture-guidelines.md`, `docs/architecture*.md`, `ARCHITECTURE.md`.
+3. **ADRs** (`docs/adr/`, `adr/`): read the index or the titles. Read in full only those that cover
+   what the diff touches (state management, testing, naming, a layer the diff adds files to).
+4. **Lint rules that encode structure**, when the repo has them: import boundaries, custom rules
+   such as `eslint-rules/`. A rule the linter already enforces is not a review finding. Only note
+   what the linter cannot see.
+
+**Extract the rules the diff can break**, each with its source (`path#section`):
+- layers and what each one may import or contain;
+- folder and scaffolding structure: the layout of a page or container, what lives inside a container
+  and what goes in a global folder, where tests and fixtures go;
+- naming of files, components, hooks and modules;
+- "reuse first" rules, together with the global folders they point to (hooks, utils, components),
+  so the Agent can check whether an existing helper already covers the new code;
+- decisions recorded in the ADRs that apply.
+
+**Nothing found** → say so in the executive summary ("no written architecture rules found; checked
+<paths>"), and the Agent reviews architecture only for consistency with the sibling code around the
+diff.
+
+**Why:** the review only asked whether the solution "made sense architecturally", and gave the Agent
+a summary of `CLAUDE.md`. In booking-center-app, `CLAUDE.md` and `AGENTS.md` only point to
+`.github/copilot-instructions.md`, and the layer, container and reuse-first rules sit in
+`docs/project-architecture-guidelines.md` and `docs/adr/`. No step read any of them, so whether a
+review caught a file in the wrong layer, or a hook that already existed, depended on luck.
+
 ## Step 2.2 — Design reference (MRs that change the UI)
 
 **Applies when** the diff changes what the user sees: components, pages, templates, styles,
@@ -238,6 +278,7 @@ Two reviewers exist because they cover different things, not because two passes 
 | Contrast against `plan.md` + acceptance criteria | can't — doesn't read them | ✅ |
 | `related_projects` contracts against the other repo's real source | can't | ✅ |
 | Project conventions, sister feature, existing helpers | can't | ✅ |
+| Architecture and scaffolding rules from Step 2.1 (layers, folders, naming, reuse first, ADRs) | can't — doesn't read them | ✅ |
 | Recorded tech debt and deviations from the plan | can't | ✅ |
 
 Each one catches findings the other structurally cannot. Running both is right for a diff with new
@@ -248,10 +289,12 @@ logic. Running both on *every* diff is not.
 - **New or changed behaviour** → both. The Agent alone will not find a race in an abort path.
 - **Pure structural change** — verified move, rename, extraction with no behaviour delta and no test
   edits → **Agent only**. There is no new logic for a generic reviewer to find bugs in.
-- **No `plan.md` / no `refinement-summary.md`** (a retroactive ticket, an ad-hoc MR) →
-  **`/code-review` only**. The Agent has nothing to contrast against; its whole remaining scope is
-  the part that needs those files. **Exception:** Step 2.2 produced a design reference → the Agent
-  runs too, with design fidelity as its main scope. The design is the thing to contrast against.
+- **No `plan.md` / no `refinement-summary.md`** (a retroactive ticket, an ad-hoc MR, a teammate's
+  MR) → **both, with a narrower Agent**. With no plan, the Agent's scope is the Step 2.1 rules, plus
+  design fidelity when Step 2.2 produced a design reference. Those are the things it can still
+  contrast the diff against. It skips the plan and acceptance-criteria checks and says so. Only when
+  Step 2.1 found no written rules *and* there is no design reference does the review run
+  `/code-review` alone.
 - MR focused on security → add `/security-review`.
 
 **Run it and wait for it to finish before launching Step 3.** Then paste its findings into the Step 3
@@ -315,8 +358,23 @@ You are a senior engineer doing a code review of an MR. Your goal is to find rea
 - [the Design Study table, or the values extracted from each frame: layout, spacing, typography,
   colours as design-system variables, copy, breakpoints, which pieces the frame contains]
 
+**Already reported by /code-review** (Step 2.5; omit this block if it did not run, and then the
+line-by-line review below has its full scope):
+[its findings, as it reported them]
+  Rules:
+  - A finding whose substance matches one of these — same defect, even at another line or in other
+    words — is **covered**. Do not report it as yours.
+  - `/code-review` also looks for reuse and simplification, without the repo's rules. When one of
+    its findings breaks a Step 2.1 rule (it points out a duplicated hook, and the guidelines say
+    "reuse first"), do not report it again. List it under *Rules behind /code-review findings*,
+    giving the finding and the rule (`path#section`), so that Step 4 shows them as one finding.
+
 **Stack:** [stack from the config]
 **Project conventions:** [summary of CLAUDE.md]
+**Architecture and scaffolding rules** (Step 2.1, read from `origin/<target-branch>`):
+- [rule, one line] — source: [path#section]
+- [global folders that "reuse first" points to, with the helpers already there that the diff's area may need]
+[or: "No written architecture rules found; checked <paths>"]
 
 **Full diff:**
 [diff]
@@ -335,12 +393,28 @@ the acceptance-criteria angle rather than by reading for bugs. If you believe a 
 severe and `/code-review` missed it, add it under a single `⚠️ Outside my scope, reported anyway`
 heading with one line of justification. Anything else in bullets 1-3 gets dropped.
 
+**The one exception is a written rule.** A finding that breaks a Step 2.1 rule is yours even when
+the topic falls inside bullets 1-3, for example a state-management ADR that says how to read from
+the store to avoid re-renders, or a security rule in the guidelines. `/code-review` does not read
+those files, so nobody else checks them. Report it under *Architecture and scaffolding*, citing the
+rule. It goes through the same deduplication as any other finding: if `/code-review` already
+reported that defect, list it under *Rules behind /code-review findings* instead.
+
 Evaluate in order of importance:
 - ~~Bugs and incorrect logic~~ *(`/code-review`'s — do not report)*
 - ~~Security — inputs, auth, exposed data~~ *(`/code-review`'s — do not report)*
 - ~~Performance — N+1, re-renders, expensive operations~~ *(`/code-review`'s — do not report)*
 - **Tests: coverage gaps against the refinement's edge cases** — not generic, but against the cases the ticket identified
 - **Modified contracts and their consumers**, including those in other repos
+- **Architecture and scaffolding** — against the Step 2.1 rules, file by file: is each new or moved
+  file in the layer and folder the rules give it, does it import only what its layer may import, does
+  its name follow the naming rules, does a container hold something the rules say is global (or the
+  reverse), does the change go against an ADR. For "reuse first", open the global folders the rules
+  name and check whether a hook, util or component already does what the diff adds. Report it only
+  with the path of the existing piece. **Every finding cites the rule it breaks** (`path#section`).
+  With no written rule, a structural remark goes to *Suggestions* as consistency with the sibling
+  code, citing the sibling files, never as a rule. Generic simplification without a rule behind it
+  belongs to `/code-review`, not here.
 - **Design fidelity** — only when a design reference was provided. Compare against it, not against
   your taste: missing or extra pieces, copy that differs, spacing/typography/colour that does not map
   to the design's variables, a breakpoint the design does not have. Cite the frame or the Design
@@ -367,6 +441,7 @@ Evaluate in order of importance:
 [1-2 lines: what the MR does and the overall verdict]
 [source: published MR (host) or local diff — and, if local, why the host was not reachable]
 [design: what the UI was compared against (Design Study / Figma node-ids / none, and why) — omit for non-UI diffs]
+[architecture: the rule files checked (Step 2.1), or "no written rules found; checked <paths>"]
 
 ### 🔴 Critical (blocking)
 - **[file:line]** — [problem] → [required correction]
@@ -380,6 +455,10 @@ Evaluate in order of importance:
 ### 🔗 Side effects
 - [modified contracts and affected consumers]
 - [if applicable: risk not verifiable against a related_project — what was assumed without confirming against its real source code]
+
+### 📐 Rules behind /code-review findings
+[omit if `/code-review` did not run or none of its findings breaks a Step 2.1 rule]
+- **[file:line]** — [/code-review finding, one line] → breaks [path#section]
 
 ### 💬 Existing threads
 [omit if the MR had no prior comments]
@@ -399,7 +478,10 @@ Evaluate in order of importance:
 
 ## Step 4 — Show the review
 
-Read the agent's output and present it to the user.
+Read the agent's output and present it to the user, together with `/code-review`'s findings, as
+one review. Each point appears once. A `/code-review` finding listed under *Rules behind /code-review
+findings* is shown a single time, with the rule appended (`— breaks path#section`). That section
+does not appear on its own.
 
 If there are 🔴 Critical findings, ask: **"Do you want me to tackle any of these items now with `/wf-implement`?"**
 

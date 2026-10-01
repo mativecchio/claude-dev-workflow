@@ -87,7 +87,7 @@ It's for what a diff can't show: an ordering between effects, state left inconsi
 
 ### Code review
 
-`/wf-mr-review` delegates the generic pass to `/code-review high` (bugs, simplification, reuse, efficiency) and keeps what no generic reviewer can do: contrasting against `plan.md` and the acceptance criteria, contracts with `related_projects` verified against the other repo's actual code, and project conventions.
+`/wf-mr-review` delegates the generic pass to `/code-review high` (bugs, simplification, reuse, efficiency) and keeps what no generic reviewer can do: contrasting against `plan.md` and the acceptance criteria, contracts with `related_projects` verified against the other repo's actual code, and the repo's written architecture and scaffolding rules (layers, folders, naming, reuse first, ADRs), each finding citing the rule it breaks.
 
 ### Debug mode
 

@@ -25,7 +25,7 @@ Run in the main context, but internally spawn a subagent via the `Agent` tool fo
 
 These four are the only commands that spawn an `Agent` — the rest run entirely in the main context. That's also why per-stage model routing isn't a thing here: the commands that would benefit from a cheaper model have no Agent to route, and the four that do are the judgment-heavy ones.
 
-`/wf-mr-review` delegates the generic pass (correctness bugs, simplification, reuse, efficiency) to `/code-review high` before spawning its own agent, and keeps for itself only what a generic reviewer can't do: contrast against `plan.md` and the acceptance criteria, `related_projects` contracts verified against the other repo's real source, project conventions, and registered tech debt.
+`/wf-mr-review` delegates the generic pass (correctness bugs, simplification, reuse, efficiency) to `/code-review high` before spawning its own agent, and keeps for itself only what a generic reviewer can't do: contrast against `plan.md` and the acceptance criteria, `related_projects` contracts verified against the other repo's real source, the repo's written architecture and scaffolding rules (read from the target branch, following `CLAUDE.md`/`AGENTS.md` pointers to the files that hold them), and registered tech debt.
 
 ### Model selection
 
