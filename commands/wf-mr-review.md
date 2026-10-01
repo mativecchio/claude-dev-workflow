@@ -542,6 +542,23 @@ draft comments?"** On yes:
   draft — and had to answer it in two places.
 - Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
   inline one with its weight (**Important** / **Suggestion** / **Nit**).
+- **Propose, never impose.** Every draft, whatever its weight, opens a conversation with the author.
+  It does not hand down a verdict.
+  - First describe what you saw and what it causes, concretely, with the evidence (`file:line`,
+    the scenario). Do not judge the code: no "this is wrong", "this is fine", "this must".
+  - Then offer one option or several, as ideas: "podríamos probar con…", "a lo mejor haciendo…",
+    "¿qué te parece si…?", "one option could be…", "what if we…". When there is more than one
+    reasonable way out, list them with their trade-off and let the author choose.
+  - Never present a fix as required ("hay que", "you need to", "change X to Y"), not even for
+    **Important**. The weight says how much it matters. The wording still leaves the decision to
+    the author.
+  - When you are not sure the problem is real, ask it as a question.
+  - Keep it friendly and short. The weight prefix and the evidence carry the seriousness, so the
+    tone does not have to.
+
+  **Why:** the user wants the review to start a discussion with the author, not to dictate fixes.
+  A draft that read as a bare statement left the author without a proposal, and one that read as
+  an order closed the discussion before it started.
 - Drop any finding the MR description already explains and justifies — it is not a finding.
 - **Drop any finding already in the ledger**, including the user's own drafts from an earlier run.
   Re-check the draft list right before creating: never create a second draft for a point that
