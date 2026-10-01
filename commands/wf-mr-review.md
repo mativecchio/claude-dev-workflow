@@ -99,11 +99,18 @@ Never list it in the review, the executive summary, the action list or the draft
 job's log only if the failure may reveal a defect in the diff itself; if it does, report the defect
 at its line, not the pipeline.
 
-**An empty or `null` comment list is not proof there are none.** On GitLab, `mr_discussions` has
-returned `null` for an MR with eleven reviewer notes. Before writing "no previous comments", cross-check
-with `get_merge_request_notes` (filter `system == false`); if the two disagree, trust the one that
+**An empty or `null` comment list is not proof there are none.** The GitLab MCP's `mr_discussions`
+wraps its answer as `{items: [...], pagination: {...}}`. A `jmespath` filter written as if the answer
+were a bare list (`[].{…}`, `[?…]`) returns `null`, and that `null` once passed for "no threads" on MRs
+with eleven and eighteen reviewer notes. Filter from `items[]`, and check `pagination.x_total` against
+the number of threads you got. Before writing "no previous comments", cross-check with
+`get_merge_request_notes` (filter `system == false`); if the two disagree, trust the one that
 returned notes. Resolved threads count too: a suggestion the author already answered and deferred
 is covered, not a new finding.
+
+**The flat notes are not a ledger.** `get_merge_request_notes` returns no discussion ids, so a review
+built only on it cannot reply inside a thread, and tends to post a new comment beside an existing one.
+When the notes show threads, `mr_discussions` has to return them too before the ledger is complete.
 
 **Build the prior-comments ledger.** Read every thread, resolved or not, with all its replies
 (`mr_discussions`, paginated with `per_page: 100` until a page comes back short; `gh pr view --comments`
@@ -345,6 +352,13 @@ You are a senior engineer doing a code review of an MR. Your goal is to find rea
   Rules:
   - A finding whose substance matches a ledger entry — same defect, even at another line or in other
     words — is **covered**. Do not report it as yours.
+  - **Same root cause, new consequence → `extend`, not a new finding.** When your finding sits on the
+    same lines as an open thread, comes from the same cause, or would be fixed by the same change, it
+    belongs in that thread even if it describes a different effect: the deploy that succeeds where
+    the thread covered the one that fails, a second caller of the same broken function. It goes to
+    *Existing threads* as `extend`, with what the thread misses and, if the thread's suggested fix
+    does not cover it, the fix that covers both. Before you file anything as new, ask whether the
+    author would answer it in an existing thread. If they would, it is `extend`.
   - `unaddressed` entries go to *Existing threads*, not to Critical/Important, citing the thread id.
   - `deferred` entries with a reasonable answer are closed. Do not reopen them.
   - **You may disagree with a comment** — its claim is wrong, the suggested fix would introduce a
@@ -463,8 +477,9 @@ Evaluate in order of importance:
 ### 💬 Existing threads
 [omit if the MR had no prior comments]
 - **[thread id] [file:line or general]** — `unaddressed` — [what is still missing at the head]
+- **[thread id] [file:line or general]** — `extend` — [what the thread misses] → [fix that covers both, if the thread's does not]
 - **[thread id] [file:line or general]** — `disagree` — [why the comment or the answer does not hold] → [evidence]
-[closing line: N threads checked, N covered, N already addressed]
+[closing line: N threads checked, N covered, N extended, N already addressed]
 
 ### ❓ Questions for the author
 - [question 1]
@@ -531,6 +546,9 @@ draft comments?"** On yes:
 - **Drop any finding already in the ledger**, including the user's own drafts from an earlier run.
   Re-check the draft list right before creating: never create a second draft for a point that
   already has one; update the existing draft (`update_draft_note`) if the wording must change.
+- **One reply draft per `extend` entry, inside its thread**, the same way as `disagree` below. Never
+  a new inline draft on the thread's lines. Say what the thread misses, and the fix that covers both
+  cases when the thread's own fix does not.
 - **One reply draft per `disagree` entry, inside its thread** — `create_draft_note` with
   `in_reply_to_discussion_id` on GitLab; on GitHub, a reply inside the pending review (GraphQL
   `addPullRequestReviewThreadReply` with the pending review's id — never the REST reply endpoint,
