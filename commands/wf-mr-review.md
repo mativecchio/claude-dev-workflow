@@ -1,5 +1,5 @@
 ---
-description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions. Takes prior threads into account and drafts replies where it disagrees. With --followup <MR> it only checks the answers to your own comments."
+description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions. Takes prior threads into account and drafts replies where it disagrees. With --followup <MR> it only checks the answers to your own comments; add --code-review to also run /code-review on what changed since your last review."
 allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 ---
 
@@ -26,8 +26,9 @@ skip `enter-stage` and Step 5, and carry on. `lang` then comes from `.claude/wor
 Checks how the author answered **the current user's own comments**, without running a new review.
 It needs an MR reference; without one, ask for it. Do Step 0 as usual. From Step 1, run only 1a
 (host, ledger) and 1c (read the code at `origin/<source-branch>`). Then go straight to the steps
-below: no `/code-review`, no Step 3 Agent, no Step 5 events. The work is small and judged thread by
-thread, so it runs inline.
+below: no Step 3 Agent and no Step 5 events. `/code-review` does not run either, unless
+`$ARGUMENTS` also carries `--code-review` (step 5). The threads are judged inline, one by one,
+because the work is small.
 
 1. **Select the threads.** From the ledger, keep the threads whose first note is the current user's
    (`whoami`) that have something new since the user's last note: a reply from someone else, or a
@@ -50,7 +51,25 @@ thread, so it runs inline.
    on GitLab, or the pending review on GitHub. For `fixed` and `answered, holds`, a short
    acknowledgement draft is added only if the user asks for it. **Never resolve a thread and never
    publish.** List which threads look ready for the user to resolve themselves after publishing.
-5. Finish with Step 7.
+   With `--code-review`, step 5's findings are offered in the same question.
+5. **Only with `--code-review`: generic pass on what changed since the user's last review.**
+   - **Since point.** Use the MR's head SHA at the user's most recent note on this MR: on GitLab,
+     the newest entry of `list_merge_request_versions` created before that note (`head_commit_sha`),
+     or that note's `position.head_sha` when it is a diff note; on GitHub, the `commit_id` of the
+     user's last review. Not reachable from the head (rebase and force push) → use the merge-base of
+     that SHA with the head and say so. The user has no note on this MR → there is nothing to follow
+     up; say so and suggest the full review instead.
+   - **Increment.** `git diff <since>..origin/<source-branch>`. Empty → skip this step and say so.
+   - **Run** `/code-review high origin/<source-branch>` and wait for it. Keep only the findings whose
+     lines fall inside the increment's hunks. Drop the rest: they were already in front of the user
+     in the previous round. If `/code-review` is not available, review the increment inline for the
+     same scope (bugs, security, performance, simplification) and say so.
+   - **Deduplicate** each finding against the ledger and against the `new problem` verdicts from
+     step 2. The same defect counts once, in the thread where it belongs.
+   - **Show** the findings as a second block below the table, in the 🔴 / 🟠 / 💡 format of the full
+     review, headed with the since SHA and the number of commits in the increment.
+   - **Drafts** follow Step 6: one inline draft per finding, anchored to a line of the increment.
+6. Finish with Step 7.
 
 ## Step 1 — Get the MR
 

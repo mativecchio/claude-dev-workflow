@@ -54,7 +54,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-commit` | To generate the commit message with ticket context |
 | `/wf-deploy` | For commit+push, release branch and deploy |
 | `/wf-mr-desc` | To generate the MR description |
-| `/wf-mr-review` | To code review an MR (`--followup <MR>`: check the answers to your own comments) |
+| `/wf-mr-review` | To code review an MR (`--followup <MR>`: check the answers to your own comments; `--followup --code-review <MR>`: also check the new commits for bugs) |
 | `/wf-retro` | When closing a ticket, to extract lessons learned |
 | `/wf-jira` | To generate or enrich a Jira ticket |
 
