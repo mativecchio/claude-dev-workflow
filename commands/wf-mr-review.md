@@ -1,5 +1,5 @@
 ---
-description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions."
+description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions. Takes prior threads into account and drafts replies where it disagrees. With --followup <MR> it only checks the answers to your own comments."
 allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 ---
 
@@ -20,6 +20,37 @@ replace the active ticket of whoever is working in this checkout. Take the ticke
 skip `enter-stage` and Step 5, and carry on. `lang` then comes from `.claude/workflow/config.json`.
 
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — the review, plan.md, code — is always in English.
+
+## Follow-up mode — `$ARGUMENTS` carries `--followup`
+
+Checks how the author answered **the current user's own comments**, without running a new review.
+It needs an MR reference; without one, ask for it. Do Step 0 as usual. From Step 1, run only 1a
+(host, ledger) and 1c (read the code at `origin/<source-branch>`). Then go straight to the steps
+below: no `/code-review`, no Step 3 Agent, no Step 5 events. The work is small and judged thread by
+thread, so it runs inline.
+
+1. **Select the threads.** From the ledger, keep the threads whose first note is the current user's
+   (`whoami`) that have something new since the user's last note: a reply from someone else, or a
+   commit on the source branch after it (`list_commits` / `git log origin/<source-branch>
+   --since=<note date>`). Also keep open threads with no answer, because they are still pending. Skip
+   threads the user already answered last.
+2. **Judge each one against the code at the MR head**, not only against the reply text:
+   - `fixed`: the change the comment asked for is at the head (cite the `file:line` and the commit).
+   - `answered, holds`: no change, but the author's reasoning holds. Say why in one line.
+   - `answered, does not hold`: the reply misses the point, or contradicts the code, the spec or a
+     contract. Give the evidence.
+   - `partially fixed`: some of it is done. Say what is still missing.
+   - `no answer`: open and untouched.
+   - `new problem`: the fix itself introduces a defect. Report it at its line.
+3. **Show a table** with thread id, `file:line`, your comment in one line, the author's answer in one
+   line, the verdict, and the proposed action: *resolve*, *reply* or *wait*.
+4. **Offer the drafts.** Ask: **"Do you want me to add the replies as drafts?"** On yes, follow the
+   Step 6 rules: one reply draft per `answered, does not hold` / `partially fixed` / `new problem`
+   thread, in the MR's language, two or three lines with the evidence. Use `in_reply_to_discussion_id`
+   on GitLab, or the pending review on GitHub. For `fixed` and `answered, holds`, a short
+   acknowledgement draft is added only if the user asks for it. **Never resolve a thread and never
+   publish.** List which threads look ready for the user to resolve themselves after publishing.
+5. Finish with Step 7.
 
 ## Step 1 — Get the MR
 
@@ -54,6 +85,29 @@ returned `null` for an MR with eleven reviewer notes. Before writing "no previou
 with `get_merge_request_notes` (filter `system == false`); if the two disagree, trust the one that
 returned notes. Resolved threads count too: a suggestion the author already answered and deferred
 is covered, not a new finding.
+
+**Build the prior-comments ledger.** Read every thread, resolved or not, with all its replies
+(`mr_discussions`, paginated with `per_page: 100` until a page comes back short; `gh pr view --comments`
+plus `gh api repos/{owner}/{repo}/pulls/{n}/comments` on GitHub). Also read the drafts that already
+exist (`list_draft_notes`) and the current user (`whoami`): drafts from an earlier run of this review
+are invisible to everyone else but count as already said. For each thread record:
+
+| Field | Content |
+|---|---|
+| `id` | discussion id (GitLab) / thread or comment id (GitHub) |
+| `who` | author of the first note, and whether it is the current user |
+| `where` | `file:line`, or `general` |
+| `claim` | one line: what the comment asks for |
+| `state` | `resolved` / `open`, and the last reply (author's answer, deferral, "won't fix") |
+| `status` | `addressed` (the diff at the MR head fixes it, or the reviewer accepted the answer) · `unaddressed` (still open and the head does not fix it) · `deferred` (author answered with a reason and a follow-up) |
+
+Decide `addressed` against the code at the MR head (`git show origin/<source-branch>:<path>`), not
+against the thread's resolved flag: a thread resolved without a change is not addressed, and an open
+thread whose line was already fixed is.
+
+Pass the ledger to the Step 3 Agent. **Why:** each round of review on an MR that already has
+comments has repeated them back at the author in new words, and the author then answers the same
+point twice.
 
 **Then compare the MR's head SHA against the local branch.** If they differ, say which way and review
 the MR's diff — the local tree may hold unpushed commits, or the MR may be ahead of it. Same for the
@@ -224,8 +278,18 @@ You are a senior engineer doing a code review of an MR. Your goal is to find rea
 
 **Published MR** (from Step 1a; omit this block if the MR was not reachable and the diff is local):
 - Title / description / target branch / state
-- **Comments already left by other reviewers** — treat each as covered. Do not re-report it. Where
-  the diff does not address one, flag it as unaddressed instead of restating it as your own finding.
+- **Prior-comments ledger** (Step 1a: every thread, resolved or not, plus existing drafts):
+  [the ledger table]
+  Rules:
+  - A finding whose substance matches a ledger entry — same defect, even at another line or in other
+    words — is **covered**. Do not report it as yours.
+  - `unaddressed` entries go to *Existing threads*, not to Critical/Important, citing the thread id.
+  - `deferred` entries with a reasonable answer are closed. Do not reopen them.
+  - **You may disagree with a comment** — its claim is wrong, the suggested fix would introduce a
+    defect, it contradicts `plan.md` / the acceptance criteria / the design, or the author's answer
+    does not hold. Disagree only with evidence (`file:line`, a spec line, a contract on the other side);
+    "I'd do it differently" is not a disagreement. Each one goes to *Existing threads* as `disagree`.
+  - Agreeing with a comment adds nothing: do not echo it ("+1").
 
 **Design reference** (from Step 2.2; omit this block if the diff does not change the UI):
 - Source: Design Study / Figma URL(s) with `node-id` / `None` / `[NEEDS DESIGN]` / `Agent-proposed` / Figma not reachable
@@ -298,6 +362,12 @@ Evaluate in order of importance:
 - [modified contracts and affected consumers]
 - [if applicable: risk not verifiable against a related_project — what was assumed without confirming against its real source code]
 
+### 💬 Existing threads
+[omit if the MR had no prior comments]
+- **[thread id] [file:line or general]** — `unaddressed` — [what is still missing at the head]
+- **[thread id] [file:line or general]** — `disagree` — [why the comment or the answer does not hold] → [evidence]
+[closing line: N threads checked, N covered, N already addressed]
+
 ### ❓ Questions for the author
 - [question 1]
 
@@ -349,6 +419,17 @@ draft comments?"** On yes:
 - Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
   inline one with its weight (**Important** / **Suggestion** / **Nit**).
 - Drop any finding the MR description already explains and justifies — it is not a finding.
+- **Drop any finding already in the ledger**, including the user's own drafts from an earlier run.
+  Re-check the draft list right before creating: never create a second draft for a point that
+  already has one; update the existing draft (`update_draft_note`) if the wording must change.
+- **One reply draft per `disagree` entry, inside its thread** — `create_draft_note` with
+  `in_reply_to_discussion_id` on GitLab; on GitHub, a reply inside the pending review (GraphQL
+  `addPullRequestReviewThreadReply` with the pending review's id — never the REST reply endpoint,
+  which publishes at once). State the disagreement and its evidence in two or three lines, as a
+  question when the evidence is not conclusive. Never set `resolve_discussion`, and never resolve or
+  unresolve a thread: that is the thread owner's call.
+- `unaddressed` entries get a short reply draft in their thread ("still open at `<sha>`: …") only if
+  the user asks for it; by default they stay in the review output.
 - **Never publish them.** Drafts are visible only to the user until they publish from the host's UI;
   that last read is theirs.
 
