@@ -546,8 +546,15 @@ draft comments?"** On yes:
   It does not hand down a verdict.
   - First describe what you saw and what it causes, concretely, with the evidence (`file:line`,
     the scenario). Do not judge the code: no "this is wrong", "this is fine", "this must".
-  - Then offer one option or several, as ideas: "podríamos probar con…", "a lo mejor haciendo…",
-    "¿qué te parece si…?", "propongo…", "one option could be…", "what if we…". When there is more
+  - Then offer one option or several, as ideas. Vary the wording across drafts instead of opening
+    every one the same way:
+    - Spanish: "podríamos probar con…", "a lo mejor haciendo…", "¿qué te parece si…?",
+      "propongo…", "sugiero…", "se me ocurre…", "una opción sería…", "otra alternativa es…",
+      "capaz que conviene…", "quizás sirva…", "¿y si…?", "¿te parece bien si…?", "una idea:…".
+    - English: "one option could be…", "what if we…", "I'd suggest…", "maybe we could…",
+      "another option is…", "how about…", "it might help to…", "one idea:…".
+
+    When there is more
     than one reasonable way out, list them with their trade-off and let the author choose. A
     finding that only describes a problem, with no way out, is incomplete.
   - **The exception is a plain mismatch whose way out is obvious**, such as a code comment or the MR
