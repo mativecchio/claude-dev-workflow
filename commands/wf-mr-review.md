@@ -435,6 +435,14 @@ draft comments?"** On yes:
   changed line leaves the draft without a `line_code`, and GitLab renders it repeated across the file.
 - **One general draft** with the summary and the *Questions for the author*. No pipeline or rebase
   state (see Step 1a).
+- **Each point is said once, in one draft.** The general draft carries only what has no line of its
+  own: a one- or two-line verdict, the findings that cannot be anchored to a changed line, and the
+  questions that no inline draft already asks. A finding or question that has an inline draft does
+  not appear again in the general one — not restated, not summarised, not as a "see the thread on …"
+  pointer list. If nothing is left after that, skip the general draft. Before creating it, reread the
+  inline drafts of this run and strike every sentence that repeats one of them.
+  **Why:** the author got the same request twice — inline, and again as the question in the general
+  draft — and had to answer it in two places.
 - Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
   inline one with its weight (**Important** / **Suggestion** / **Nit**).
 - Drop any finding the MR description already explains and justifies — it is not a finding.

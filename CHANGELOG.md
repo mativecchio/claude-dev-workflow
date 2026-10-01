@@ -23,6 +23,7 @@ This file records *releases*. It is not the same as `~/.claude/workflow/improvem
 - `/wf-mr-review` Step 7: the last step lists anything the review created locally and offers to remove it. Before removing anything, it checks for unpushed commits or uncommitted changes.
 
 ### Changed
+- `/wf-mr-review` Step 6: each point is said once. The general draft keeps only the verdict, the findings that cannot be anchored and the questions no inline draft already asks; it is skipped when nothing is left. Found on booking-center-app !497, where the general draft repeated the question of the inline one.
 - `/wf-mr-review` reads the MR's code from `origin/<source-branch>` (`git show`, `wf-diff.sh --branch`) and never creates a worktree, branch or clone (Step 1c). Reviewing a teammate's MR no longer writes `state.json` over the checkout's active ticket (Step 0). Found on booking-center-app !488: the review created a detached worktree and wrote a ticket state that had to be cleaned up by hand. An older review clone sat next to a worktree with unpushed commits and uncommitted changes, so deleting the "leftovers" blindly would have lost work.
 
 ## 0.9.1 — 2026-08-28
