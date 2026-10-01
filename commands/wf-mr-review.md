@@ -554,9 +554,8 @@ draft comments?"** On yes:
     - English: "one option could be…", "what if we…", "I'd suggest…", "maybe we could…",
       "another option is…", "how about…", "it might help to…", "one idea:…".
 
-    When there is more
-    than one reasonable way out, list them with their trade-off and let the author choose. A
-    finding that only describes a problem, with no way out, is incomplete.
+    When there is more than one reasonable way out, list them with their trade-off and let the
+    author choose. A finding that only describes a problem, with no way out, is incomplete.
   - **The exception is a plain mismatch whose way out is obvious**, such as a code comment or the MR
     description saying the opposite of what the code does. Pointing out the difference is enough,
     because the author only has to update one side. Do not pad it with options.
