@@ -1,5 +1,5 @@
 ---
-description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions. Takes prior threads into account and drafts replies where it disagrees. With --followup <MR> it only checks the answers to your own comments; add --code-review to also run /code-review on what changed since your last review."
+description: "Full MR/PR review. Runs in an isolated context via the Agent tool. Given an MR link it reads the real MR from GitLab/GitHub (MCP or CLI) and falls back to the local git diff. Structured output: critical, important, suggestions. Takes prior threads into account and drafts replies where it disagrees. Detects spec MRs (Spec Kit repos) and reviews them with a spec checklist instead of /code-review; --spec / --code force the mode. With --followup <MR> it only checks the answers to your own comments; add --code-review to also run /code-review on what changed since your last review."
 allowed-tools: Read, Bash, Glob, Grep, Agent, TodoWrite
 ---
 
@@ -63,7 +63,9 @@ because the work is small.
    - **Run** `/code-review high origin/<source-branch>` and wait for it. Keep only the findings whose
      lines fall inside the increment's hunks. Drop the rest: they were already in front of the user
      in the previous round. If `/code-review` is not available, review the increment inline for the
-     same scope (bugs, security, performance, simplification) and say so.
+     same scope (bugs, security, performance, simplification) and say so. In spec mode (Step 1d),
+     `/code-review` does not run: apply the spec checklist (Step 3, section 2b) inline to the
+     increment instead, and say so.
    - **Deduplicate** each finding against the ledger and against the `new problem` verdicts from
      step 2. The same defect counts once, in the thread where it belongs.
    - **Show** the findings as a second block below the table, in the 🔴 / 🟠 / 💡 format of the full
@@ -189,6 +191,34 @@ rather than whatever the checkout holds.
 entry and possibly a `state.json` behind on every run, and the user has to find and delete them by
 hand. If something local is ever unavoidable, note its path and offer to remove it in Step 7.
 
+### 1d — Review mode: code, spec or mixed
+
+A spec MR and a code MR are reviewed with different checklists. Everything else in this command is
+the same for both: the ledger, the drafts, the tone, and leaving nothing behind.
+
+**Detect the mode from the changed files** (`list_merge_request_changed_files`, or
+`wf-diff.sh --stat`):
+
+- **spec**: the repo uses Spec Kit (`.specify/` exists at `origin/<target-branch>`), and every
+  changed file is a feature artefact or a document: `specs/**`, or `*.md` outside source folders.
+- **code**: no changed file is a spec artefact. This is the default for any repo without `.specify/`.
+- **mixed**: both kinds of file change. Each part is reviewed with its own checklist, and the output
+  says which files went to which side.
+
+**`$ARGUMENTS` may override the detection**: `--spec` forces spec mode, for example for a design
+document in a code repo that should be reviewed as a spec. `--code` forces code mode. An override
+applies to the whole diff.
+
+**Say which mode ran and why** in the executive summary (`mode: spec — .specify/ present, only
+specs/** changed`), so a wrong detection is visible at once.
+
+**Why:** the code checklist (bugs, tests against the refinement, design fidelity) found nothing in
+spec MRs, and `/code-review` has no bugs to look for in markdown. On booking-center-specs !28 and !30,
+the findings came from checks the command did not have. A plan said "Pass" on a constitution
+principle it broke. Untouched artefacts (`tasks.md`, `deployment.md`) contradicted the new plan.
+A contract made a claim about an error that the real code did not do. Two open MRs described the
+same endpoint differently.
+
 ## Step 2 — Gather context
 
 Read:
@@ -237,10 +267,24 @@ a summary of `CLAUDE.md`. In booking-center-app, `CLAUDE.md` and `AGENTS.md` onl
 `docs/project-architecture-guidelines.md` and `docs/adr/`. No step read any of them, so whether a
 review caught a file in the wrong layer, or a hook that already existed, depended on luck.
 
+**In spec mode the rules are the Spec Kit ones**, collected the same way, from the target branch:
+- the constitution (`.specify/memory/constitution.md`), every principle;
+- the repository registry and delivery rules (`.specify/memory/repos.md`, `delivery.json`), when
+  the repo has them;
+- the workflow and delivery docs the agent instructions point to (`docs/workflow.md`,
+  `docs/delivery.md`, or their equivalent): when a change amends a spec, and when it has to be a
+  new one; how deferred decisions are recorded and resumed;
+- the templates and their overrides (`.specify/templates/`): the sections a spec and a plan must
+  have;
+- the annotation conventions, read from the specs already on the target branch (`git grep` for
+  `Superseded` and similar notes): their exact format, and what each note must name.
+
 ## Step 2.2 — Design reference (MRs that change the UI)
 
 **Applies when** the diff changes what the user sees: components, pages, templates, styles,
 SVG/image assets, visible copy (locale files). A backend-only or test-only diff skips this step.
+So does spec mode: the spec carries its own design reference, and the spec checklist checks it
+against the design principle of the constitution. Nothing is asked of the user.
 
 **Look for the design, in order**, and stop at the first hit:
 1. A spec for the feature (Spec Kit repos: `specs/<feature>/spec.md`) — its `**Design**` header
@@ -303,6 +347,10 @@ logic. Running both on *every* diff is not.
   Step 2.1 found no written rules *and* there is no design reference does the review run
   `/code-review` alone.
 - MR focused on security → add `/security-review`.
+- **Spec mode** (Step 1d) → **Agent only**, with the spec checklist. `/code-review` does not run,
+  because there is no code for it to find bugs in. The output says so.
+- **Mixed** → `/code-review` on the code files only (`/code-review high <ref> -- <code paths>`, or by
+  telling it which paths to review), then the Agent with both checklists, each on its own files.
 
 **Run it and wait for it to finish before launching Step 3.** Then paste its findings into the Step 3
 prompt under `**Already reported by /code-review:**`.
@@ -323,6 +371,25 @@ so it is restated as a hard rule in the Step 3 prompt, not as a hint.
 
 If `/code-review` isn't available in this environment, continue to Step 3 with the full scope (the
 prompt's "Line-by-line review" section) and note it in the output.
+
+## Step 2.6 — Related MRs in flight (spec and mixed mode)
+
+A spec MR is rarely alone. Before launching Step 3, list:
+- the open MRs of the same repo whose changed files touch the same spec, the same contract file, or
+  a contract for the same endpoint (`list_merge_requests` with `state: opened`, then
+  `list_merge_request_changed_files` on each);
+- the code MRs the diff names (`!123` references, MR links), with their source and **target**
+  branches. A code MR that targets another feature branch rather than the base branch adds a
+  dependency that the plan has to record.
+
+Pass the list to the Agent with each MR's branch and head SHA, so it can read them with `git show`.
+
+**Why:** on booking-center-specs, !28 extended an endpoint whose contract !30 was writing at the
+same time, with "Nothing else differs". The two merged without a textual conflict and would have left
+two specs describing one response differently. The backend MR both plans depended on targeted another
+open MR, not `develop`, and neither plan recorded it.
+
+When one run reviews several MRs at once, tell each Agent about the others.
 
 ## Step 3 — Launch the review Agent
 
@@ -390,6 +457,10 @@ line-by-line review below has its full scope):
 - [global folders that "reuse first" points to, with the helpers already there that the diff's area may need]
 [or: "No written architecture rules found; checked <paths>"]
 
+**Review mode** (Step 1d): [code / spec / mixed, and why; for mixed, which files are on each side]
+**Related MRs in flight** (Step 2.6; omit in code mode): [each MR with its title, branch, head SHA,
+target branch, and the files it shares with this one]
+
 **Full diff:**
 [diff]
 
@@ -401,6 +472,8 @@ line-by-line review below has its full scope):
 - Are there unaccounted-for side effects?
 
 ### 2. Line-by-line review
+**In spec mode, skip this section and use 2b. In mixed mode, apply it to the code files only.**
+
 **If Step 2.5 ran `/code-review`, bullets 1-3 are OUT OF YOUR SCOPE.** Not "avoid duplicating" —
 do not report them at all, even if you find something real there, and even if you reached it from
 the acceptance-criteria angle rather than by reading for bugs. If you believe a bug in that band is
@@ -435,6 +508,41 @@ Evaluate in order of importance:
   Study row for each finding. A deviation the MR description explains and justifies is not a
   finding; one it does not mention goes to *Questions for the author*.
 
+### 2b. Spec review (spec mode, or the spec files of a mixed MR)
+You have the full scope here, correctness of the claims included: `/code-review` did not read these
+files. Every finding cites its evidence: a spec line, a rule (`path#section`), or a `file:line` in a
+real repo.
+
+- **The Constitution Check tells the truth.** For each principle the plan marks "Pass", look for
+  anything in the plan or in the code MRs it names that breaks it: a slice that says it is not safe
+  alone under a "no deploy order may break a screen" rule, a design element the design principle
+  does not allow. A breach is reported even when the plan marks it "Pass". The way out is either to
+  change the approach or to record the deviation in Complexity Tracking.
+- **The artefacts agree with each other, the untouched ones too.** spec ↔ plan ↔ contracts ↔
+  data-model ↔ research ↔ tasks ↔ quickstart ↔ any deployment notes. When the MR changes one of
+  them, read the others at the head even if the diff does not touch them, and report what now
+  contradicts the change (a task that says the opposite, a count of MRs that is no longer right).
+  Leftovers from an earlier version of the same MR (an old field name, an old count) count too.
+- **Claims about real code are true.** Paths, classes, functions, endpoints, fields, status codes and
+  error bodies that the plan or a contract says exist, or will change, are checked against the
+  repos of the registry (`repos.md`, or `related_projects` in config.json) on their base branch, or
+  on the branch of the code MR that adds them. Check the claims the plan rests on first. A claim
+  you could not verify goes to *Questions*, not to findings.
+- **Contracts have one owner.** An endpoint, event or shared state is defined in one contract. A
+  second spec that extends it annotates the owner or references it, rather than redefining it. Check
+  against the related MRs in flight as well as the target branch.
+- **Every requirement has a home.** Each FR, acceptance scenario, edge case and SC maps to a slice,
+  a test or a quickstart scenario. List the ones that map to nothing.
+- **The delivery plan is complete.** Producers ship before consumers. Every dependency outside the
+  feature is recorded, including a code MR that targets another feature branch instead of the base
+  branch. Each slice's visibility and way back are stated and consistent with what it does.
+- **Changes to a spec follow the rules for changing it.** Annotations have the format of the notes
+  already on the target branch, sit right after what they change, and name their source. A change
+  that the workflow docs send to a new spec, or to a resume of a deferred decision, is not made as
+  an in-place amendment unless the exception is recorded.
+- **Each requirement can be turned into a test** from what the spec says. Edge cases the contract
+  implies (a field that can be null, a partial value) are in the spec, not only in a reply on the MR.
+
 ### 3. Side effects
 - Are there contracts (API, types, events) being modified that have consumers?
 - Are there migrations that could affect existing data?
@@ -456,6 +564,7 @@ Evaluate in order of importance:
 [source: published MR (host) or local diff — and, if local, why the host was not reachable]
 [design: what the UI was compared against (Design Study / Figma node-ids / none, and why) — omit for non-UI diffs]
 [architecture: the rule files checked (Step 2.1), or "no written rules found; checked <paths>"]
+[mode: code / spec / mixed, and why (Step 1d); for spec and mixed, the related MRs checked (Step 2.6)]
 
 ### 🔴 Critical (blocking)
 - **[file:line]** — [problem] → [required correction]

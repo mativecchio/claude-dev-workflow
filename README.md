@@ -54,7 +54,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-commit` | To generate the commit message with ticket context |
 | `/wf-deploy` | For commit+push, release branch and deploy |
 | `/wf-mr-desc` | To generate the MR description |
-| `/wf-mr-review` | To code review an MR (`--followup <MR>`: check the answers to your own comments; `--followup --code-review <MR>`: also check the new commits for bugs) |
+| `/wf-mr-review` | To review an MR, code or spec, with the mode detected from the changed files (`--spec` / `--code` force it; `--followup <MR>`: check the answers to your own comments; `--followup --code-review <MR>`: also check the new commits for bugs) |
 | `/wf-retro` | When closing a ticket, to extract lessons learned |
 | `/wf-jira` | To generate or enrich a Jira ticket |
 
@@ -87,7 +87,7 @@ It's for what a diff can't show: an ordering between effects, state left inconsi
 
 ### Code review
 
-`/wf-mr-review` delegates the generic pass to `/code-review high` (bugs, simplification, reuse, efficiency) and keeps what no generic reviewer can do: contrasting against `plan.md` and the acceptance criteria, contracts with `related_projects` verified against the other repo's actual code, and the repo's written architecture and scaffolding rules (layers, folders, naming, reuse first, ADRs), each finding citing the rule it breaks.
+`/wf-mr-review` delegates the generic pass to `/code-review high` (bugs, simplification, reuse, efficiency) and keeps what no generic reviewer can do: contrasting against `plan.md` and the acceptance criteria, contracts with `related_projects` verified against the other repo's actual code, and the repo's written architecture and scaffolding rules (layers, folders, naming, reuse first, ADRs), each finding citing the rule it breaks. In a Spec Kit repo, an MR that only changes specs is reviewed with a spec checklist instead: the Constitution Check against what the plan actually does, agreement between every artefact (the untouched ones too), the plan's claims checked against the real code, one owner per contract, and the other open MRs that touch the same spec or contract.
 
 ### Debug mode
 
