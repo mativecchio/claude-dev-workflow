@@ -678,10 +678,43 @@ draft comments?"** On yes:
   **Why:** the user wants the review to start a discussion with the author, not to dictate fixes.
   A draft that read as a bare statement left the author without a proposal, and one that read as
   an order closed the discussion before it started.
+- **Every reference must be something the reader can follow without the review's context.** The
+  author and the other reviewers see only the draft and the one line it is anchored to.
+  - A reference to code or a document in the repo is a link, never a bare `file:line` in
+    backticks. Point it at the reviewed commit, not the branch, and use the full path:
+    `[service.ts:42](<project web_url>/-/blob/<head_sha>/src/orders/service.ts#L42)` on GitLab,
+    `…/blob/<head_sha>/<path>#L42` on GitHub, and `#L12-17` (GitHub: `#L12-L17`) for a range. The
+    link text can be the short name, but the URL carries the whole path. Take `web_url` from the
+    project, not the MR. Never use relative links, because the host resolves them against the MR
+    page and they end in a 404. A link to the branch moves to another line after the next push or
+    rebase.
+  - A line number on its own ("L39", "line 99", "see L12-17") is never enough, not even for the
+    file the draft is anchored to. Name what the line says, and quote it when the argument depends
+    on its wording: `the rule «Never retry a failed payment» ([rules.md:16](…))`. Quote one or two
+    lines at most, and summarise a longer passage.
+  - Before creating the drafts, open every link you built (`get_file_contents` at `head_sha`, or
+    `git show <head_sha>:<path>`) and check that the file exists and that the line says what the
+    draft claims.
+  - **Nothing in the text may turn into a link that leads nowhere.** The host links some patterns
+    on its own: with a Jira integration, every `KEY-123` becomes a link to that Jira issue, and
+    `#12` / `!12` become issue and MR references in the current project. Requirement and decision
+    ids that are not tickets (`FR-001`, `SC-002`, `D-001`, `R-025`, `US-3`) and numbers that are
+    not this project's issues go inside backticks, which the host does not link. Real ticket keys
+    (`BC-1484`) and real references (`group/project!12500`) stay bare, because their links work.
+
+  **Why:** drafts that cited `file:line` in backticks or a bare "L12-17" left the reader with
+  nothing to open: the short names had no path, and a line number in the anchored file points at
+  a line the reader cannot see. On booking-center-specs !32 every `FR-0xx`, `SC-00x` and `D-00x`
+  in the drafts rendered as a link to a Jira issue that does not exist.
 - Drop any finding the MR description already explains and justifies — it is not a finding.
 - **Drop any finding already in the ledger**, including the user's own drafts from an earlier run.
   Re-check the draft list right before creating: never create a second draft for a point that
   already has one; update the existing draft (`update_draft_note`) if the wording must change.
+  On GitLab, an update of an inline draft sends `position` again together with `body`, the same
+  `diff_refs` and line it was created with. A `body`-only update keeps the `line_code` but blanks
+  the path and the line, so the draft no longer sits on its line, and a `position`-only update is
+  rejected (400 "Missing params to modify"). After updating, list the drafts and check that each
+  inline one still has its `position.new_path` and `position.new_line`.
 - **One reply draft per `extend` entry, inside its thread**, the same way as `disagree` below. Never
   a new inline draft on the thread's lines. Say what the thread misses, and the fix that covers both
   cases when the thread's own fix does not.
