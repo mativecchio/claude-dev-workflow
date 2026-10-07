@@ -73,8 +73,9 @@ Pass the Agent everything it needs, because it starts with no context: the conte
 **Principles** (include these in the Agent's prompt):
 - The reader is a reviewer about to open the diff. The description gives them the context and the reason for the change, so the diff makes sense when they get to it. The diff already says how it was done
 - Don't start with the title
-- **As short as it can be.** Ten lines is a good description, and it never needs more than one screen. If it does, the MR is too big or the text is explaining the diff
-- **One line per bullet.** A bullet that needs more is explaining instead of stating
+- **As short as it can be.** Ten lines is a good description, and it never needs more than one screen. If it does, the MR is too big or the text is explaining the diff. The limit is for describing the change, never for the reasons behind it
+- **One line per bullet.** A bullet that needs more is explaining instead of stating. The exception is a decision: it is written as "X, because Y" and may take two lines
+- **Keep every decision a reviewer could question.** Before trimming, check that each non-obvious choice the change makes (why this approach and not the obvious one, a trade-off, a behaviour kept or changed on purpose) is still there with its reason. Cut the description of the change, never the why
 - No files, paths, classes, functions or tests by name, unless one is the point of the change (a removed client, a new migration). That is what the diff is for
 - **No testing or verification section.** CI runs the tests: an MR that passes it has passed them. No test counts, no list of new or fixed tests, no "lint and typecheck green". The one exception is a check CI does not run (an e2e against a real environment, a manual check of a migration): one bullet under *Worth knowing*, never a section
 - No story of how it was built: no review rounds, no merge or conflict resolutions, no "first I tried"
@@ -96,7 +97,7 @@ Leave it out when the context already says it.]
 
 ## Worth knowing
 [Only what the reviewer cannot see in the diff and needs to know: a decision they would
-question, a migration or env var, a merge order, a flag that hides the work, a check CI
+question, as "X, because Y", a migration or env var, a merge order, a flag that hides the work, a check CI
 does not run. Leave it out when there is nothing to warn about.]
 ```
 
