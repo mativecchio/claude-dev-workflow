@@ -71,41 +71,33 @@ Two reasons, and the second matters as much as the first. Writing an MR descript
 Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
 
 **Principles** (include these in the Agent's prompt):
+- The reader is a reviewer about to open the diff. The description gives them the context and the reason for the change, so the diff makes sense when they get to it. The diff already says how it was done
 - Don't start with the title
-- Open with a TL;DR: 1-3 lines, what this MR does and why, in plain terms — this is the only part most reviewers read before opening the diff
-- Be brief. Don't cut content, but don't narrate — one line per change beats a paragraph. If a bullet needs more than ~2 lines to state, it's explaining instead of stating; trim it
-- Don't list modified files (reviewers can see the diff)
-- Don't repeat the diff or the commit log
-- Group changes by behavior/flow, not by file
-- Mention non-obvious technical decisions and their rationale, briefly — this is the one place verbosity is earned, and only for the specific decision being explained, not a recap of the change
-- **Omit any section below that would be empty or redundant with the TL;DR.** A template header with nothing under it is worse than no header — don't emit "### Technical decisions" or "### Infrastructure" just to leave them thin or unchecked
+- **As short as it can be.** Ten lines is a good description, and it never needs more than one screen. If it does, the MR is too big or the text is explaining the diff
+- **One line per bullet.** A bullet that needs more is explaining instead of stating
+- No files, paths, classes, functions or tests by name, unless one is the point of the change (a removed client, a new migration). That is what the diff is for
+- **No testing or verification section.** CI runs the tests: an MR that passes it has passed them. No test counts, no list of new or fixed tests, no "lint and typecheck green". The one exception is a check CI does not run (an e2e against a real environment, a manual check of a migration): one bullet under *Worth knowing*, never a section
+- No story of how it was built: no review rounds, no merge or conflict resolutions, no "first I tried"
+- Don't repeat the commit log, and don't restate the spec or the ticket: link them
+- **Omit any section below that would be empty or redundant with the context.** A header with nothing under it, or with "N/A", is noise
 
-**Structure:**
+**Structure** (headings in the description's language):
 
 ```markdown
-## TL;DR
-[1-3 lines: what this does and why. If this alone covers it, later sections can be short or skipped.]
+[TICKET](jira-url) · [related links, if any]
 
 ## Context
-[Why this change exists, if it needs more than the TL;DR already gave. Skip this section
-if the TL;DR already covers it — don't restate the same thing twice.]
+[1-3 lines: the problem or need behind the change, and why it is solved this way.
+The one section that is always there.]
 
-## Changes made
-[One line per behavior change. "The X flow now does Y when Z" — not a walkthrough of the diff.]
+## What changes
+[What a user or the next team will notice, in plain words. Four bullets at most.
+Leave it out when the context already says it.]
 
-### Technical decisions
-[Omit this section entirely if every choice was obvious. Include only the *design* decisions
-a reviewer would otherwise question — why this approach, what trade-off was made. Never use
-this section to narrate process: how a merge conflict was resolved, which side of a diff was
-kept, how a bug was tracked down. That belongs in the commit message or nowhere, not here —
-a reviewer evaluating this MR's design doesn't need the story of how you produced the diff.]
-
-### Infrastructure
-[Omit this section entirely if none apply. Only include the items that are actually true:
-new env vars, migrations, feature flags — don't list an unchecked box for something that didn't happen.]
-
-## Testing
-[What was tested and how, briefly. Mention covered edge cases only if non-obvious.]
+## Worth knowing
+[Only what the reviewer cannot see in the diff and needs to know: a decision they would
+question, a migration or env var, a merge order, a flag that hides the work, a check CI
+does not run. Leave it out when there is nothing to warn about.]
 ```
 
 ## Step 3 — Show and adjust
