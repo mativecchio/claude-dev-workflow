@@ -321,6 +321,61 @@ eq "the destination adopted the ticket" "MA-100" "$(jq -r .activeTicket "$SB/../
 eq "the origin dropped its pointer" "" "$(jq -r '.activeTicket // empty' .claude/workflow/state.json)"
 rm -rf "$SB/../sibling"
 
+echo "═══ wf-clip ═══"
+cat > clip.md << 'EOF'
+## Ticket title
+
+### Section
+Two lines with `a <b>`, **bold**, *italic*, snake_case and
+a [link](https://x.y/?a=1&b=2), plus https://x.y/z.
+
+- [ ] open task
+- [x] done task
+- parent
+  - child
+    continued
+
+1. first
+
+```json
+{ "k": 1 }
+```
+
+| A | B |
+|---|---|
+| `c` | d |
+EOF
+HTML="$(bash "$S/wf-clip.sh" --html clip.md 2>/dev/null)"
+has "headings become h tags"         "<h2>Ticket title</h2>" "$HTML"
+has "lines join into one paragraph"  "snake_case and a <a" "$HTML"
+has "code spans are escaped"         "<code>a &lt;b&gt;</code>" "$HTML"
+has "bold and italic"                "<strong>bold</strong>, <em>italic</em>" "$HTML"
+has "links keep their query string"  'href="https://x.y/?a=1&amp;b=2">link</a>' "$HTML"
+has "bare URLs are linked"           '<a href="https://x.y/z">https://x.y/z</a>.' "$HTML"
+has "task boxes"                     "☐ open task" "$HTML"
+has "checked task boxes"             "☑ done task" "$HTML"
+has "nested list with continuation"  "child continued" "$HTML"
+has "ordered list"                   "<ol><li>" "$HTML"
+has "fenced code block"              '<pre><code>{ "k": 1 }</code></pre>' "$HTML"
+has "table header"                   "<th>A</th><th>B</th>" "$HTML"
+has "table cell keeps inline code"   "<td><code>c</code></td>" "$HTML"
+eq  "lists are balanced" "$(printf '%s' "$HTML" | grep -o '<ul>' | wc -l)" "$(printf '%s' "$HTML" | grep -o '</ul>' | wc -l)"
+TITLE="$(bash "$S/wf-clip.sh" --html --drop-title clip.md 2>&1 >/dev/null)"
+HTML="$(bash "$S/wf-clip.sh" --html --drop-title clip.md 2>/dev/null)"
+has "--drop-title reports the title" "Ticket title" "$TITLE"
+eq  "--drop-title leaves it out"     "" "$(printf '%s' "$HTML" | grep -o '<h2>')"
+eq  "stdin works" "<p>hi</p>" "$(printf 'hi\n' | bash "$S/wf-clip.sh" --html - | sed 's/<meta charset="utf-8">//')"
+bash "$S/wf-clip.sh" --html missing.md >/dev/null 2>&1
+eq  "a missing file exits 1" "1" "$?"
+OUT="$(env -u WAYLAND_DISPLAY -u DISPLAY PATH=/usr/bin:/bin bash "$S/wf-clip.sh" clip.md 2>&1)"; RC=$?
+if command -v pbcopy >/dev/null 2>&1; then
+  ok "no clipboard check skipped (pbcopy present)"
+else
+  eq  "no clipboard tool exits 1" "1" "$RC"
+  has "it suggests --html" "\-\-html" "$OUT"
+fi
+rm -f clip.md
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json

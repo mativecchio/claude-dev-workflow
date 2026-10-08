@@ -329,6 +329,18 @@ Then respect it:
 - A per-test timeout firing under parallel load is a **resource** symptom, not a
   broken test. Re-run that file on its own before treating it as a real failure.
 
+### Pasting Markdown into Jira and other editors
+Jira, Confluence, Google Docs and Slack keep pasted Markdown as literal text. When the
+user has to paste a ticket, comment or document by hand, write it to a `.md` file and
+copy it as rich text:
+
+```
+~/.claude/scripts/wf-clip.sh FILE                # whole file
+~/.claude/scripts/wf-clip.sh --drop-title FILE   # without its first heading (Jira Summary)
+```
+
+The user then pastes with a plain Ctrl+V.
+
 ### Improving the system
 The source repo (`repo_path` in `~/.claude/workflow/config.json`) is the source of truth.
 Never edit `~/.claude/commands/` directly — it's lost on the next install.

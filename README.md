@@ -329,7 +329,7 @@ claude-workflow/
 │   ├── python/         ← python-architect
 │   ├── laravel/        ← laravel-architect
 │   └── shared/         ← typescript-architect, backend-api
-├── scripts/            ← wf-lib, wf-diff, wf-checks, wf-event, wf-stats
+├── scripts/            ← wf-lib, wf-diff, wf-checks, wf-event, wf-stats, wf-resources, wf-clip
 ├── tests/
 │   ├── test-install.sh ← validates install.sh against a sandbox HOME
 │   ├── test-scripts.sh ← validates the scripts and the gate against a temp repo

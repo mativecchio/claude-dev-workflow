@@ -83,3 +83,11 @@ Show the generated ticket and ask:
 **"Do you want to adjust anything?"**
 
 If the user confirms, ask whether they want the ticket updated in Jira via MCP (if it's available).
+
+Without an MCP, the user pastes the ticket into Jira by hand, and Jira's editor keeps pasted Markdown as literal text. Save the ticket to a `.md` file (in the scratchpad when there is one) and copy it as rich text, leaving the title out because it goes in the Summary field:
+
+```
+~/.claude/scripts/wf-clip.sh --drop-title <file.md>
+```
+
+Tell the user to paste the title in **Summary** and the body in **Description** with a plain Ctrl+V; Ctrl+Shift+V pastes it as plain text. The clipboard is overwritten by the next copy, so the title goes first. If the script reports that no clipboard tool is available, pass on the package it names.
