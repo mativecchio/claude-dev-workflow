@@ -25,6 +25,11 @@ Read the following files (they'll be part of the Agent's prompt):
 - `.claude/workflow/config.json` → stack, related projects, DoD
 - `CLAUDE.md` or `README.md` → project summary
 - The project's top-level structure (a quick `ls`)
+- `~/.claude/workflow/guides/responsibilities.md` → the design checks `R1`–`R7` the plan is built
+  with, and the placement map they fall back on
+- The repo's placement rules, if it has them: the architecture guidelines and ADRs that say where
+  utils, hooks, components and adapters live (follow `CLAUDE.md`/`AGENTS.md` pointers to the file
+  that holds them)
 
 If `refinement-summary.md` doesn't exist, ask the user for a description of the task before continuing.
 
@@ -51,6 +56,8 @@ You are a senior engineer doing the technical analysis to implement the followin
 **Project stack:** [stack from the config]
 **Working directory:** [cwd]
 **Project summary:** [contents of CLAUDE.md/README.md]
+**Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
+**Placement rules of this repo:** [rule, one line — source path#section; or "none written"]
 
 ## Your analysis process
 
@@ -68,6 +75,19 @@ Identify which files/modules need to be touched in each layer:
 
 ### 3. Design the solution
 Base it on the codebase's existing patterns (don't invent new conventions).
+
+Then assign responsibilities with the guide's checks, before any file list is final:
+- **Approach (R7):** state the approach in one line and the alternative you considered, with why
+  you did not take it.
+- **Per new or changed file (R1, R2):** its one responsibility. If a file would hold I/O, domain rules
+  and parsing together, split it now. Keep the rules pure and the effects at the edges, so the rules
+  can be tested without storage, network or a render.
+- **Per new function (R3):** where it goes, by what it depends on, following the repo's placement
+  rules first. Check the shared folders for an existing helper before adding one.
+- **Per new hook or component (R4, R5):** its inputs. More than ~7, or callbacks of another unit, means
+  it is driving that unit from outside: return data instead and let the owner apply it. A programmatic
+  path (fill a form from data, restore state) does not go through the UI's event handlers.
+- **Variants (R6):** a new variant of an existing piece extends it instead of copying it.
 
 ### 4. Identify risks
 - Breaking changes to contracts
@@ -102,6 +122,14 @@ Write TWO files in `{workflowDir}/`:
 ## Files to modify/create
 | File | Change | Reason |
 |---|---|---|
+
+## Responsibilities
+Approach: [one line] — alternative considered: [one line, and why not]
+
+| File | Its one responsibility | New functions / hooks it holds | Why here (R3 or the repo rule, path#section) |
+|---|---|---|---|
+
+[hooks and components: their inputs, when there are more than a few]
 
 ## API contract (if applicable)
 [endpoint, method, request/response]

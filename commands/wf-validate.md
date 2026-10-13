@@ -153,7 +153,14 @@ You are a senior engineer doing a quality review on freshly implemented code. It
 **🏛️ Architecture:**
 - Does the code follow the project's patterns (sister feature)?
 - Were existing helpers used instead of reimplementing?
-- Is the separation of concerns correct?
+- **Responsibilities** — apply `R1`–`R7` of the guide below to every new or grown file of the diff,
+  whether or not a written rule covers them: one responsibility per file, rules apart from effects,
+  every function in its place, narrow interfaces, programmatic paths that skip UI handlers, variants
+  that extend instead of copying, the simplest approach. Check the code against the plan's
+  *Responsibilities* table too: a function placed elsewhere than the table says, without a recorded
+  deviation, is a finding.
+
+**Responsibilities guide** (only when Architecture is active): [contents of ~/.claude/workflow/guides/responsibilities.md]
 
 **🧪 Tests:**
 - Are the happy paths covered?

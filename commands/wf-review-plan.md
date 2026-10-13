@@ -54,8 +54,26 @@ You are a senior engineer reviewing an implementation plan before development st
 [contents of refinement-summary.md]
 
 **Stack:** [stack from the config]
+**Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
+**Placement rules of this repo:** [rule, one line — source path#section; or "none written"]
 
 ## What to verify
+
+### Responsibilities (R1–R7 of the guide, written rule or not)
+- Does the plan have a *Responsibilities* section? A plan that creates files or functions and has no
+  section is an Important finding: nobody decided where the code goes.
+- For each file in the table: does it have one responsibility (R1)? Would it end up mixing I/O, domain
+  rules and parsing? Are the rules kept pure, so they can be tested without storage, network or a
+  render (R2)?
+- For each new function: is the place the plan gives it the one R3 or the repo's placement rules
+  give? Open the shared folders the rules name and check whether a helper already does it.
+- For each new hook or component: how many inputs, and are any of them another unit's callbacks (R4)?
+  Does a programmatic path go through UI event handlers (R5)? Does a new variant copy an existing
+  piece instead of extending it (R6)?
+- Is the approach the simplest one, and does the plan name the alternative it rejected (R7)?
+
+Every finding cites the check (`R1`…`R7`) or the repo rule (`path#section`), and the file or function
+of the plan it is about.
 
 ### Consistency with the codebase
 - Do the mentioned files exist?

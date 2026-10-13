@@ -72,6 +72,15 @@ if [ "${1:-}" = "--check" ]; then
     fi
   done
 
+  for g in "$REPO_DIR/guides/"*.md; do
+    [ -e "$g" ] || continue
+    b="$(basename "$g")"
+    if [ ! -f "$WORKFLOW_DIR/guides/$b" ] || ! diff -q "$g" "$WORKFLOW_DIR/guides/$b" >/dev/null 2>&1; then
+      echo "  ✗ guide differs or is missing: $b"
+      DIVERGENCES=$((DIVERGENCES + 1))
+    fi
+  done
+
   # Version state. The file comparison above answers "is what I edited
   # installed?"; this answers "is what I have the newest there is?" — a repo
   # that was never pulled looks perfectly in sync to every check above.
@@ -137,6 +146,13 @@ mkdir -p "$SCRIPTS_DIR"
 cp "$REPO_DIR/scripts/"*.sh "$SCRIPTS_DIR/"
 chmod +x "$SCRIPTS_DIR/"*.sh
 echo "  ✓ $(ls "$REPO_DIR/scripts/"*.sh | wc -l | tr -d ' ') scripts installed in $SCRIPTS_DIR"
+
+# Copy guides: checklists several commands read at a fixed path, so one rule
+# lives in one file instead of being copied into each command's prompt.
+echo "→ Copying guides..."
+mkdir -p "$WORKFLOW_DIR/guides"
+cp "$REPO_DIR/guides/"*.md "$WORKFLOW_DIR/guides/"
+echo "  ✓ $(ls "$REPO_DIR/guides/"*.md | wc -l | tr -d ' ') guides installed in $WORKFLOW_DIR/guides"
 
 # Copy agents
 echo "→ Copying agents..."

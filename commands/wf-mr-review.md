@@ -226,6 +226,8 @@ Read:
 - `{workflowDir}/refinement-summary.md` → acceptance criteria
 - `CLAUDE.md` or `README.md` → stack and conventions
 - `.claude/workflow/config.json` → the project's stack
+- `~/.claude/workflow/guides/responsibilities.md` → the design checks `R1`–`R7` the Agent applies to
+  every new or grown file (Step 3, section 2a), whether or not the repo writes them down
 
 ## Step 2.1 — Architecture and scaffolding rules
 
@@ -330,6 +332,7 @@ Two reviewers exist because they cover different things, not because two passes 
 | `related_projects` contracts against the other repo's real source | can't | ✅ |
 | Project conventions, sister feature, existing helpers | can't | ✅ |
 | Architecture and scaffolding rules from Step 2.1 (layers, folders, naming, reuse first, ADRs) | can't — doesn't read them | ✅ |
+| Responsibilities `R1`–`R7`: approach, one responsibility per file, rules apart from effects, where each function lives, interfaces, written rule or not | only local simplification, one hunk at a time | ✅ |
 | Recorded tech debt and deviations from the plan | can't | ✅ |
 
 Each one catches findings the other structurally cannot. Running both is right for a diff with new
@@ -341,11 +344,11 @@ logic. Running both on *every* diff is not.
 - **Pure structural change** — verified move, rename, extraction with no behaviour delta and no test
   edits → **Agent only**. There is no new logic for a generic reviewer to find bugs in.
 - **No `plan.md` / no `refinement-summary.md`** (a retroactive ticket, an ad-hoc MR, a teammate's
-  MR) → **both, with a narrower Agent**. With no plan, the Agent's scope is the Step 2.1 rules, plus
-  design fidelity when Step 2.2 produced a design reference. Those are the things it can still
-  contrast the diff against. It skips the plan and acceptance-criteria checks and says so. Only when
-  Step 2.1 found no written rules *and* there is no design reference does the review run
-  `/code-review` alone.
+  MR) → **both, with a narrower Agent**. With no plan, the Agent's scope is the responsibilities pass
+  (section 2a), the Step 2.1 rules, and design fidelity when Step 2.2 produced a design reference.
+  Those are the things it can still contrast the diff against. It skips the plan and
+  acceptance-criteria checks and says so. The Agent always runs on a code diff with new or grown
+  files: the responsibilities pass does not depend on the repo having written rules.
 - MR focused on security → add `/security-review`.
 - **Spec mode** (Step 1d) → **Agent only**, with the spec checklist. `/code-review` does not run,
   because there is no code for it to find bugs in. The output says so.
@@ -456,6 +459,7 @@ line-by-line review below has its full scope):
 - [rule, one line] — source: [path#section]
 - [global folders that "reuse first" points to, with the helpers already there that the diff's area may need]
 [or: "No written architecture rules found; checked <paths>"]
+**Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
 
 **Review mode** (Step 1d): [code / spec / mixed, and why; for mixed, which files are on each side]
 **Related MRs in flight** (Step 2.6; omit in code mode): [each MR with its title, branch, head SHA,
@@ -468,8 +472,36 @@ target branch, and the files it shares with this one]
 
 ### 1. Context first (before reviewing line by line)
 - What does this MR solve?
-- Does the chosen solution make sense architecturally?
+- Does the chosen solution make sense architecturally? Section 2a answers it in detail.
 - Are there unaccounted-for side effects?
+
+### 2a. Responsibilities (code mode, and the code files of a mixed MR — always)
+This pass is the core of the review and runs **whether or not the repo has a written rule**. It is
+not covered by `/code-review`, which reads hunk by hunk for bugs and local simplification and never
+asks whether a file, a function or an approach is in the right shape. Apply `R1`–`R7` of the
+responsibilities guide:
+
+1. **List every new file and every file the diff grows by a meaningful amount.** For each, write its
+   responsibility in one line. When you cannot do it without "and", list the clusters of functions
+   with their line ranges (`R1`). Give the production size, and the size of its test file when it is
+   several times larger.
+2. **Separate rules from effects (`R2`).** For each cluster of rules, say whether it can run without
+   storage, network or a render. If it cannot, say where the effect is mixed in.
+3. **Place every new function (`R3`).** Read the repo's placement rules (Step 2.1) first; otherwise use
+   the guide's map. Report each function that sits elsewhere, with where it belongs and the evidence:
+   the rule (`path#section`) or the existing file of that kind beside it (a page `utils.ts` that
+   already exists, a shared folder with similar helpers). Check whether the shared folders already
+   hold a helper that does it.
+4. **Count the inputs of every new or changed hook, function and component (`R4`),** and flag the
+   ones that take another unit's callbacks. Say which unit they are driving from outside.
+5. **Look for programmatic paths through UI handlers (`R5`)** and copies of an existing piece (`R6`).
+6. **Judge the approach (`R7`).** Name the simpler alternative when there is one, and say which of the
+   other findings, yours or `/code-review`'s, it would remove.
+
+Report each result as a finding with its weight (the guide's *Weight and grouping*). When several
+findings, including `/code-review`'s, come from one design cause, report the cause once and list the
+others under it as consequences. Also fill the *Responsibilities* table of the output, with a row
+for every file in step 1, including the ones that are fine, so the reader sees the pass was done.
 
 ### 2. Line-by-line review
 **In spec mode, skip this section and use 2b. In mixed mode, apply it to the code files only.**
@@ -499,9 +531,8 @@ Evaluate in order of importance:
   reverse), does the change go against an ADR. For "reuse first", open the global folders the rules
   name and check whether a hook, util or component already does what the diff adds. Report it only
   with the path of the existing piece. **Every finding cites the rule it breaks** (`path#section`).
-  With no written rule, a structural remark goes to *Suggestions* as consistency with the sibling
-  code, citing the sibling files, never as a rule. Generic simplification without a rule behind it
-  belongs to `/code-review`, not here.
+  A structural problem with no written rule behind it is not dropped and not demoted: it belongs to
+  section 2a, citing `R1`–`R7`.
 - **Design fidelity** — only when a design reference was provided. Compare against it, not against
   your taste: missing or extra pieces, copy that differs, spacing/typography/colour that does not map
   to the design's variables, a breakpoint the design does not have. Cite the frame or the Design
@@ -566,6 +597,17 @@ real repo.
 [architecture: the rule files checked (Step 2.1), or "no written rules found; checked <paths>"]
 [mode: code / spec / mixed, and why (Step 1d); for spec and mixed, the related MRs checked (Step 2.6)]
 
+### 🧩 Responsibilities
+[omit only in spec mode]
+Approach: [one line] — [holds / simpler alternative: one line]
+
+| File | Lines (prod / test) | Responsibility | Verdict |
+|---|---|---|---|
+| [path] | [N / N] | [one line, or the clusters it mixes] | [ok / R1… — see finding] |
+
+[the findings of this pass go in Critical / Important / Suggestions below, tagged `(responsibilities)`;
+consequences of one design cause are listed under that finding, not as separate items]
+
 ### 🔴 Critical (blocking)
 - **[file:line]** — [problem] → [required correction]
 
@@ -606,6 +648,16 @@ Read the agent's output and present it to the user, together with `/code-review`
 one review. Each point appears once. A `/code-review` finding listed under *Rules behind /code-review
 findings* is shown a single time, with the rule appended (`— breaks path#section`). That section
 does not appear on its own.
+
+Show the *Responsibilities* pass right after the executive summary, before the other findings, and
+lead with the root design finding when there is one: it is what the user reads the review for.
+A `/code-review` finding that is a consequence of that root is shown under it, not as its own item.
+
+**Why:** on booking-center-app !505 and !507 (BC-1484) the review reported a 526-line util that mixed
+storage, domain rules and validation, and page helpers declared inside a 21-parameter hook, as nothing
+at all, because no written rule named them. Most of `/code-review`'s findings on !507 came from that
+one design choice, and were listed as unrelated bugs. The user's question was whether the review
+looks at where each function lives at all.
 
 If there are 🔴 Critical findings, ask: **"Do you want me to tackle any of these items now with `/wf-implement`?"**
 
@@ -650,7 +702,11 @@ draft comments?"** On yes:
   **Why:** the author got the same request twice — inline, and again as the question in the general
   draft — and had to answer it in two places.
 - Write them in the language the MR itself is written in, not the session's `lang`. Prefix each
-  inline one with its weight (**Important** / **Suggestion** / **Nit**).
+  inline one with its weight (**Important** / **Suggestion** / **Nit**). A finding of the
+  responsibilities pass adds the kind after the weight, in the MR's language (`**Important**
+  (responsabilidades)`), and is anchored to the first line of the function or cluster it is about.
+  Drafts for its consequences say so in one line and link to the root draft's line, so the author
+  can fix the cause once.
 - **Propose, never impose.** Every draft, whatever its weight, opens a conversation with the author.
   It does not hand down a verdict.
   - First describe what you saw and what it causes, concretely, with the evidence (`file:line`,

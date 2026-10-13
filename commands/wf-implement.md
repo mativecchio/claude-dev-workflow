@@ -70,6 +70,8 @@ Read:
 - `{workflowDir}/plan.md` → what to change and in what order
 - `{workflowDir}/review-findings.md` → required adjustments to the plan
 - `.claude/workflow/config.json` → DoD and stack
+- `~/.claude/workflow/guides/responsibilities.md` → the checks `R1`–`R7` the plan's
+  *Responsibilities* section was built with
 
 If `plan.md` doesn't exist, tell the user to run `/wf-analyze` and `/wf-review-plan` first.
 
@@ -109,6 +111,14 @@ Ask: "Shall I continue?" — only if the user configured detailed checkpoints or
 - Respect: naming, import structure, error handling style, i18n if applicable
 - If you spot an existing helper the plan didn't account for → use it and document the deviation
 - If a necessary change wasn't accounted for in the plan → report it before making it
+- Place every new function where the plan's *Responsibilities* table says. A function the table does
+  not list goes where `R3` of the guide (or the repo's placement rules) puts it: a pure helper is
+  never declared at the top of a hook or component file.
+- **Stop the group and report it as a deviation, before going on,** when a file you are writing
+  crosses ~300 lines of production code or takes on a second responsibility (`R1`), when the rules
+  you are writing need storage, network or a render to run (`R2`), or when a hook or component grows
+  past ~7 inputs or starts taking another unit's callbacks (`R4`). Propose the split; the user
+  decides. These are the points where a design goes wrong without anyone choosing it.
 
 ## Step 3.5 — Heuristic: test-first for validation guards
 
