@@ -119,6 +119,28 @@ jq '.approved=true' .claude/workflow/MA-100/state.json > t && mv t .claude/workf
 eq "approved lets it through"            "0" "$(gate Edit "$SB/src/a.js" enforce)"
 
 jq '.approved=false | .stage="implement"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
+rm -f .claude/workflow/MA-100/plan.md
+eq "implement without a plan: no block"  "0" "$(gate Edit "$SB/src/a.js" enforce)"
+
+printf '# Plan\n\n## Files to modify/create\n| File | Change | Reason |\n|---|---|---|\n| src/a.js | new | x |\n\n## Suggested implementation order\n1. a\n' \
+  > .claude/workflow/MA-100/plan.md
+eq "implement, files but no Responsibilities: blocks" "2" "$(gate Edit "$SB/src/a.js" enforce)"
+eq "implement, no Responsibilities, observe: passes"  "0" "$(gate Edit "$SB/src/a.js" observe)"
+eq "implement, no Responsibilities: plan.md editable"  "0" "$(gate Edit "$SB/.claude/workflow/MA-100/plan.md" enforce)"
+eq "the would-block event names its reason" "1" \
+   "$(grep -c '"event":"gate_would_block".*"reason":"no-responsibilities"' "$SB/.claude/workflow/events.jsonl")"
+
+printf '\n## Responsibilities\nApproach: x\n\n| File | Its one responsibility | New functions / hooks it holds | Why here |\n|---|---|---|---|\n' \
+  >> .claude/workflow/MA-100/plan.md
+eq "an empty Responsibilities table still blocks" "2" "$(gate Edit "$SB/src/a.js" enforce)"
+printf '| src/a.js | storage of the tab state | readA | R3 |\n' >> .claude/workflow/MA-100/plan.md
+eq "a filled Responsibilities table lets it through" "0" "$(gate Edit "$SB/src/a.js" enforce)"
+
+printf '# Plan\n\n## Files to modify/create\n| File | Change | Reason |\n|---|---|---|\n' > .claude/workflow/MA-100/plan.md
+eq "a plan with no files to place: no block" "0" "$(gate Edit "$SB/src/a.js" enforce)"
+rm -f .claude/workflow/MA-100/plan.md
+
+jq '.stage="test"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
 eq "other stages do not block"           "0" "$(gate Edit "$SB/src/a.js" enforce)"
 
 jq '.stage="review-plan"' .claude/workflow/MA-100/state.json > t && mv t .claude/workflow/MA-100/state.json
