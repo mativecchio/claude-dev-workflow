@@ -72,6 +72,6 @@ that choice is the finding.
 |---|---|
 | `/wf-analyze` | `plan.md` gets a *Responsibilities* table: for each new or changed file, its one responsibility, and for each new function, where it goes and why (R3). Hooks and components list their inputs (R4). The approach names the alternative considered (R7). |
 | `/wf-review-plan` | Verifies the table against R1–R7 and the repo's placement rules. A plan with new files and no table is an Important finding. |
-| `/wf-implement` | Places every new function as the table says. A file that crosses ~300 lines or takes on a second responsibility, or a hook that grows past ~7 inputs, stops the group and is reported as a deviation before going on. |
+| `/wf-implement` | Places every new function as the table says. A file that crosses ~300 lines or takes on a second responsibility, or a hook that grows past ~7 inputs, stops the group and is reported as a deviation before going on. Two hooks hold it when the instruction is forgotten: `wf-gate.sh` stops code edits while the plan has no *Responsibilities* table, and `wf-shape.sh` tells the agent the moment a production file crosses the limit (`max_file_lines` in the project config, 300 by default). |
 | `/wf-validate` | The Architecture validator applies R1–R7 to the diff. |
 | `/wf-mr-review` | The Agent runs a *Responsibilities* pass on every new or grown file, written rule or not, as its own output section. |

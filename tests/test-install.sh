@@ -25,6 +25,7 @@ check "improvements.md created"          "[ -s $C/workflow/improvements.md ]"
 check "repo_path written"                "[ \"\$(jq -r .repo_path $C/workflow/config.json)\" = \"$REPO\" ]"
 check "telemetry hook copied"            "[ -x $C/hooks/wf-telemetry.sh ]"
 check "hooks registered in settings"     "[ \$(jq '[.hooks[][].hooks[].command] | map(select(contains(\"wf-telemetry\"))) | length' $C/settings.json) -eq 4 ]"
+check "wf-shape registered on PostToolUse" "[ \$(jq '[.hooks.PostToolUse[].hooks[].command] | map(select(contains(\"wf-shape\"))) | length' $C/settings.json) -eq 1 ]"
 check "CLAUDE.md lists wf-deploy"        "grep -q 'wf-deploy' $C/CLAUDE.md"
 check "CLAUDE.md lists wf-init"          "grep -q 'wf-init' $C/CLAUDE.md"
 

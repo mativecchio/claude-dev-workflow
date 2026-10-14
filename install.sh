@@ -226,8 +226,8 @@ fi
 # --- Telemetry (docs/brainstorm-metrics-and-complexity.md §3.2) --------------
 echo "→ Installing hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-shape.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-shape.sh"
 # 0.5.1 shipped a SessionStart hook for the update notice. It fired, but its
 # stdout never reached the terminal, so the notice moved into wf-lib.sh
 # `context`. Remove the leftover from any machine that installed that version.
@@ -244,7 +244,7 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" '
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg s "$HOOKS_DIR/wf-shape.sh" '
       def strip($needle):
         map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
@@ -253,7 +253,8 @@ else
 
       .hooks                    //= {}
       | .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit |= (strip("wf-telemetry.sh") | add($h + " prompt"))
-      | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip("wf-telemetry.sh") | add($h + " tool"))
+      | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip("wf-telemetry.sh") | add($h + " tool")
+                                                                 | strip("wf-shape.sh")     | add($s))
       | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop"))
       | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end"))
       | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))

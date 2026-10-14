@@ -152,6 +152,50 @@ eq "project without a workflow: stays out" "0" \
    "$(echo "{\"tool_name\":\"Edit\",\"cwd\":\"$NOWF\",\"tool_input\":{\"file_path\":\"$NOWF/x.js\"}}" | \
       WF_GATE=enforce bash "$G" >/dev/null 2>&1; echo $?)"
 
+echo "═══ wf-shape ═══"
+H="$REPO/hooks/wf-shape.sh"
+shape() { echo "{\"tool_name\":\"${3:-Edit}\",\"cwd\":\"$SB\",\"tool_input\":{\"file_path\":\"$1\"}}" | \
+          HOME="$SB" WF_SHAPE="${2:-on}" bash "$H" >/dev/null 2>&1; echo $?; }
+lines() { seq 1 "$2" > "$1"; }
+
+lines src/grow.js 10; git add src/grow.js >/dev/null; git commit -qm grow
+lines src/grow.js 300
+eq "at the limit: silent"                      "0" "$(shape "$SB/src/grow.js")"
+lines src/grow.js 301
+eq "crossing the limit: speaks"                "2" "$(shape "$SB/src/grow.js")"
+eq "the warning is recorded as an event"       "1" "$(grep -c '"event":"shape_warning".*"file":"src/grow.js"' "$SB/.claude/workflow/events.jsonl")"
+lines src/grow.js 330
+eq "growing a little more: silent"             "0" "$(shape "$SB/src/grow.js")"
+lines src/grow.js 351
+eq "another step past the warning: speaks"     "2" "$(shape "$SB/src/grow.js")"
+
+lines src/legacy.js 400; git add src/legacy.js >/dev/null; git commit -qm legacy
+lines src/legacy.js 420
+eq "big at HEAD, small growth: silent"         "0" "$(shape "$SB/src/legacy.js")"
+lines src/legacy.js 450
+eq "big at HEAD, grows a step: speaks"         "2" "$(shape "$SB/src/legacy.js")"
+
+mkdir -p src/tests; lines src/tests/huge.test.js 900
+eq "tests are not production"                  "0" "$(shape "$SB/src/tests/huge.test.js")"
+lines src/notes.md 900
+eq "non-code files are ignored"                "0" "$(shape "$SB/src/notes.md")"
+lines src/new.ts 500
+eq "WF_SHAPE=off stays quiet"                  "0" "$(shape "$SB/src/new.ts" off)"
+eq "a new file over the limit speaks"          "2" "$(shape "$SB/src/new.ts")"
+eq "Read is not its business"                  "0" "$(shape "$SB/src/new.ts" on Read)"
+
+jq '.max_file_lines=1000' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+lines src/configured.ts 600
+eq "the project's max_file_lines wins"         "0" "$(shape "$SB/src/configured.ts")"
+jq 'del(.max_file_lines)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+
+NOWF2="$(mktemp -d)"; git -C "$NOWF2" init -q .; seq 1 900 > "$NOWF2/x.js"
+eq "project without a workflow: stays out"     "0" \
+   "$(echo "{\"tool_name\":\"Edit\",\"cwd\":\"$NOWF2\",\"tool_input\":{\"file_path\":\"$NOWF2/x.js\"}}" | \
+      HOME="$SB" bash "$H" >/dev/null 2>&1; echo $?)"
+rm -rf "$NOWF2" src/grow.js src/legacy.js src/tests src/notes.md src/new.ts src/configured.ts
+git rm -q --cached src/grow.js src/legacy.js >/dev/null 2>&1; git commit -qm "drop shape fixtures" >/dev/null 2>&1
+
 echo "═══ model selection ═══"
 # The gate section deliberately left a corrupt state behind; restore it so
 # enter-stage can write (it correctly refuses to touch unparseable JSON).
