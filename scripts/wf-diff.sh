@@ -26,6 +26,9 @@
 #   wf-diff.sh --log        the branch's commits
 #   wf-diff.sh --base       prints the base ref used, the merge-base and the range
 #   wf-diff.sh --weight     production and test weight (brainstorm §6)
+#   wf-diff.sh --size       the weight against the MR size limit: production lines
+#                           and files vs `mr_size` in config.json (400 lines, 10
+#                           files by default). Exit 3 when over, 0 otherwise.
 #
 # Optional: --branch <branch> to diff another branch instead of HEAD.
 # Optional: --fetch  refresh origin/<base> before resolving. Only updates the
@@ -112,17 +115,19 @@ case "$MODE" in
     if [ -n "$RANGE" ]; then git log --oneline "$RANGE"; else echo "(no commits on top of $BASE)"; fi ;;
   --base)
     printf 'base=%s\nbase_ref=%s\nmerge_base=%s\nrange=%s\n' "$BASE" "$BASE_REF" "${MB:-none}" "${RANGE:-working-tree}" ;;
-  --weight)
+  --weight|--size)
     # Review weight, not raw lines: renames and whitespace don't count, and
-    # tests are counted separately so good coverage isn't penalized.
+    # tests are counted separately so good coverage isn't penalized. Fixtures
+    # and stories go with the tests; translations and generated files are left
+    # out, since nobody reviews them line by line.
     EXCL="$(wf_config '.weight_exclude[]?' 2>/dev/null)"
-    [ -n "$EXCL" ] || EXCL=$'*.lock\npackage-lock.json\nyarn.lock\npnpm-lock.yaml\n*.snap\ndist/*\nbuild/*\n*.generated.*'
+    [ -n "$EXCL" ] || EXCL=$'*.lock\npackage-lock.json\nyarn.lock\npnpm-lock.yaml\n*.snap\ndist/*\nbuild/*\n*.generated.*\n*/locales/*\n*/locale/*\n*.po\n*.mo'
     STATS="$(if [ -n "$RANGE" ]; then
                git diff --ignore-all-space --find-renames --numstat "$RANGE"
              else
                git diff --ignore-all-space --find-renames --numstat HEAD
              fi)"
-    prod=0; tests=0
+    prod=0; tests=0; prod_files=0
     while IFS=$'\t' read -r add del path; do
       [ -n "$path" ] || continue
       skip=0
@@ -134,12 +139,25 @@ case "$MODE" in
       [ "$skip" -eq 1 ] && continue
       [ "$add" = "-" ] && continue          # binary
       case "$path" in
-        *test*|*spec*|*__tests__*) tests=$((tests + add + del)) ;;
-        *)                         prod=$((prod + add + del)) ;;
+        *test*|*spec*|*__tests__*|*fixtures*|*.stories.*) tests=$((tests + add + del)) ;;
+        *) prod=$((prod + add + del)); prod_files=$((prod_files + 1)) ;;
       esac
     done <<< "$STATS"
-    printf 'weight_prod=%s\nweight_tests=%s\n' "$prod" "$tests" ;;
+    if [ "$MODE" = "--weight" ]; then
+      printf 'weight_prod=%s\nweight_tests=%s\n' "$prod" "$tests"
+      exit 0
+    fi
+    # The size a reviewer can hold in their head. Over it, the MR is split or
+    # carries the reason it cannot be (guides/responsibilities.md, /wf-deploy).
+    max_lines="$(wf_config '.mr_size.max_prod_lines // empty' 2>/dev/null)"; max_lines="${max_lines:-400}"
+    max_files="$(wf_config '.mr_size.max_prod_files // empty' 2>/dev/null)"; max_files="${max_files:-10}"
+    over=false
+    { [ "$prod" -gt "$max_lines" ] || [ "$prod_files" -gt "$max_files" ]; } && over=true
+    printf 'weight_prod=%s\nfiles_prod=%s\nweight_tests=%s\nmax_prod_lines=%s\nmax_prod_files=%s\nover=%s\n' \
+      "$prod" "$prod_files" "$tests" "$max_lines" "$max_files" "$over"
+    [ "$over" = "true" ] && exit 3
+    exit 0 ;;
   *)
-    echo "usage: wf-diff.sh [--full|--stat|--files|--log|--base|--weight] [--branch <branch>] [--fetch]" >&2
+    echo "usage: wf-diff.sh [--full|--stat|--files|--log|--base|--weight|--size] [--branch <branch>] [--fetch]" >&2
     exit 1 ;;
 esac

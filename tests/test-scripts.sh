@@ -89,6 +89,31 @@ W="$(bash "$S/wf-diff.sh" --weight)"
 has "separates test weight" "weight_tests=1" "$W"
 has "production weight kept apart" "weight_prod=" "$W"
 
+Z="$(bash "$S/wf-diff.sh" --size 2>/dev/null)"; ZX=$?
+P0="$(printf '%s\n' "$Z" | sed -n 's/^weight_prod=//p')"
+F0="$(printf '%s\n' "$Z" | sed -n 's/^files_prod=//p')"
+T0="$(printf '%s\n' "$Z" | sed -n 's/^weight_tests=//p')"
+has "--size reports production files" "files_prod=" "$Z"
+has "--size defaults to 400 lines"   "max_prod_lines=400" "$Z"
+eq  "--size under the limit exits 0" "0" "$ZX"
+
+mkdir -p src/locales/es src/fixtures
+seq 1 900 > src/locales/es/translation.json; seq 1 900 > src/fixtures/big.js
+git add -A >/dev/null; git commit -qm "translations and fixtures"
+Z="$(bash "$S/wf-diff.sh" --size 2>/dev/null)"
+eq "translations do not count"          "weight_prod=$P0 files_prod=$F0" \
+   "$(printf '%s\n' "$Z" | grep -E '^(weight_prod|files_prod)=' | paste -sd' ' -)"
+eq "fixtures go with the tests"         "weight_tests=$((T0 + 900))" "$(printf '%s\n' "$Z" | grep '^weight_tests=')"
+
+seq 1 401 > src/big.js; git add -A >/dev/null; git commit -qm "big"
+Z="$(bash "$S/wf-diff.sh" --size)"; ZX=$?
+has "--size reports over" "over=true" "$Z"
+eq  "--size over the limit exits 3" "3" "$ZX"
+jq '.mr_size={"max_prod_lines":1000,"max_prod_files":10}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+bash "$S/wf-diff.sh" --size >/dev/null; eq "the project's mr_size wins" "0" "$?"
+jq 'del(.mr_size)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+git rm -q -r src/big.js src/locales src/fixtures >/dev/null; git commit -qm "drop size fixtures"
+
 echo "═══ wf-checks ═══"
 J="$(bash "$S/wf-checks.sh" --json)"
 eq "detects that checks exist"  "true"  "$(printf '%s' "$J" | jq -r .configured)"

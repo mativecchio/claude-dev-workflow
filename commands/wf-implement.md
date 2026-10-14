@@ -120,6 +120,16 @@ Ask: "Shall I continue?" — only if the user configured detailed checkpoints or
   past ~7 inputs or starts taking another unit's callbacks (`R4`). Propose the split; the user
   decides. These are the points where a design goes wrong without anyone choosing it.
 
+**After each group, measure the MR:** `~/.claude/scripts/wf-diff.sh --size`. Exit `3` means the
+branch is already over the size a reviewer can hold (`mr_size` in `config.json`, 400 production
+lines and 10 production files by default; tests, fixtures and translations do not count). Stop
+before the next group and tell the user: the `weight_prod` and `files_prod` lines, the groups
+still pending, and where the MR could be cut (a group that can ship on its own, an enabling
+change apart from the behaviour that uses it). The user decides whether to split now or carry on
+and give the reason at `/wf-deploy`. Found on booking-center-app !505 and !507: 671 and 452
+production lines, each well past the size its own plan aimed for, and nobody measured it until
+the review.
+
 ## Step 3.5 — Heuristic: test-first for validation guards
 
 If the group you're about to implement adds or modifies a **validation guard** (code that checks whether a value is valid/safe before using it — e.g. `isValidDate`, sanitization, defensive parsing, null/format checks), evaluate these 3 criteria:

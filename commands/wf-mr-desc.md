@@ -22,6 +22,9 @@ Read:
 - `{workflowDir}/plan.md` → technical solution and decisions taken
 - `{workflowDir}/refinement-summary.md` → objective and acceptance criteria
 - `{workflowDir}/review-findings.md` → whether there were significant adjustments to the plan
+- `{workflowDir}/mr-size.md`, if it exists → the MR is over `mr_size` and the user said why it
+  could not be split. That size and that reason go under *Worth knowing*, in one bullet, so the
+  reviewer knows before opening the diff why it is big
 
 ### If `$ARGUMENTS` carries an MR/PR reference, read the real MR first
 
@@ -68,7 +71,7 @@ by pulling the base branch.
 
 Two reasons, and the second matters as much as the first. Writing an MR description from a plan and a diff is bounded work against a fixed template — there is no open-ended judgment, so the strongest model buys nothing. And delegating keeps the plan, the refinement and the full diff out of the session's context window, where they were being loaded for a task that never needed to be there.
 
-Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
+Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, `mr-size.md` when it exists, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
 
 **Principles** (include these in the Agent's prompt):
 - The reader is a reviewer about to open the diff. The description gives them the context and the reason for the change, so the diff makes sense when they get to it. The diff already says how it was done
@@ -98,7 +101,8 @@ Leave it out when the context already says it.]
 ## Worth knowing
 [Only what the reviewer cannot see in the diff and needs to know: a decision they would
 question, as "X, because Y", a migration or env var, a merge order, a flag that hides the work, a check CI
-does not run. Leave it out when there is nothing to warn about.]
+does not run, the size and the reason of an MR over `mr_size` (`mr-size.md`). Leave it out when
+there is nothing to warn about.]
 ```
 
 ## Step 3 — Show and adjust

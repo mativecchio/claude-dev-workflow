@@ -85,6 +85,21 @@ If there are uncommitted changes, show the files and ask: **"Shall we commit? Wh
 
 With the files confirmed, invoke `/wf-commit` to generate the message. Show it and ask for confirmation.
 
+**Before the push that opens the MR, check its size.** Only on the first push of the branch
+(`git ls-remote --exit-code --heads origin <branch>` finds nothing): a later push of review
+fixes never stops for size, because the MR already exists and its size was settled when it was
+opened.
+
+```bash
+~/.claude/scripts/wf-diff.sh --size --fetch    # exit 3 = over mr_size
+```
+
+Over the limit, do not push. Show the `weight_prod` / `files_prod` lines, propose where to cut
+the branch into two MRs, and ask. If the user keeps it as one MR, ask for the reason in their
+words and write it to `{workflowDir}/mr-size.md` (the two size lines and the reason), so
+`/wf-mr-desc` puts it under *Worth knowing*. Never invent the reason, and never push an
+oversized first MR without one.
+
 ```bash
 git add [confirmed files]   # never -A
 git commit -m "[approved message]"
