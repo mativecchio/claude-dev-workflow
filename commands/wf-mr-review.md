@@ -133,6 +133,16 @@ Decide `addressed` against the code at the MR head (`git show origin/<source-bra
 against the thread's resolved flag: a thread resolved without a change is not addressed, and an open
 thread whose line was already fixed is.
 
+**Threads of the CI review bot.** A thread whose first note carries `<!-- claude-review:finding` was
+opened by the `claude-review` job (on bookcore's GitLab, the user `@claudio`). The bot closes its own
+threads: once the job runs again on the fix, it replies `**Resuelto** …` and resolves the thread, so its
+reply is always the last word. Record such a thread as `addressed` when that reply is its last note.
+**On an MR the current user authored**, if the bot already replied `**Resuelto**` but the thread is still
+open, resolve it (`resolve_merge_request_thread`, or `PUT …/discussions/<id>?resolved=true`) **without
+adding a note**, and tell the user which threads you resolved. Never resolve a bot thread the bot has
+not answered, and never answer one in its place: when the author pushes a fix for a bot comment, the
+next step is to re-run `claude-review`, not to reply "fixed".
+
 Pass the ledger to the Step 3 Agent. **Why:** each round of review on an MR that already has
 comments has repeated them back at the author in new words, and the author then answers the same
 point twice.
