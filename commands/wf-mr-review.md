@@ -597,6 +597,10 @@ real repo.
 
 ## Required output
 
+Every spec id you cite (`FR-…`, `SC-…`, `D-…`, a task, a user story) comes with what it says, in
+plain words, and with its `path:line` in the spec. The reader of this review has not read the
+spec.
+
 ```markdown
 ## Code review — [MR name]
 
@@ -658,6 +662,10 @@ Read the agent's output and present it to the user, together with `/code-review`
 one review. Each point appears once. A `/code-review` finding listed under *Rules behind /code-review
 findings* is shown a single time, with the rule appended (`— breaks path#section`). That section
 does not appear on its own.
+
+A spec id never reaches the user alone, in this output or in any later message: rewrite each one
+the Agent or `/code-review` left bare as what the requirement says, linked to its line in the spec
+(Step 6 has the format).
 
 Show the *Responsibilities* pass right after the executive summary, before the other findings, and
 lead with the root design finding when there is one: it is what the user reads the review for.
@@ -758,6 +766,13 @@ draft comments?"** On yes:
     file the draft is anchored to. Name what the line says, and quote it when the argument depends
     on its wording: `the rule «Never retry a failed payment» ([rules.md:16](…))`. Quote one or two
     lines at most, and summarise a longer passage.
+  - **A spec id is never alone, for the same reason.** `FR-015`, `SC-004`, `D-001`, `T148` or "US5"
+    tells the reader nothing. Say in plain words what the requirement, decision or task asks for,
+    and make the id the text of a link to its line in the spec, pinned to a commit of the specs
+    repo: ``the added items must belong to the option of the last search ([`FR-015`](<specs
+    web_url>/-/blob/<sha>/specs/<feature>/spec.md#L814))``. The meaning carries the argument; the id
+    is only there to be followed. A list of tasks is described by what they cover, not only as
+    a range (`T141–T145`).
   - Before creating the drafts, open every link you built (`get_file_contents` at `head_sha`, or
     `git show <head_sha>:<path>`) and check that the file exists and that the line says what the
     draft claims.
@@ -771,7 +786,10 @@ draft comments?"** On yes:
   **Why:** drafts that cited `file:line` in backticks or a bare "L12-17" left the reader with
   nothing to open: the short names had no path, and a line number in the anchored file points at
   a line the reader cannot see. On booking-center-specs !32 every `FR-0xx`, `SC-00x` and `D-00x`
-  in the drafts rendered as a link to a Jira issue that does not exist.
+  in the drafts rendered as a link to a Jira issue that does not exist. On booking-center-app !512
+  the drafts had the ids in backticks, so nothing was broken, but `FR-015`, `FR-016`, `US5` and
+  `T141–T145` were all the reader got: they had to open the spec to learn what each comment was
+  arguing.
 - Drop any finding the MR description already explains and justifies — it is not a finding.
 - **Drop any finding already in the ledger**, including the user's own drafts from an earlier run.
   Re-check the draft list right before creating: never create a second draft for a point that

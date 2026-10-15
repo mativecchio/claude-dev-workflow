@@ -83,6 +83,7 @@ Pass the Agent everything it needs, because it starts with no context: the conte
 - **No testing or verification section.** CI runs the tests: an MR that passes it has passed them. No test counts, no list of new or fixed tests, no "lint and typecheck green". The one exception is a check CI does not run (an e2e against a real environment, a manual check of a migration): one bullet under *Worth knowing*, never a section
 - No story of how it was built: no review rounds, no merge or conflict resolutions, no "first I tried"
 - Don't repeat the commit log, and don't restate the spec or the ticket: link them
+- **A spec id is never alone.** When the description cites a requirement, decision or task (`FR-015`, `D-001`, `T148`), say in a few words what it asks for and make the id a link to its line in the spec, pinned to a commit. Keep the id inside the link text or backticks, so the host's Jira integration does not turn it into a link to an issue that does not exist
 - **Omit any section below that would be empty or redundant with the context.** A header with nothing under it, or with "N/A", is noise
 
 **Structure** (headings in the description's language):
