@@ -123,6 +123,14 @@ If the reduction leaves nothing, **say so and skip the Agent.** Going straight t
 "already covered by mr-review" is a valid outcome, not a gap. Three agents reviewing one diff has
 already produced the same finding twice in different words, at full cost each time.
 
+**The automated MR review's criteria, when the project has one.** If `config.json` has
+`review_criteria`, read that file — from `local_path` (relative to the project root) when it exists
+on disk, read only, otherwise through the GitLab MCP at `gitlab_project` / `ref` / `path` — and keep
+only the sections named in `sections`. Pass them to the Agent under `**MR review criteria:**`. They
+are what the CI reviewer will apply to this diff once the MR is open, so applying them now is what
+keeps its comments from arriving after the push. If the file cannot be read, say so in the output
+and go on: the CI review will still run, this only moves it earlier.
+
 Pass the contents of `mr-review.md` into the prompt under `**Already reported:**` so the Agent cannot
 rediscover what is in it.
 
@@ -164,7 +172,14 @@ You are a senior engineer doing a quality review on freshly implemented code. It
 
 **Responsibilities guide** (only when `responsibilities` is active): [contents of ~/.claude/workflow/guides/responsibilities.md]
 
+**MR review criteria** (only when `review_criteria` is configured and was read): [the sections, verbatim]
+
 ## How to run the checks
+
+**MR review criteria first, when given.** Apply them to every hunk of the diff, together with the
+repo's own `CLAUDE.md`/`AGENTS.md` rules, as the CI reviewer would. A finding from them cites
+`mr-review-criteria` and the bullet it comes from, and keeps the reviewer's severity (Critical and
+Important → ❌ Failed, Minor → ⚠️ Warnings). Do not report the same issue again under a check.
 
 Run each active check as its *Diff* part says, and only those. A finding cites the check id and the
 evidence (`file:line`); when a written rule of the repo covers it, cite that rule too. Weight decides

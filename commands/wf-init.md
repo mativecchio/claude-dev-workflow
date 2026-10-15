@@ -37,6 +37,9 @@ Look for:
 - `jest.config.*` or `vitest.config.*` → testing configured
 - `cypress/` or `e2e/` → E2E available
 - `.github/workflows/` → read the CI to understand what runs on each PR
+- `.gitlab-ci.yml` including an automated MR reviewer (for example
+  `file: '/configs/ci/claude-review.yml'` from `entorno/docker-roiback`) → propose `review_criteria`
+  (Step 5) pointing at that reviewer's prompt, so `/wf-validate` applies its criteria before the push
 - `phpunit.xml` or `pest.config.php` → PHP testing
 - `pytest.ini` or `pyproject.toml [tool.pytest]` → Python testing
 
@@ -114,7 +117,14 @@ Generate the config from what you detected and show it to the user before writin
     "Tests written and passing",
     "[items detected from the project]"
   ],
-  "tech_debt_log": "[path if docs/ exists]"
+  "tech_debt_log": "[path if docs/ exists]",
+  "review_criteria": {
+    "gitlab_project": "[the reviewer's project, e.g. entorno/docker-roiback]",
+    "ref": "[its default branch]",
+    "path": "[its prompt, e.g. build/claude-review/src/review_prompt.md]",
+    "local_path": "[relative path to that file in a clone on disk, if there is one]",
+    "sections": ["[the headings that hold its criteria, e.g. Review checklist, Review criteria]"]
+  }
 }
 
 Adjust it, or write it as-is?
@@ -129,6 +139,11 @@ Adjust it, or write it as-is?
 **`checks`** — the highest-impact change in this config. These are the project's **real** commands, taken from the `package.json` scripts, the `Makefile`, or the CI: don't invent `npm run lint` if the script doesn't exist. Verify each one runs before writing it.
 
 What goes in here stops depending on an agent's judgment: `/wf-validate` runs them before spending an Agent, and `/wf-test` uses them as the final run. A `dod_checklist` item that can be expressed as a command should live in `checks`, not in the prose list.
+
+**`review_criteria`** — only when Step 2 found an automated MR reviewer in the CI; leave it out
+otherwise. Open the prompt and list in `sections` only the headings that hold what it checks, never
+the ones about its CI inputs, its output format or how it answers comments. `/wf-validate` applies
+those sections to the diff before the push.
 
 Ask only one thing if something remained unclear:
 - If the stack wasn't detected → "What stack is this project?"
