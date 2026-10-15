@@ -77,7 +77,8 @@ fixes, and left no `stage_end` behind.
 ```
 
 Runs lint, types and tests from `config.json`. `--size` exits `3` over `mr_size`: that is a `size`
-finding, not a reason to stop, unless `mr-size.md` already carries the user's reason. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
+warning, never a reason to stop, and none at all when `mr-size.md` says the user already chose to
+keep it as one MR. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
 
 **Scoped mode for re-runs.** The full suite is the slowest gate in the cycle and most of its cost is
 fixed startup, not the tests themselves — a project can spend ~90% of a 25-minute run on module

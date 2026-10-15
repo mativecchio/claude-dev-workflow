@@ -147,8 +147,8 @@ case "$MODE" in
       printf 'weight_prod=%s\nweight_tests=%s\n' "$prod" "$tests"
       exit 0
     fi
-    # The size a reviewer can hold in their head. Over it, the MR is split or
-    # carries the reason it cannot be (guides/responsibilities.md, /wf-deploy).
+    # The size a reviewer can hold in their head. Over it, the user is asked
+    # whether to split the MR; it is a warning, never a stop (/wf-deploy).
     max_lines="$(wf_config '.mr_size.max_prod_lines // empty' 2>/dev/null)"; max_lines="${max_lines:-400}"
     max_files="$(wf_config '.mr_size.max_prod_files // empty' 2>/dev/null)"; max_files="${max_files:-10}"
     over=false

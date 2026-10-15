@@ -22,9 +22,9 @@ Read:
 - `{workflowDir}/plan.md` → technical solution and decisions taken
 - `{workflowDir}/refinement-summary.md` → objective and acceptance criteria
 - `{workflowDir}/review-findings.md` → whether there were significant adjustments to the plan
-- `{workflowDir}/mr-size.md`, if it exists → the MR is over `mr_size` and the user said why it
-  could not be split. That size and that reason go under *Worth knowing*, in one bullet, so the
-  reviewer knows before opening the diff why it is big
+- `{workflowDir}/mr-size.md`, if it exists → the MR is over `mr_size` and the user kept it as
+  one. That size, and the reason when the user gave one, go under *Worth knowing*, in one bullet,
+  so the reviewer knows before opening the diff
 
 ### If `$ARGUMENTS` carries an MR/PR reference, read the real MR first
 
@@ -102,7 +102,7 @@ Leave it out when the context already says it.]
 ## Worth knowing
 [Only what the reviewer cannot see in the diff and needs to know: a decision they would
 question, as "X, because Y", a migration or env var, a merge order, a flag that hides the work, a check CI
-does not run, the size and the reason of an MR over `mr_size` (`mr-size.md`). Leave it out when
+does not run, the size of an MR over `mr_size` and its reason, if any (`mr-size.md`). Leave it out when
 there is nothing to warn about.]
 ```
 

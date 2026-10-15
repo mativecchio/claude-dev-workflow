@@ -94,11 +94,11 @@ opened.
 ~/.claude/scripts/wf-diff.sh --size --fetch    # exit 3 = over mr_size
 ```
 
-Over the limit, do not push. Show the `weight_prod` / `files_prod` lines, propose where to cut
-the branch into two MRs, and ask. If the user keeps it as one MR, ask for the reason in their
-words and write it to `{workflowDir}/mr-size.md` (the two size lines and the reason), so
-`/wf-mr-desc` puts it under *Worth knowing*. Never invent the reason, and never push an
-oversized first MR without one.
+Over the limit is a warning, never a stop. Before pushing, show the `weight_prod` / `files_prod`
+lines, propose where to cut the branch into two MRs, and ask. If the user keeps it as one MR,
+push it, and write `{workflowDir}/mr-size.md` with the two size lines and the user's reason in
+their words when they give one, so `/wf-mr-desc` puts it under *Worth knowing*. Never invent the
+reason, and never decide the cut alone.
 
 ```bash
 git add [confirmed files]   # never -A

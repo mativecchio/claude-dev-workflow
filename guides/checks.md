@@ -49,10 +49,11 @@ narrow interfaces (I), rules apart from effects so the rules depend on no storag
 (D); a variant that extends a piece keeps what that piece's callers rely on (L), or it is a new
 piece. **How:** judgement, plus `wf-shape.sh` (file size) and `wf-gate.sh` (no table, no code).
 
-### `size` — blocks
+### `size` — warns
 
-**Applies when** `code`. **Diff:** `wf-diff.sh --size` against `mr_size`: production code only;
-over the limit, the reason is in `mr-size.md`. **How:** script.
+**Applies when** `code`. **Diff:** `wf-diff.sh --size` against `mr_size`: production code only.
+Over the limit the user is asked whether to cut, never stopped; when they keep one MR,
+`mr-size.md` records it, with their reason if they gave one. **How:** script.
 
 ### `tests` — blocks
 

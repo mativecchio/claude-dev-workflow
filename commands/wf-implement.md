@@ -122,11 +122,11 @@ Ask: "Shall I continue?" — only if the user configured detailed checkpoints or
 
 **After each group, measure the MR:** `~/.claude/scripts/wf-diff.sh --size`. Exit `3` means the
 branch is already over the size a reviewer can hold (`mr_size` in `config.json`, 400 production
-lines and 10 production files by default; tests, fixtures and translations do not count). Stop
-before the next group and tell the user: the `weight_prod` and `files_prod` lines, the groups
-still pending, and where the MR could be cut (a group that can ship on its own, an enabling
-change apart from the behaviour that uses it). The user decides whether to split now or carry on
-and give the reason at `/wf-deploy`. Found on booking-center-app !505 and !507: 671 and 452
+lines and 10 production files by default; tests, fixtures and translations do not count). It is
+a warning, not a stop: before the next group, tell the user the `weight_prod` and `files_prod`
+lines, the groups still pending, and where the MR could be cut (a group that can ship on its own,
+an enabling change apart from the behaviour that uses it), and ask. The user decides whether to
+split now or carry on; carrying on needs no reason. Found on booking-center-app !505 and !507: 671 and 452
 production lines, each well past the size its own plan aimed for, and nobody measured it until
 the review.
 
