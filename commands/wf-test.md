@@ -30,7 +30,10 @@ Identify what's missing:
 
 **Happy paths:** is the main flow tested?
 **Error cases:** do the critical errors have a test?
-**Edge cases:** are the edge cases identified in refinement covered?
+**Edge cases:** are the edge cases identified in refinement covered, each of the six situations of
+every flow included?
+**Failure handling:** does every row of `plan.md`'s *Failure handling* table have a test for each
+of its cells that can happen?
 
 Show the gap analysis to the user before starting to write:
 ```
@@ -68,7 +71,7 @@ Give the agent the agreed gap list from Step 2, the paths of the existing tests 
 **Order:**
 1. Happy path of the main flow
 2. Critical error cases
-3. Edge cases from refinement
+3. Edge cases from refinement, and the rows of *Failure handling*
 
 ## Step 4 — E2E (optional assessment)
 

@@ -76,6 +76,14 @@ You are a senior engineer reviewing an implementation plan before development st
 Every finding cites the check (`R1`…`R7`) or the repo rule (`path#section`), and the file or function
 of the plan it is about.
 
+### Edge cases and failure handling
+- Does every flow of `refinement-summary.md` answer the six situations (nothing to show, fails or
+  nothing answers, session expired, late answer, repeated or concurrent, done but the answer was
+  lost), or say why one cannot happen? A missing one is Important: it is what the MR review finds.
+- Does the plan's *Failure handling* table have a row for every new or changed call the files touch,
+  every cell saying what happens rather than "handled", and every row naming the edge case it
+  implements? A call with no row is Important.
+
 ### Surfaces and checks (the catalogue)
 - Are the plan's *Surfaces* the ones its files actually touch? A plan that adds an endpoint, a
   migration, a screen or a translated text without naming that surface skipped the checks it brings.

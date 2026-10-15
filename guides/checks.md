@@ -57,9 +57,10 @@ Over the limit the user is asked whether to cut, never stopped; when they keep o
 
 ### `tests` — blocks
 
-**Applies when** `code`. **Plan:** the tests each group needs, written with it, never deferred.
+**Applies when** `code`. **Plan:** the tests each group needs, written with it, never deferred, with
+one per edge case of the refinement and one per row of *Failure handling*.
 **Diff:** every new function and every new branch of behaviour is exercised by a test in the same
-change, error paths included; tests are sociable (only external services mocked); the checks of
+change, error paths included, and so is every edge case and every *Failure handling* row; tests are sociable (only external services mocked); the checks of
 `wf-checks.sh` are green. **How:** script for green, judgement for coverage.
 
 ### `translations` — blocks

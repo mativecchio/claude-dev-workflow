@@ -101,6 +101,15 @@ grows is bounded, which existing accessible component a new control reuses, who 
 dependency is needed. A check with no
 surface of the change is `N/A`, in one line with the reason.
 
+### 4b. Decide every failure
+For every new or changed call that leaves the code being changed — to the backend, another repo, a
+third-party service, storage — decide what the code does when it is rejected (4xx), fails or does
+not answer (5xx, timeout), returns an empty or unexpected body, and is cancelled or superseded by a
+later call. Each cell says what happens (which message, what state is kept, whether it retries),
+never "handled". Each row names the edge case of `refinement-summary.md` it implements; a row that
+implements none is a behaviour nobody decided, so ask the user before writing it. Every row becomes
+a test.
+
 ### 5. Identify risks
 - Breaking changes to contracts
 - Dependencies between subtasks
@@ -142,6 +151,12 @@ Approach: [one line] — alternative considered: [one line, and why not]
 |---|---|---|---|
 
 [hooks and components: their inputs, when there are more than a few]
+
+## Failure handling
+| Call | Rejected (4xx) | Fails or no answer | Empty or unexpected body | Cancelled or superseded | Implements (edge case) |
+|---|---|---|---|---|---|
+
+[or "No call leaves the code being changed"]
 
 ## Surfaces and checks
 Surfaces: [code, ui, …]

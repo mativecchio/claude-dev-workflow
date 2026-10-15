@@ -73,7 +73,18 @@ Cover these topics in order of importance. Don't ask them all at once — wait f
 **Priority questions:**
 1. What's the business objective? What problem does it solve?
 2. What are the concrete acceptance criteria? How do we know it's done?
-3. Are there important edge cases or error scenarios?
+3. What does the user see when something goes wrong? Go through every flow of the ticket, one
+   situation at a time, and write the answer in the user's terms (what they see and can do):
+   - **nothing to show** — no data yet, an empty list, a value that was removed;
+   - **the action fails or nothing answers**;
+   - **the session has expired** or access was lost while they are on the screen;
+   - **the answer arrives late** — they already moved on, changed what they asked for, or left;
+   - **the action is repeated or runs twice at once** — a double click, two tabs;
+   - **the action happened but its answer was lost** — it succeeded where it ran, the screen never heard.
+
+   A situation that cannot happen in that flow gets one line saying why. One the user cannot answer
+   stays open in *Edge cases* as a question, never guessed. These are most of what an automated MR
+   review finds afterwards; here they cost a sentence.
 4. Are there dependencies on other systems or teams?
 5. Could there be breaking changes to existing contracts (API, types, events)?
 6. Does it require new infrastructure? (env vars, migrations, feature flags, permissions)
@@ -105,7 +116,14 @@ Save to `.claude/workflow/{ticketId}/refinement-summary.md`:
 - [ ] [criterion 2]
 
 ## Edge cases
-- [case 1]
+### [Flow 1]
+- **Nothing to show**: [what the user sees]
+- **Fails or nothing answers**: [what they are told, what stays as it was]
+- **Session expired**: [...]
+- **Late answer**: [what the late answer may still change, and what it must not]
+- **Repeated or concurrent**: [...]
+- **Done but the answer was lost**: [what they see next, how it recovers]
+- [cases specific to this flow]
 
 ## Dependencies
 - [dependency 1]
