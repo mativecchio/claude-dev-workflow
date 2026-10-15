@@ -137,7 +137,7 @@ Each stage has checkpoints at different risk levels:
 
 ### Runtime validation
 
-`wf-validate` option 6 (`📱 Runtime`) is the only validator that doesn't reason about the diff — it observes the app running, via the `metro` MCP for React Native or `claude-in-chrome` for web. It runs in the **main context**, not inside the Agent, because subagents have no guaranteed MCP access.
+`wf-validate`'s `📱 Runtime` is the only validation that doesn't reason about the diff — it observes the app running, via the `metro` MCP for React Native or `claude-in-chrome` for web. It runs in the **main context**, not inside the Agent, because subagents have no guaranteed MCP access.
 
 It exists for a class of defect a diff can't show: an ordering between effects, state left inconsistent on returning to a screen, a request fired twice. `wf-analyze` approximates this by asking the user for the expected execution order; this looks directly.
 

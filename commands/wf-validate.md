@@ -1,9 +1,9 @@
 ---
-description: "Post-implementation validation gate. The user chooses which validators to enable. Runs in an isolated context. Loops up to 3 iterations before escalating."
+description: "Post-implementation validation gate. Proposes the checks of guides/checks.md that apply to what the diff touches; the user confirms. Runs in an isolated context. Loops up to 3 iterations before escalating."
 allowed-tools: Read, Glob, Grep, Bash, Agent, TodoWrite, TodoRead
 ---
 
-Your role is to run automated validations over the implementation's diff. The user chooses which validators to enable.
+Your role is to run the checks of `guides/checks.md` that apply to what the implementation's diff touches. You propose them, the user confirms.
 
 ## Step 0 — Ticket context
 
@@ -16,25 +16,41 @@ If `context` fails, ask for the ticket and write `.claude/workflow/state.json` b
 
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — validation reports, plan.md, code — is always in English.
 
-## Step 1 — Validator selection
+## Step 1 — Select the checks by what the change touches
 
-Ask the user which validators to enable:
+Read `~/.claude/workflow/guides/checks.md`, then the changed files:
 
-```
-What do you want to validate? (pick one or more)
-
-1. 🏛️  Architecture — consistency with the project's patterns
-2. 🧪 Tests — coverage of critical cases
-3. ⚡ Performance — unnecessary re-renders, N+1 queries, expensive operations
-4. 🔒 Security — unsanitized inputs, auth, exposed data
-5. ♿ Accessibility — basic a11y (UI changes only)
-6. 📱 Runtime — bring the app up and verify the real flow
-7. ✅ All
+```bash
+~/.claude/scripts/wf-diff.sh --stat --fetch
 ```
 
-Wait for an answer before continuing.
+**The first `wf-diff.sh` call of the stage carries `--fetch`.** It refreshes `origin/<base>` (the
+remote-tracking ref only — no local branch, no merge, no working-tree change) so the fork point is
+computed against the real base rather than a stale local one. If it warns that the local base is
+behind, **that warning is the whole point** — without the refresh the diff would have carried other
+tickets' merged commits as if this feature had written them. Do not silence it and do not "fix" it
+by pulling the base branch.
 
-**About 6 (Runtime):** offer it proactively when the diff touches UI, navigation or shared state — those are the cases where reading the diff isn't enough. It requires the app to be running and an MCP to be available (`metro` for React Native, `claude-in-chrome` for web). If there's neither, say so and continue without that validator instead of pretending it was validated.
+Decide the surfaces from what changed, starting from the *Surfaces* line of `plan.md` when it has
+one, and select every check whose *Applies when* meets one of them. Propose the selection instead of
+asking from a blank menu:
+
+```
+Surfaces: code, ui, text
+Checks:   responsibilities, size, tests, translations, accessibility, performance
+N/A:      release-safety, contracts, security — no entry-point, data, boundary, auth or personal data
+Runtime:  recommended — the diff touches UI
+Run these? (add or drop any)
+```
+
+Wait for an answer before continuing. A check the user drops is recorded in the stage notes with
+their reason, so a later stage does not take it as passed.
+
+**About Runtime:** it is not a check of the catalogue but a way to observe the app running. Recommend
+it when the diff touches UI, navigation or shared state — those are the cases where reading the diff
+isn't enough. It requires the app to be running and an MCP to be available (`metro` for React
+Native, `claude-in-chrome` for web). If there's neither, say so and continue without it instead of
+pretending it was validated.
 
 ## Step 2 — Deterministic checks (before any agent)
 
@@ -57,9 +73,11 @@ fixes, and left no `stage_end` behind.
 
 ```bash
 ~/.claude/scripts/wf-checks.sh
+~/.claude/scripts/wf-diff.sh --size     # only when `size` is selected
 ```
 
-Runs lint, types and tests from `config.json`. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
+Runs lint, types and tests from `config.json`. `--size` exits `3` over `mr_size`: that is a `size`
+finding, not a reason to stop, unless `mr-size.md` already carries the user's reason. **If any of them fails, stop here:** show what failed and go back to `/wf-implement`. Don't launch the Agent.
 
 **Scoped mode for re-runs.** The full suite is the slowest gate in the cycle and most of its cost is
 fixed startup, not the tests themselves — a project can spend ~90% of a 25-minute run on module
@@ -80,32 +98,24 @@ Exit 2 means the project has no `checks` configured: report it once, suggest add
 ## Step 2.5 — Get the diff
 
 ```bash
-~/.claude/scripts/wf-diff.sh --stat --fetch
 ~/.claude/scripts/wf-diff.sh
 ```
 
-**The first `wf-diff.sh` call of the stage carries `--fetch`.** It refreshes `origin/<base>` (the
-remote-tracking ref only — no local branch, no merge, no working-tree change) so the fork point is
-computed against the real base rather than a stale local one. If it warns that the local base is
-behind, **that warning is the whole point** — without the refresh the diff would have carried other
-tickets' merged commits as if this feature had written them. Do not silence it and do not "fix" it
-by pulling the base branch.
-
-It resolves the merge-base against the project's base branch on its own, plus the uncommitted-work case. There's no need to reason about the range.
+Step 1 already refreshed the base. It resolves the merge-base against the project's base branch on its own, plus the uncommitted-work case. There's no need to reason about the range.
 
 ## Step 3 — Launch the validation Agent
 
 **First: has this diff already been reviewed?** If `{workflowDir}/mr-review.md` exists and covers the
 current diff, this stage is not a third opinion on the same code. Read it, and **cut from the Agent's
-scope every validator whose ground it already covers** — in practice Architecture, Tests and
-Performance overlap `/code-review`'s scope almost entirely. What is genuinely left is the external
-integration check and the runtime validator.
+scope every check whose ground it already covers** — in practice `responsibilities`, `tests` and
+`performance` overlap `/code-review`'s scope almost entirely. What is genuinely left is usually
+`contracts`, `translations` and runtime.
 
 State the reduction out loud before launching:
 
 ```
-📋 mr-review.md covers: architecture, tests, performance
-⚙️ This validate run: external integration + runtime only
+📋 mr-review.md covers: responsibilities, tests, performance
+⚙️ This validate run: contracts, translations + runtime
 ```
 
 If the reduction leaves nothing, **say so and skip the Agent.** Going straight to Step 4 with
@@ -122,7 +132,7 @@ rewritten commit hashes on an active branch with an unrequested `git pull`, and 
 deleted a throwaway repro inside the repo. If the Agent needs to run something that writes, it
 reports what it needs and the main thread runs it.
 
-Use the **Agent tool** with the following prompt (adapted to the chosen validators):
+Use the **Agent tool** with the following prompt (adapted to the selected checks):
 
 **Pass `model` explicitly**, taking it from the `model=` line that `context` printed in Step 0 (or `~/.claude/scripts/wf-lib.sh model validate`):
 
@@ -146,41 +156,28 @@ You are a senior engineer doing a quality review on freshly implemented code. It
 
 **Stack:** [stack from the config]
 
-**Active validators:** [list of chosen validators]
+**Surfaces:** [the surfaces of Step 1]
+**Active checks:** [the checks of Step 1, each with its weight]
 
-## Instructions per validator
+**Checks catalogue:** [the entries of the active checks from ~/.claude/workflow/guides/checks.md]
 
-**🏛️ Architecture:**
-- Does the code follow the project's patterns (sister feature)?
-- Were existing helpers used instead of reimplementing?
-- **Responsibilities** — apply `R1`–`R7` of the guide below to every new or grown file of the diff,
-  whether or not a written rule covers them: one responsibility per file, rules apart from effects,
-  every function in its place, narrow interfaces, programmatic paths that skip UI handlers, variants
-  that extend instead of copying, the simplest approach. Check the code against the plan's
-  *Responsibilities* table too: a function placed elsewhere than the table says, without a recorded
-  deviation, is a finding.
+**Responsibilities guide** (only when `responsibilities` is active): [contents of ~/.claude/workflow/guides/responsibilities.md]
 
-**Responsibilities guide** (only when Architecture is active): [contents of ~/.claude/workflow/guides/responsibilities.md]
+## How to run the checks
 
-**🧪 Tests:**
-- Are the happy paths covered?
-- Do the critical error cases have tests?
-- Are the tests sociable (they don't mock child components, only external services)?
+Run each active check as its *Diff* part says, and only those. A finding cites the check id and the
+evidence (`file:line`); when a written rule of the repo covers it, cite that rule too. Weight decides
+the block: `blocks` → ❌ Failed, `warns` → ⚠️ Warnings, unless a written repo rule covers it.
 
-**⚡ Performance:**
-- Are there unnecessary re-renders in components?
-- Are there N+1 queries or API calls inside loops?
-- Are expensive operations memoized where appropriate?
+**`responsibilities`:** apply `R1`–`R7` to every new or grown file of the diff, whether or not a
+written rule covers them, and check the code against the plan's *Responsibilities* table: a function
+placed elsewhere than the table says, without a recorded deviation, is a finding. Also check the
+sister feature's patterns and that existing helpers were used instead of reimplemented.
 
-**🔒 Security:**
-- Are user inputs sanitized?
-- Is sensitive data exposed in logs or responses?
-- Do the endpoints have the right auth?
-
-**🔗 External integration (run unless `contracts.md` says there is nothing shared):**
+**`contracts`:**
 - **Read `{workflowDir}/contracts.md` first.** `/wf-analyze` resolved the cross-repo contracts once
   and recorded both sides with `file:line`. Re-verify only the entries this diff touches. If the file
-  says `No shared surfaces`, **skip this validator and say so** — do not repeat the search. If the
+  says `No shared surfaces`, **skip this check and say so** — do not repeat the search. If the
   file is missing, do the verification and write it, so no later stage pays for it again.
 - Trust `related-check`: if `~/.claude/scripts/wf-lib.sh related-check` warned that a path does not
   resolve, every claim about that repo is `NOT VERIFIABLE`. Report it as an unverifiable risk and as
@@ -188,18 +185,13 @@ You are a senior engineer doing a quality review on freshly implemented code. It
 - For the entries the diff does touch: was the real behavior verified by grepping/reading that path (merge vs replace, types, format) instead of assuming it?
 - This CANNOT be approved from the diff alone — if an external integration is involved and it wasn't verified against the real source code, flag it explicitly as an unverifiable risk, not as approved.
 
-**♿ Accessibility:**
-- Do images have alt text?
-- Do interactive elements have accessible labels?
-- Is the contrast adequate?
-
 ## Required output
 
 ```markdown
 ## Validation — Iteration [N]
 
 ### ❌ Failed
-#### [Validator]
+#### [check id]
 - **File:** [path]
 - **Problem:** [description]
 - **Correction:** [what to do]
@@ -222,11 +214,11 @@ A verdict of "APPROVED" never implies that behavior against an external system i
 
 ---
 
-## Step 3.5 — Runtime validation (only if validator 6 was chosen)
+## Step 3.5 — Runtime validation (only if Runtime was chosen)
 
 **Runs in the main context, not inside the Agent.** Subagents aren't guaranteed access to MCP tools, and this validation depends on them. Run it here, after the Agent returns, and add the findings to the output.
 
-The other validators reason about the diff. This one observes the app running, which is the only way to catch a certain class of defect: an execution order between effects, state left inconsistent when returning to a screen, a request that fires twice. `wf-analyze` tries to cover that by asking the user the expected order — here it's observed directly.
+The checks reason about the diff. Runtime observes the app running, which is the only way to catch a certain class of defect: an execution order between effects, state left inconsistent when returning to a screen, a request that fires twice. `wf-analyze` tries to cover that by asking the user the expected order — here it's observed directly.
 
 **React Native (MCP `metro`):**
 ```
@@ -299,7 +291,7 @@ Wait for the decision on each item (they can be answered all at once, e.g. "1a, 
 
 `stage_origin` is where the defect was **introduced**: a guard missing because of an incomplete plan originated in `analyze`, not in `implement`, even though the symptom shows up in the code. That's the difference between "the implementer got it wrong" and "the plan didn't ask for it", which are different problems with different gates.
 
-`finding_decision` is what later lets you tell a real finding from a noisy one: a category that's systematically ignored is a validator shouting too much, and that's only visible if the decisions are recorded.
+`finding_decision` is what later lets you tell a real finding from a noisy one: a category that's systematically ignored is a check shouting too much, and that's only visible if the decisions are recorded.
 
 Move to `/wf-implement` **only with the list already decided** (the items marked "a"), so that command skips its starting checkpoint (see `wf-implement` Step 2) — the decision about what to implement was already made here, no need to ask "Shall we start?" again.
 

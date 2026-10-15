@@ -27,6 +27,8 @@ Read the following files (they'll be part of the Agent's prompt):
 - The project's top-level structure (a quick `ls`)
 - `~/.claude/workflow/guides/responsibilities.md` → the design checks `R1`–`R7` the plan is built
   with, and the placement map they fall back on
+- `~/.claude/workflow/guides/checks.md` → the catalogue of checks, picked by the surfaces the change
+  touches; the plan answers the *Plan* part of each one that applies
 - The repo's placement rules, if it has them: the architecture guidelines and ADRs that say where
   utils, hooks, components and adapters live (follow `CLAUDE.md`/`AGENTS.md` pointers to the file
   that holds them)
@@ -57,6 +59,7 @@ You are a senior engineer doing the technical analysis to implement the followin
 **Working directory:** [cwd]
 **Project summary:** [contents of CLAUDE.md/README.md]
 **Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
+**Checks catalogue:** [contents of ~/.claude/workflow/guides/checks.md]
 **Placement rules of this repo:** [rule, one line — source path#section; or "none written"]
 
 ## Your analysis process
@@ -89,13 +92,21 @@ Then assign responsibilities with the guide's checks, before any file list is fi
   path (fill a form from data, restore state) does not go through the UI's event handlers.
 - **Variants (R6):** a new variant of an existing piece extends it instead of copying it.
 
-### 4. Identify risks
+### 4. Surfaces and the checks they bring
+Decide which surfaces of the checks catalogue the change touches (`ui`, `text`, `entry-point`, `data`,
+`boundary`, `auth`, `personal-data`; `code` always), from what it changes, not from the folder it is
+in. For every check that applies and has a *Plan* part, answer it in the plan: who may call a new
+endpoint and what it rejects, what happens if this ships before its counterpart, how a list that
+grows is bounded, which existing accessible component a new control reuses. A check with no
+surface of the change is `N/A`, in one line with the reason.
+
+### 5. Identify risks
 - Breaking changes to contracts
 - Dependencies between subtasks
 - Tech debt that must be recorded but NOT implemented now
 - If 2+ effects/observers read and write the same shared storage/state, document the expected execution order and the possible race conditions between them
 
-### 5. Verify contracts with related projects (if applicable)
+### 6. Verify contracts with related projects (if applicable)
 If the plan touches state, storage, or a contract that another project listed in `related_projects` (config.json) also reads/writes — e.g. shared sessionStorage, a field another repo also persists, an endpoint consumed by another frontend — **don't assume the behavior**: if that project has a local `path`, use Grep/Read to inspect its real source code (how it writes/reads that structure: merge or replace, which types, which format) before designing the solution. Treat the external project as a black box only if its `path` doesn't exist on disk or isn't accessible. Record in the plan what was confirmed this way (with file:line from the external repo) or what remains an unverified risk.
 
 Before assuming a risk is "can't be confirmed, it's an external repo", run something like:
@@ -103,7 +114,7 @@ Before assuming a risk is "can't be confirmed, it's an external repo", run somet
 grep -rln "<relevant key or symbol>" <path of the related_project>
 ```
 
-### 6. Cross-reference the session history
+### 7. Cross-reference the session history
 Read `~/.claude/workflow/flow-history.json`. **If the `entries` array is empty, skip this step without comment** — that's the normal state until Phase 4 of `docs/plan-harness-migration.md` starts populating it, and it says nothing about this ticket.
 
 If there are entries, look for ones whose `key_findings`/`anomalies` mention the same `related_projects` or the same kind of integration this ticket touches. If there are matches, cite them explicitly in the plan (risks section) — they're already-known bugs at that integration point, no need to rediscover them.
@@ -130,6 +141,14 @@ Approach: [one line] — alternative considered: [one line, and why not]
 |---|---|---|---|
 
 [hooks and components: their inputs, when there are more than a few]
+
+## Surfaces and checks
+Surfaces: [code, ui, …]
+
+| Check | How the plan answers it |
+|---|---|
+
+N/A: [checks with no surface of this change, and why]
 
 ## API contract (if applicable)
 [endpoint, method, request/response]

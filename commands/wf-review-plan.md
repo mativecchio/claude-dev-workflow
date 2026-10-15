@@ -55,6 +55,7 @@ You are a senior engineer reviewing an implementation plan before development st
 
 **Stack:** [stack from the config]
 **Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
+**Checks catalogue:** [contents of ~/.claude/workflow/guides/checks.md]
 **Placement rules of this repo:** [rule, one line — source path#section; or "none written"]
 
 ## What to verify
@@ -74,6 +75,13 @@ You are a senior engineer reviewing an implementation plan before development st
 
 Every finding cites the check (`R1`…`R7`) or the repo rule (`path#section`), and the file or function
 of the plan it is about.
+
+### Surfaces and checks (the catalogue)
+- Are the plan's *Surfaces* the ones its files actually touch? A plan that adds an endpoint, a
+  migration, a screen or a translated text without naming that surface skipped the checks it brings.
+- Does every check that applies and has a *Plan* part have its answer in *Surfaces and checks*? A
+  missing answer to a `blocks` check is Important; to a `warns` check, a Suggestion.
+- Is every `N/A` true? A check marked `N/A` whose surface the plan does touch is a finding.
 
 ### Consistency with the codebase
 - Do the mentioned files exist?

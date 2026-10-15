@@ -238,6 +238,8 @@ Read:
 - `.claude/workflow/config.json` → the project's stack
 - `~/.claude/workflow/guides/responsibilities.md` → the design checks `R1`–`R7` the Agent applies to
   every new or grown file (Step 3, section 2a), whether or not the repo writes them down
+- `~/.claude/workflow/guides/checks.md` → the catalogue of checks picked by the surfaces the diff
+  touches; the Agent runs the ones `/code-review` does not cover (Step 3, section 2)
 
 ## Step 2.1 — Architecture and scaffolding rules
 
@@ -470,6 +472,7 @@ line-by-line review below has its full scope):
 - [global folders that "reuse first" points to, with the helpers already there that the diff's area may need]
 [or: "No written architecture rules found; checked <paths>"]
 **Responsibilities guide:** [contents of ~/.claude/workflow/guides/responsibilities.md]
+**Checks catalogue:** [contents of ~/.claude/workflow/guides/checks.md]
 
 **Review mode** (Step 1d): [code / spec / mixed, and why; for mixed, which files are on each side]
 **Related MRs in flight** (Step 2.6; omit in code mode): [each MR with its title, branch, head SHA,
@@ -535,6 +538,11 @@ Evaluate in order of importance:
 - ~~Performance — N+1, re-renders, expensive operations~~ *(`/code-review`'s — do not report)*
 - **Tests: coverage gaps against the refinement's edge cases** — not generic, but against the cases the ticket identified
 - **Modified contracts and their consumers**, including those in other repos
+- **The catalogue checks `/code-review` does not cover** — decide the diff's surfaces with the
+  checks catalogue and run `translations`, `release-safety` and `accessibility` when their surfaces
+  are touched (and `security` and `performance` too when `/code-review` did not run). Each finding
+  names the check id and weighs as the catalogue says; a check with no surface touched is not
+  mentioned in the output.
 - **Architecture and scaffolding** — against the Step 2.1 rules, file by file: is each new or moved
   file in the layer and folder the rules give it, does it import only what its layer may import, does
   its name follow the naming rules, does a container hold something the rules say is global (or the

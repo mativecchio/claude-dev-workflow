@@ -81,7 +81,7 @@ You can also invoke each command directly if you already know what you need:
 
 ### Runtime validation
 
-`/wf-validate` offers a `📱 Runtime` validator alongside the ones that reason over the diff. It brings the app up over MCP (`metro` for React Native, `claude-in-chrome` for web), navigates to the affected screen and observes state, network and console.
+`/wf-validate` proposes the checks of `guides/checks.md` that apply to what the diff touches (the interface, an endpoint, stored data, permissions, personal data, a translated text, a contract), and offers a `📱 Runtime` validation alongside them. It brings the app up over MCP (`metro` for React Native, `claude-in-chrome` for web), navigates to the affected screen and observes state, network and console.
 
 It's for what a diff can't show: an ordering between effects, state left inconsistent when returning to a screen, a request that fires twice. It requires the app to be running — if no MCP is available it says so, rather than declaring validated something it never observed.
 

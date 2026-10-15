@@ -1,7 +1,10 @@
 # Responsibilities — the design checks every stage applies
 
 SOLID, applied at the scale of a feature: where each piece of code lives, what each file and
-function is responsible for, and how the pieces depend on each other. `/wf-analyze` designs with
+function is responsible for, and how the pieces depend on each other. R1 is the S, R6 the O (and
+the L: a variant keeps what the piece's callers rely on, or it is a new piece), R4 the I, R2 the D
+(the rules depend on no storage, network or render; the effects depend on them). They are the
+`responsibilities` check of `checks.md`, and they apply to refactors as much as to new code. `/wf-analyze` designs with
 these checks, `/wf-review-plan` verifies the design, `/wf-implement` follows it, and `/wf-validate`
 and `/wf-mr-review` check the result.
 
