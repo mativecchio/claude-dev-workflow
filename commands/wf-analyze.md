@@ -94,10 +94,11 @@ Then assign responsibilities with the guide's checks, before any file list is fi
 
 ### 4. Surfaces and the checks they bring
 Decide which surfaces of the checks catalogue the change touches (`ui`, `text`, `entry-point`, `data`,
-`boundary`, `auth`, `personal-data`; `code` always), from what it changes, not from the folder it is
+`boundary`, `auth`, `personal-data`, `external-call`, `dependency`; `code` always), from what it changes, not from the folder it is
 in. For every check that applies and has a *Plan* part, answer it in the plan: who may call a new
 endpoint and what it rejects, what happens if this ships before its counterpart, how a list that
-grows is bounded, which existing accessible component a new control reuses. A check with no
+grows is bounded, which existing accessible component a new control reuses, who learns about a new failure, why a new
+dependency is needed. A check with no
 surface of the change is `N/A`, in one line with the reason.
 
 ### 5. Identify risks

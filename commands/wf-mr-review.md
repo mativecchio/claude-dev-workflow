@@ -539,7 +539,8 @@ Evaluate in order of importance:
 - **Tests: coverage gaps against the refinement's edge cases** — not generic, but against the cases the ticket identified
 - **Modified contracts and their consumers**, including those in other repos
 - **The catalogue checks `/code-review` does not cover** — decide the diff's surfaces with the
-  checks catalogue and run `translations`, `release-safety` and `accessibility` when their surfaces
+  checks catalogue and run `translations`, `release-safety`, `accessibility`, `observability` and
+  `dependencies` when their surfaces
   are touched (and `security` and `performance` too when `/code-review` did not run). Each finding
   names the check id and weighs as the catalogue says; a check with no surface touched is not
   mentioned in the output.

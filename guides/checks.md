@@ -24,6 +24,8 @@ renders an email touches `ui`.
 | `boundary` | changes what another repo or service relies on: a payload, a published package's API, a token claim (the entries of `contracts.md`). |
 | `auth` | changes who may do what: login, tokens, sessions, roles, permissions. |
 | `personal-data` | reads, stores, shows or sends data about a person. |
+| `external-call` | calls something it does not own: another repo's API, a third-party service, a queue, another system's database. |
+| `dependency` | adds, removes or upgrades a third-party package or service. |
 
 A check that applies to no surface of the change is reported `N/A` with that reason, never left out:
 an absent line and a skipped check look the same.
@@ -123,3 +125,30 @@ paginated or bounded at its source; a new query on a large table names the index
 - nothing new waits on a remote call it could have started earlier or in parallel.
 
 **How:** judgement.
+
+### `observability` — warns
+
+**Applies when** `entry-point`, `external-call`. **Plan:** every new way the change can fail says who
+learns about it: the user (a message), the team (an error report or a log), or nobody, on purpose
+and with the reason. **Diff:**
+- no error is caught and dropped without that decision: each one is handled, reported, or carries a
+  comment saying why neither;
+- an expected outcome (the user cancelling, an input rejected) is not reported as an error, so the
+  reports keep meaning something;
+- a failed or timed-out call to another system can be told apart from a bug in ours;
+- what is reported carries what it takes to find the case (the operation, the ids involved) and no
+  personal data.
+
+**How:** judgement.
+
+### `dependencies` — warns
+
+**Applies when** `dependency`. **Plan:** every new dependency is named, with why neither what the
+project already has nor a few lines of its own code would do, and its licence; a major upgrade is a
+change of its own. **Diff:**
+- no dependency is added that the plan does not name;
+- no second library for what the project already has one for (dates, HTTP, state, forms);
+- the lock file changes with the manifest, and the version follows the project's pinning convention;
+- a dependency that is no longer used is removed in the change that stops using it.
+
+**How:** judgement over the manifests and lock files.
