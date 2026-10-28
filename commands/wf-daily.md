@@ -71,14 +71,17 @@ is said at a daily, with the headings in the user's language:
 
 ```
 **Yesterday**
-- <ticket>: <what got done, in plain words — the outcome, not the steps>
+- <KEY> "<ticket title>": <what got done, in plain words — the outcome, not the steps>
 
 **Today**
-- <ticket>: <what comes next>
+- <KEY> "<ticket title>": <what comes next>
 
 **Blockers and doubts**
-- <what stops or is pending>, waiting on <who>, since <when>
+- <KEY> "<ticket title>": <what stops or is pending>, waiting on <who>, since <when>
 ```
+
+Every ticket goes with its title as Jira has it (read it when the sources did not bring it),
+the first time it appears in the summary; later mentions take the key alone.
 
 - Brief: the whole summary fits in about six lines, at most three per block; one line each; no links, no MR numbers unless the team says
   them aloud. A block with nothing says so in a few words ("nothing blocking me").
