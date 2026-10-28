@@ -19,6 +19,9 @@ WF_DIR="$HOME/.claude/workflow"
 EVENTS="$WF_DIR/events.jsonl"
 SESSIONS_DIR="$WF_DIR/sessions"
 
+# The model call of wf-daily-hook.sh is not a work session.
+[ -n "${WF_DAILY_HOOK:-}" ] && exit 0
+
 # Without jq there's no telemetry, but there's no noise either.
 command -v jq >/dev/null 2>&1 || exit 0
 

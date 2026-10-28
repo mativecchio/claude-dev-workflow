@@ -467,6 +467,49 @@ else
 fi
 rm -f clip.md
 
+echo "═══ wf-daily ═══"
+export WF_DAILY_DIR="$SB/daily"
+eq  "since on a Monday is Friday"      "2026-10-23" "$(WF_DAILY_TODAY=2026-10-26 bash "$S/wf-daily.sh" since)"
+eq  "since on a Wednesday is Tuesday"  "2026-10-27" "$(WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" since)"
+eq  "since takes a date"               "2026-10-23" "$(bash "$S/wf-daily.sh" since 2026-10-25)"
+WF_DAILY_TODAY=2026-10-27 bash "$S/wf-daily.sh" note done "MA-100: spec merged" >/dev/null
+WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" note blocker "MA-101: waiting on design" >/dev/null
+has "a note carries its kind and the repo" "\[done\] MA-100: spec merged (" "$(cat "$WF_DAILY_DIR/2026-10-27.md")"
+OUT="$(WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" notes)"
+has "notes include the last working day" "MA-100" "$OUT"
+has "notes include today"                "MA-101" "$OUT"
+WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" note maybe "x" >/dev/null 2>&1
+eq  "an unknown kind exits 2" "2" "$?"
+unset WF_DAILY_DIR
+
+echo "═══ wf-daily-hook ═══"
+export WF_DAILY_DIR="$SB/daily-hook" WF_DAILY_BIN="$S/wf-daily.sh" WF_DAILY_SYNC=1
+H="$REPO/hooks/wf-daily-hook.sh"
+mkdir -p "$SB/bin" "$WF_DAILY_DIR"
+cat > "$SB/bin/claude" << 'STUB'
+#!/bin/bash
+echo call >> "$WF_DAILY_DIR/calls"
+printf 'done\tMA-100: MR opened\nnoise line\n'
+STUB
+chmod +x "$SB/bin/claude"
+T="$SB/transcript.jsonl"
+{ echo '{"type":"user","message":{"content":"open the MR"}}'
+  echo '{"type":"assistant","message":{"content":[{"type":"text","text":"MR opened"}]}}'
+  echo '{"type":"user","message":{"content":"thanks"}}'; } > "$T"
+IN="{\"session_id\":\"s1\",\"transcript_path\":\"$T\",\"cwd\":\"$SB\"}"
+calls() { wc -l < "$WF_DAILY_DIR/calls" | tr -d ' '; }
+echo "$IN" | PATH="$SB/bin:$PATH" bash "$H" session-end
+has "the model's milestone becomes a note" "\[done\] MA-100: MR opened" "$(cat "$WF_DAILY_DIR"/2*.md 2>/dev/null)"
+eq  "lines that are not notes are dropped" "1" "$(grep -c '^- ' "$WF_DAILY_DIR"/2*.md)"
+echo "$IN" | PATH="$SB/bin:$PATH" bash "$H" session-end
+eq  "nothing new in the transcript, no call" "1" "$(calls)"
+echo '{"type":"user","message":{"content":"more"}}' >> "$T"
+echo "$IN" | PATH="$SB/bin:$PATH" bash "$H" stop
+eq  "stop waits for the interval" "1" "$(calls)"
+echo "$IN" | WF_DAILY_HOOK=1 PATH="$SB/bin:$PATH" bash "$H" session-end
+eq  "the hook's own model call feeds nothing back" "1" "$(calls)"
+unset WF_DAILY_DIR WF_DAILY_BIN WF_DAILY_SYNC
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json

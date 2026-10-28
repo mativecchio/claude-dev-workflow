@@ -226,8 +226,8 @@ fi
 # --- Telemetry (docs/brainstorm-metrics-and-complexity.md §3.2) --------------
 echo "→ Installing hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-shape.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-shape.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-shape.sh" "$REPO_DIR/hooks/wf-daily-hook.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-shape.sh" "$HOOKS_DIR/wf-daily-hook.sh"
 # 0.5.1 shipped a SessionStart hook for the update notice. It fired, but its
 # stdout never reached the terminal, so the notice moved into wf-lib.sh
 # `context`. Remove the leftover from any machine that installed that version.
@@ -244,7 +244,7 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg s "$HOOKS_DIR/wf-shape.sh" '
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg s "$HOOKS_DIR/wf-shape.sh" --arg d "$HOOKS_DIR/wf-daily-hook.sh" '
       def strip($needle):
         map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
@@ -255,8 +255,11 @@ else
       | .hooks.UserPromptSubmit //= [] | .hooks.UserPromptSubmit |= (strip("wf-telemetry.sh") | add($h + " prompt"))
       | .hooks.PostToolUse      //= [] | .hooks.PostToolUse      |= (strip("wf-telemetry.sh") | add($h + " tool")
                                                                  | strip("wf-shape.sh")     | add($s))
-      | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop"))
-      | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end"))
+      | .hooks.Stop             //= [] | .hooks.Stop             |= (strip("wf-telemetry.sh") | add($h + " stop")
+                                                                 | strip("wf-daily-hook.sh") | add($d + " stop"))
+      | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end")
+                                                                 | strip("wf-daily-hook.sh") | add($d + " session-end"))
+      | .hooks.PreCompact       //= [] | .hooks.PreCompact       |= (strip("wf-daily-hook.sh") | add($d + " pre-compact"))
       | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))
       | if has("hooks") and (.hooks | has("SessionStart"))
         then .hooks.SessionStart |= strip("wf-version.sh") else . end
@@ -306,6 +309,7 @@ Slash commands are available for the full development cycle. Use them whenever t
 | `/wf-retro` | Retrospective and workflow improvement |
 | `/wf-improve` | Record an observation, or review everything accumulated |
 | `/wf-jira` | Generate or enrich a Jira ticket |
+| `/wf-daily` | What to say at the daily, or record a note for it |
 
 ### Available language agents
 React Native: `rn-architect`, `rn-debugger`, `rn-performance`, `rn-testing`, `rn-uiux`, `rn-bridge`
@@ -358,6 +362,16 @@ copy it as rich text:
 
 The user then pastes with a plain Ctrl+V.
 
+### Daily notes
+`wf-daily-hook.sh` notes the session's milestones on its own (at the end, before a compaction,
+and hourly), and `/wf-daily` turns them, Jira, the MRs and the commits into a brief stand-up
+summary. A note the user asks for, or a blocker that must not be missed, is recorded by hand,
+one line in English, ticket key first, without announcing it:
+
+```
+~/.claude/scripts/wf-daily.sh note done|plan|doubt|blocker "BC-1234: what happened"
+```
+
 ### Improving the system
 The source repo (`repo_path` in `~/.claude/workflow/config.json`) is the source of truth.
 Never edit `~/.claude/commands/` directly — it's lost on the next install.
@@ -385,7 +399,7 @@ echo "✅ claude-workflow installed successfully"
 echo ""
 echo "Available commands: /wf, /wf-init, /wf-refine, /wf-analyze, /wf-review-plan,"
 echo "  /wf-implement, /wf-validate, /wf-test, /wf-commit, /wf-deploy,"
-echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira"
+echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira, /wf-daily"
 echo ""
 echo "To set up a new project: run /wf-init from its root."
 echo "To verify that repo and installation match: install.sh --check"
