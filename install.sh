@@ -310,6 +310,7 @@ Slash commands are available for the full development cycle. Use them whenever t
 | `/wf-improve` | Record an observation, or review everything accumulated |
 | `/wf-jira` | Generate or enrich a Jira ticket |
 | `/wf-daily` | What to say at the daily, or record a note for it |
+| `/wf-ready` | Take a ticket's MRs out of draft and announce them in the team's chat |
 
 ### Available language agents
 React Native: `rn-architect`, `rn-debugger`, `rn-performance`, `rn-testing`, `rn-uiux`, `rn-bridge`
@@ -399,7 +400,8 @@ echo "✅ claude-workflow installed successfully"
 echo ""
 echo "Available commands: /wf, /wf-init, /wf-refine, /wf-analyze, /wf-review-plan,"
 echo "  /wf-implement, /wf-validate, /wf-test, /wf-commit, /wf-deploy,"
-echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira, /wf-daily"
+echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira, /wf-daily,"
+echo "  /wf-ready"
 echo ""
 echo "To set up a new project: run /wf-init from its root."
 echo "To verify that repo and installation match: install.sh --check"

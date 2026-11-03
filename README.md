@@ -58,6 +58,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-retro` | When closing a ticket, to extract lessons learned |
 | `/wf-jira` | To generate or enrich a Jira ticket |
 | `/wf-daily` | To get what to say at the daily, or to record a note for it |
+| `/wf-ready` | To take a ticket's MRs out of draft and announce them in the team's chat, one short line per MR |
 
 ### Typical flow
 
