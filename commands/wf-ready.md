@@ -40,6 +40,7 @@ Two places, merged key by key, the project's winning:
     "team_channel": "#team"
   },
   "checks": ["pipeline", "conflicts", "threads"],
+  "labels": ["ready to review"],
   "message": {
     "title_words": [3, 6],
     "template": "",
@@ -64,6 +65,7 @@ Two places, merged key by key, the project's winning:
 | `chat.kind` | `slack`, `teams`, `discord`, `google-chat`, `mattermost`… or `none` (print only) | Ask once |
 | `chat.team_channel` | Channel that gets the whole list | None |
 | `checks` | Which of `pipeline`, `conflicts`, `threads` run before leaving draft | All three |
+| `labels` | Labels an MR gets when it leaves draft, on top of the ones it has | None |
 | `message.title_words` | Length range of each MR's title in the message | `[3, 6]` |
 | `message.template` | The message, with `{key}`, `{summary}`, `{groups}` and `{stack_note}` | The default below |
 | `message.stack_note` | Add a line on the merge order when MRs are stacked | `true` |
@@ -96,7 +98,8 @@ to the next way for the rest of the run; it never stops the others.
 - Per project, order the stack: the MR targeting the default branch first, then the one
   targeting its source branch, and so on. Unrelated MRs keep their own order.
 
-MRs already out of draft stay in the list: they are announced, not touched.
+MRs already out of draft stay in the list: they are announced, and only get the `labels` they
+lack (step 3).
 
 ## Step 2 — Check each draft, without blocking
 
@@ -116,6 +119,11 @@ user can override any line. A pending pipeline: offer to wait for it or to go ah
 
 After the user confirms, mark each MR ready. Where the host keeps draft state in the title
 (`Draft:`, `WIP:`), set the title without the prefix too, and confirm the result reads ready.
+
+In the same update, add `labels`, and add them as well to the MRs that were already out of
+draft and lack them. Keep every label the MR has: where the host's update replaces the whole
+list, send its current labels with the new ones. A label the project does not have is reported,
+not created.
 
 ## Step 4 — Reviewers
 
@@ -166,5 +174,5 @@ Default template, written in the message's language:
 
 ## Report
 
-MRs taken out of draft, MRs left in draft and why, reviewers set, tickets moved, and the
+MRs taken out of draft, MRs left in draft and why, labels added, reviewers set, tickets moved, and the
 messages posted (links) or printed — plus anything left to do by hand.
