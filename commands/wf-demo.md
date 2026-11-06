@@ -47,12 +47,19 @@ From what the user asked to show (`$ARGUMENTS`, the ticket, the MR, its spec): *
 flows**, each one a thing the audience will remember, three to five steps per flow. Edge cases,
 errors and permissions only when asked. Number them as test-in-env numbers cases: `F-1`, `F-2`...
 
-Prepare in silence what every step needs (data, the right user, a clean page) and **try it before
-the demo**: what stalls on setup loses the audience. What needs the user — a login, a password,
+Prepare what every step needs (data, the right user, a clean page) and **try it before the
+demo**: what stalls on setup loses the audience. Preparing goes unnarrated only while nobody is
+watching yet; once the audience is there, every setup action is told like a step (a banner headed
+"Preparación", the chat, and the voice with `--voice`): a screen that changes in silence reads as
+something going wrong. What needs the user — a login, a password,
 data you may not change — is asked now, not mid-demo. Work in your own tab of the session's tab
 group, never in the user's, and say which one.
 
 Show the flows and their steps in the chat and **wait for the user's go**; never start on your own.
+
+The user may click in the same browser during the demo. When the page changes in a way your last
+action cannot explain — another chain, a menu open, another URL — stop, say so, and ask before the
+next click: you would be working on top of them.
 
 ## Step 2 — The voice (`--voice`, `--listen`)
 
@@ -71,7 +78,9 @@ Skip it with neither flag.
    voice is right. Adjust in `voice.json` what they ask (`length_scale`: >1 slower, <1 faster;
    "too slow" means a smaller value; `voice`: another Piper voice, which `setup` downloads after
    asking) and try again.
-3. `--listen`: run `wf-voice.sh listen` under the **Monitor** tool, so every line wakes you.
+3. `--listen`: run `wf-voice.sh listen` under the **Monitor** tool with its longest timeout
+   (30 minutes), so every line wakes you; when it expires, re-arm it at once and without a word —
+   a listener that quietly stops reads as one that does not hear.
    `READY` — tell the user it listens for the wake word. `HEARD <text>` — a command, the same as
    a button or a typed answer (Step 3). When it cannot start, say so and go on without it.
 
@@ -206,6 +215,7 @@ a click made while you were not waiting is a valid answer.
 | Skip ("saltá") | Leave the flow (`⏸ skipped by the user`) and go to the next one |
 | Stop ("pará", "terminá") | Step 4 |
 | Pause ("pausa", "esperá") | Do nothing until another answer |
+| Pause the voice ("pausá la voz", "callate un momento") | Stop speaking now (`pkill -x pw-play`) and say nothing aloud until asked; the banner, the chat and listening go on |
 | A question | Answer in two or three sentences (aloud with `--voice`) and wait again |
 
 **Only questions about the demo are answered**: the change being shown, its flows, its data, the
