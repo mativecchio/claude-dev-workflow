@@ -1,5 +1,5 @@
 ---
-description: "Live demo of a change, step by step and only its main flows, narrated the way test-in-env's --explain --step does it (a banner on the page with the flow, the step and what to expect, a line in the chat per step, Go on / Repeat / Skip / Stop buttons on the banner) and with every finding or doubt told at once. Optionally aloud into a call, for someone who cannot see the screen (--voice), and driven by spoken commands that start with a wake word, such as 'Claude, seguí' (--listen). Usage: /wf-demo [--voice] [--listen] [--run] [what to show], /wf-demo stop"
+description: "Live demo of a change, step by step and only its main flows, narrated the way test-in-env's --explain --step does it (a banner on the page with the flow, the step and what to expect, a line in the chat per step, Go on / Repeat / Skip / Stop buttons on the banner) and with every finding or doubt told at once. Optionally aloud into a call, for someone who cannot see the screen (--voice), and driven by spoken commands that start with a wake word, such as 'Cristina, seguí' (--listen). Usage: /wf-demo [--voice] [--listen] [--run] [what to show], /wf-demo stop"
 allowed-tools: Read, Bash, Monitor, mcp__claude-in-chrome__*
 ---
 
@@ -19,7 +19,7 @@ flows.
 | (none) | Banner on the page and a line in the chat for each step; waits after each step |
 | `--run` | Does not wait after each step: goes straight through, still narrating |
 | `--voice` | Also says the narration aloud, into the call through a virtual microphone |
-| `--listen` | Also takes spoken commands after a wake word ("Claude, seguí"), with or without `--voice` |
+| `--listen` | Also takes spoken commands after a wake word ("Cristina, seguí"), with or without `--voice` |
 
 **The voice is optional**, and so is listening. The words count as the flags: "con voz", "sin
 voz", "quitá la voz", "escuchame". Mid-demo, set up what is asked then; what is dropped stops at

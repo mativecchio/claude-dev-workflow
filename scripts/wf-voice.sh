@@ -4,7 +4,7 @@
 #
 # Speaks narration into a call (Slack, Meet, Zoom...) through a virtual microphone that mixes
 # the user's own mic with the voice, and hears the user's spoken commands, only those that start
-# with a wake word ("Claude, seguí"). Linux with PipeWire only.
+# with a wake word, the assistant's name ("Cristina, seguí"). Linux with PipeWire only.
 #
 # Usage:
 #   wf-voice.sh config            print the resolved settings
@@ -20,11 +20,12 @@
 #   wf-voice.sh stop              remove the virtual mic and stop listening
 #
 # Settings: ~/.claude/workflow/voice.json, every key optional:
-#   voice          Piper voice           (default es_MX-ald-medium, male, Latin American)
+#   voice          Piper voice           (default es_AR-daniela-high, female, Argentine)
 #   length_scale   >1 slower, <1 faster  (default 1.0)
 #   language       speech recognition    (default es)
 #   whisper_model  faster-whisper model  (default small, ~460 MB; base is lighter and worse)
-#   wake           regex of wake words   (default claude|clod|cloud|clau)
+#   wake           regex of wake words   (default cristina|crisinta|cristi; the first is the
+#                  name the recognizer is hinted with)
 #   mic            capture node name     (default the system's default source)
 # WF_VOICE_HOME moves the install (default ~/.local/share/wf-voice).
 
@@ -41,11 +42,11 @@ cfg() {
   printf '%s' "${v:-$2}"
 }
 
-VOICE="$(cfg voice es_MX-ald-medium)"
+VOICE="$(cfg voice es_AR-daniela-high)"
 LENGTH="$(cfg length_scale 1.0)"
 LANGUAGE="$(cfg language es)"
 WHISPER="$(cfg whisper_model small)"
-WAKE="$(cfg wake 'claude|clod|cloud|clau')"
+WAKE="$(cfg wake 'cristina|crisinta|cristi')"
 MIC="$(cfg mic '')"
 
 # es_MX-ald-medium → es/es_MX/ald/medium/es_MX-ald-medium
@@ -169,6 +170,7 @@ from faster_whisper import WhisperModel
 mic, model_name, language, wake, lock, root = sys.argv[1:7]
 model = WhisperModel(model_name, device="cpu", compute_type="int8", download_root=root)
 wake_re = re.compile(r"^\W*(?:%s)\w*\W*" % wake, re.I)
+name = wake.split("|")[0].capitalize()       # the first wake word, as a hint to the recognizer
 rate, chunk = 16000, 1600                     # 0.1 s
 rec = subprocess.Popen(["pw-record", "--target", mic, "--rate", str(rate), "--channels", "1",
                         "--format", "s16", "-"], stdout=subprocess.PIPE)
@@ -198,7 +200,7 @@ while True:
         if len(audio) < rate * 0.4:
             continue
         segments, _ = model.transcribe(audio, language=language, beam_size=1,
-                                       initial_prompt="Claude, seguí. Claude, pausa.")
+                                       initial_prompt=f"{name}, seguí. {name}, pausa.")
         text = " ".join(s.text.strip() for s in segments).strip()
         m = wake_re.match(text)
         if m and text[m.end():].strip():
