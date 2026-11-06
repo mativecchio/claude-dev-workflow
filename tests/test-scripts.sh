@@ -510,6 +510,21 @@ echo "$IN" | WF_DAILY_HOOK=1 PATH="$SB/bin:$PATH" bash "$H" session-end
 eq  "the hook's own model call feeds nothing back" "1" "$(calls)"
 unset WF_DAILY_DIR WF_DAILY_BIN WF_DAILY_SYNC
 
+echo "═══ wf-voice ═══"
+V="$S/wf-voice.sh"
+export WF_VOICE_HOME="$SB/voice" WF_VOICE_CONF="$SB/voice.json"
+has "defaults to the agreed voice" "voice=es_MX-ald-medium" "$(bash "$V" config)"
+has "listens for Claude by default" "wake=claude|clod|cloud|clau" "$(bash "$V" config)"
+echo '{"voice":"es_ES-davefx-medium","length_scale":0.9,"wake":"hey"}' > "$WF_VOICE_CONF"
+has "the config picks the voice" "voice=es_ES-davefx-medium" "$(bash "$V" config)"
+has "the config picks the speed" "length_scale=0.9" "$(bash "$V" config)"
+has "the config picks the wake word" "wake=hey" "$(bash "$V" config)"
+has "an empty install says what setup brings" "MISSING piper" "$(bash "$V" check)"
+bash "$V" check >/dev/null; eq "check fails while something is missing" "1" "$?"
+has "say without text says how" "Usage: wf-voice.sh say" "$(bash "$V" say 2>&1)"
+bash "$V" nonsense >/dev/null; eq "an unknown subcommand fails" "1" "$?"
+unset WF_VOICE_HOME WF_VOICE_CONF
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json

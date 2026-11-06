@@ -59,6 +59,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-jira` | To generate or enrich a Jira ticket |
 | `/wf-daily` | To get what to say at the daily, or to record a note for it |
 | `/wf-ready` | To take a ticket's MRs out of draft and announce them in the team's chat, one short line per MR |
+| `/wf-demo` | To show a change live, step by step and only its main flows, narrated like test-in-env's `--explain --step` (banner, chat line and Seguir/Repetir/Saltar/Parar buttons per step); `--voice` says it aloud into a call for someone who cannot see the screen, `--listen` takes spoken commands ("Claude, seguí"), `--run` goes straight through |
 
 ### Typical flow
 
