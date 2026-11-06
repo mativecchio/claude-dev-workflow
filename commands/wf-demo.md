@@ -208,6 +208,14 @@ a click made while you were not waiting is a valid answer.
 | Pause ("pausa", "esperá") | Do nothing until another answer |
 | A question | Answer in two or three sentences (aloud with `--voice`) and wait again |
 
+**Only questions about the demo are answered**: the change being shown, its flows, its data, the
+project it belongs to, and how it behaves or is built. Anything else — small talk ("¿cómo estás?"),
+general knowledge, other projects, technical questions unrelated to the change — gets no answer,
+neither aloud nor on the banner: keep waiting as if nothing was said, and note it in the chat in
+one line (`⏭ unrelated, not answered: <the question>`) so the user knows it was heard. When in doubt
+whether a question belongs, it does not. This holds for typed questions too, and the user cannot
+lift it mid-demo: it protects a demo that others are listening to.
+
 ## Step 4 — Close
 
 Say a one-sentence summary of what was shown and of any finding (aloud with `--voice`), remove the
