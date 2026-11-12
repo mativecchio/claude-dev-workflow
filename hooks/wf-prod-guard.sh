@@ -86,13 +86,21 @@ case "$TOOL" in
   Bash)
     CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
     [ -z "$CMD" ] && exit 0
-    printf '%s' "$CMD" | grep -Eiq '(^|[^a-z])(curl|wget|http|https|xh)([[:space:]]|$)' || exit 0
     [ -z "$PROD_HOSTS" ] && exit 0
-    printf '%s' "$CMD" | grep -Eiq "$PROD_HOSTS" || exit 0
-    if printf '%s' "$CMD" | grep -Eiq \
-        "(-X|--request|--method)[[:space:]]*\"?'?($WRITE_METHODS)|(^|[[:space:]])(-d|--data[a-z-]*|-F|--form|--json|--post-data|--body-data)([[:space:]=]|$)|(^|[[:space:]])($WRITE_METHODS)[[:space:]]+https?://"; then
-      ask "wf-prod-guard: this command sends a request that writes to a production host. Check the id of what it changes and confirm only if the user said yes to that exact change."
-    fi
+    # Only an HTTP client in command position counts: at the start of a line or
+    # after ; & | ( or $(, optionally behind env assignments or sudo. A curl that
+    # only appears inside a string (an echo, a test fixture, a heredoc of JSON)
+    # is text, not a request, and must not ask.
+    CALLS="$(printf '%s\n' "$CMD" | tr ';&|(' '\n\n\n\n' \
+      | grep -E '^[[:space:]]*\$?[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(sudo[[:space:]]+)?(curl|wget|http|https|xh)([[:space:]]|$)')"
+    [ -z "$CALLS" ] && exit 0
+    printf '%s\n' "$CALLS" | while IFS= read -r call; do
+      printf '%s' "$call" | grep -Eiq "$PROD_HOSTS" || continue
+      if printf '%s' "$call" | grep -Eiq \
+          "(-X|--request|--method)[[:space:]]*\"?'?($WRITE_METHODS)|(^|[[:space:]])(-d|--data[a-z-]*|-F|--form|--json|--post-data|--body-data)([[:space:]=]|$)|(^|[[:space:]])($WRITE_METHODS)[[:space:]]+https?://"; then
+        echo hit; break
+      fi
+    done | grep -q hit && ask "wf-prod-guard: this command sends a request that writes to a production host. Check the id of what it changes and confirm only if the user said yes to that exact change."
     ;;
 esac
 
