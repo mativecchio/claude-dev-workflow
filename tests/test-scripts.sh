@@ -221,6 +221,25 @@ eq "project without a workflow: stays out"     "0" \
 rm -rf "$NOWF2" src/grow.js src/legacy.js src/tests src/notes.md src/new.ts src/configured.ts
 git rm -q --cached src/grow.js src/legacy.js >/dev/null 2>&1; git commit -qm "drop shape fixtures" >/dev/null 2>&1
 
+echo "═══ wf-prod-guard ═══"
+P="$REPO/hooks/wf-prod-guard.sh"
+guard() { out="$(printf '%s' "$1" | bash "$P" 2>/dev/null)"; printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null || echo allow; [ -z "$out" ] && echo allow; }
+pjs() { jq -cn --arg c "$1" '{tool_name:"mcp__claude-in-chrome__javascript_tool",tool_input:{tabId:1,text:$c}}'; }
+psh() { jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
+eq "fetch DELETE asks"                    "ask"   "$(guard "$(pjs "fetch('/x/36',{method:'DELETE'})")")"
+eq "a helper's POST argument asks"        "ask"   "$(guard "$(pjs "await bc('/x','POST',{code:'a'})")")"
+eq "lower-case method option asks"        "ask"   "$(guard "$(pjs "fetch(u,{method:'delete'})")")"
+eq "XHR open PATCH asks"                  "ask"   "$(guard "$(pjs "x.open('PATCH', u)")")"
+eq "a batch step with DELETE asks"        "ask"   "$(guard "$(jq -cn '{tool_name:"mcp__claude-in-chrome__browser_batch",tool_input:{actions:[{text:"fetch(u,{method:\"DELETE\"})"}]}}')")"
+eq "a plain GET passes"                   "allow" "$(guard "$(pjs "fetch('/api/carts/1?lang=en')")")"
+eq "a helper defaulting to GET passes"    "allow" "$(guard "$(pjs "const bc = async (p, method='GET') => {}")")"
+eq "curl DELETE to production asks"       "ask"   "$(guard "$(psh "curl -X DELETE https://bookcore.backhotelengine.com/x/36")")"
+eq "curl with a body to production asks"  "ask"   "$(guard "$(psh "curl -d '{}' https://bookcore.backhotelengine.com/x")")"
+eq "curl GET to production passes"        "allow" "$(guard "$(psh "curl -s https://bookcore.backhotelengine.com/x")")"
+eq "curl DELETE to a test host passes"    "allow" "$(guard "$(psh "curl -X DELETE https://crs-bc2.roibacktest.com/x")")"
+eq "WF_PROD_GUARD=off stays quiet"        "allow" "$(WF_PROD_GUARD=off guard "$(pjs "fetch(u,{method:'DELETE'})")")"
+eq "garbage input fails open"             "0"     "$(echo 'not json' | bash "$P" >/dev/null 2>&1; echo $?)"
+
 echo "═══ model selection ═══"
 # The gate section deliberately left a corrupt state behind; restore it so
 # enter-stage can write (it correctly refuses to touch unparseable JSON).

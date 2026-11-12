@@ -51,6 +51,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-implement` | To implement (also handles bugs/debugging) |
 | `/wf-validate` | Post-implementation, before tests (includes a runtime validator over MCP) |
 | `/wf-test` | To write tests and run the pre-MR checklist |
+| `/wf-test-env` | To test the running change like a QA with database access — in a test environment, the local stack or, read-only by default, production: a plan of cases to approve, data and permissions prepared with a way back, the browser with screenshots, and a numbered report by severity; then fixes and verification if asked. `--explain` and `--step` narrate it like `/wf-demo`. What each environment is comes from the project's `.claude/workflow/test-profile.md` |
 | `/wf-commit` | To generate the commit message with ticket context |
 | `/wf-deploy` | For commit+push, release branch and deploy |
 | `/wf-mr-desc` | To generate the MR description |
@@ -75,6 +76,8 @@ You can also invoke each command directly if you already know what you need:
 /wf-validate     → (optional) validation gate per category
      ↓
 /wf-test         → tests + pre-MR checklist
+     ↓
+/wf-test-env     → (optional) the running change, tested like a QA in an environment
      ↓
 /wf-mr-desc  → MR description
 /wf-mr-review → code review
@@ -322,10 +325,11 @@ claude-workflow/
 ├── VERSION             ← current version, stamped into the global config on install
 ├── CHANGELOG.md        ← what changed in each release
 ├── install.sh          ← installs; `--check` reports divergences without writing
-├── commands/           ← 15 wf-* commands
+├── commands/           ← 19 wf-* commands
 ├── hooks/
 │   ├── wf-telemetry.sh ← mechanical capture of the cycle → events.jsonl
-│   └── wf-gate.sh      ← the review-plan checkpoint, as a mechanism
+│   ├── wf-gate.sh      ← the review-plan checkpoint, as a mechanism
+│   └── wf-prod-guard.sh ← asks before a request that writes, from page JavaScript or to a production host
 ├── agents/
 │   ├── react-native/   ← rn-architect, rn-debugger, rn-performance, rn-testing, rn-uiux, rn-bridge
 │   ├── react/          ← react-architect

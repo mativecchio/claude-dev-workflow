@@ -129,6 +129,7 @@ At the end of each stage, suggest the next one:
 - After `review-plan` → `/wf-implement`
 - After `implement` → `/wf-validate` (optional) and `/wf-test`
 - After `validate` → `/wf-test`
-- After `test` → `/wf-mr-desc` and `/wf-mr-review`
+- After `test` → `/wf-mr-desc` and `/wf-mr-review`, and `/wf-test-env` once the change runs in an environment
+- After the change is released → `/wf-test-env` in production, when the ticket is closed only after validating it there
 - At any time → remind them that `/wf-improve <observation>` records something that went differently, without interrupting the work
 - After any stage → offer to save an entry in `~/.claude/workflow/flow-history.json`

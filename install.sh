@@ -226,8 +226,8 @@ fi
 # --- Telemetry (docs/brainstorm-metrics-and-complexity.md §3.2) --------------
 echo "→ Installing hooks..."
 mkdir -p "$HOOKS_DIR"
-cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-shape.sh" "$REPO_DIR/hooks/wf-daily-hook.sh" "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-shape.sh" "$HOOKS_DIR/wf-daily-hook.sh"
+cp "$REPO_DIR/hooks/wf-telemetry.sh" "$REPO_DIR/hooks/wf-gate.sh" "$REPO_DIR/hooks/wf-shape.sh" "$REPO_DIR/hooks/wf-daily-hook.sh" "$REPO_DIR/hooks/wf-prod-guard.sh" "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/wf-telemetry.sh" "$HOOKS_DIR/wf-gate.sh" "$HOOKS_DIR/wf-shape.sh" "$HOOKS_DIR/wf-daily-hook.sh" "$HOOKS_DIR/wf-prod-guard.sh"
 # 0.5.1 shipped a SessionStart hook for the update notice. It fired, but its
 # stdout never reached the terminal, so the notice moved into wf-lib.sh
 # `context`. Remove the leftover from any machine that installed that version.
@@ -244,7 +244,7 @@ else
 
   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg s "$HOOKS_DIR/wf-shape.sh" --arg d "$HOOKS_DIR/wf-daily-hook.sh" '
+    jq --arg h "$HOOKS_DIR/wf-telemetry.sh" --arg g "$HOOKS_DIR/wf-gate.sh" --arg s "$HOOKS_DIR/wf-shape.sh" --arg d "$HOOKS_DIR/wf-daily-hook.sh" --arg p "$HOOKS_DIR/wf-prod-guard.sh" '
       def strip($needle):
         map(.hooks |= map(select((.command // "") | contains($needle) | not)))
         | map(select((.hooks | length) > 0));
@@ -260,7 +260,8 @@ else
       | .hooks.SessionEnd       //= [] | .hooks.SessionEnd       |= (strip("wf-telemetry.sh") | add($h + " session-end")
                                                                  | strip("wf-daily-hook.sh") | add($d + " session-end"))
       | .hooks.PreCompact       //= [] | .hooks.PreCompact       |= (strip("wf-daily-hook.sh") | add($d + " pre-compact"))
-      | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g))
+      | .hooks.PreToolUse       //= [] | .hooks.PreToolUse       |= (strip("wf-gate.sh")      | add($g)
+                                                                 | strip("wf-prod-guard.sh") | add($p))
       | if has("hooks") and (.hooks | has("SessionStart"))
         then .hooks.SessionStart |= strip("wf-version.sh") else . end
       | if (.hooks.SessionStart // null) == [] then del(.hooks.SessionStart) else . end
@@ -311,6 +312,7 @@ Slash commands are available for the full development cycle. Use them whenever t
 | `/wf-jira` | Generate or enrich a Jira ticket |
 | `/wf-daily` | What to say at the daily, or record a note for it |
 | `/wf-ready` | Take a ticket's MRs out of draft and announce them in the team's chat |
+| `/wf-test-env` | Test a change running in an environment like a QA (plan, data with a way back, browser, report by severity), or validate it in production |
 | `/wf-demo` | Live demo of a change, step by step, narrated like test-in-env's --explain --step; optional voice into a call (--voice) and spoken commands (--listen) |
 
 ### Available language agents
@@ -402,7 +404,7 @@ echo ""
 echo "Available commands: /wf, /wf-init, /wf-refine, /wf-analyze, /wf-review-plan,"
 echo "  /wf-implement, /wf-validate, /wf-test, /wf-commit, /wf-deploy,"
 echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira, /wf-daily,"
-echo "  /wf-ready, /wf-demo"
+echo "  /wf-ready, /wf-demo, /wf-test-env"
 echo ""
 echo "To set up a new project: run /wf-init from its root."
 echo "To verify that repo and installation match: install.sh --check"
