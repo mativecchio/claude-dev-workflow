@@ -223,9 +223,11 @@ git rm -q --cached src/grow.js src/legacy.js >/dev/null 2>&1; git commit -qm "dr
 
 echo "═══ wf-prod-guard ═══"
 P="$REPO/hooks/wf-prod-guard.sh"
-guard() { out="$(printf '%s' "$1" | bash "$P" 2>/dev/null)"; printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null || echo allow; [ -z "$out" ] && echo allow; }
+PH="$(mktemp -d)"; mkdir -p "$PH/.claude/workflow"
+echo '{"prod_hosts":["prod\\.example\\.com"]}' > "$PH/.claude/workflow/config.json"
+guard() { out="$(printf '%s' "$1" | HOME="${2:-$PH}" bash "$P" 2>/dev/null)"; [ -z "$out" ] && { echo allow; return; }; printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"'; }
 pjs() { jq -cn --arg c "$1" '{tool_name:"mcp__claude-in-chrome__javascript_tool",tool_input:{tabId:1,text:$c}}'; }
-psh() { jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
+psh() { jq -cn --arg c "$1" --arg d "${2:-/}" '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}'; }
 eq "fetch DELETE asks"                    "ask"   "$(guard "$(pjs "fetch('/x/36',{method:'DELETE'})")")"
 eq "a helper's POST argument asks"        "ask"   "$(guard "$(pjs "await bc('/x','POST',{code:'a'})")")"
 eq "lower-case method option asks"        "ask"   "$(guard "$(pjs "fetch(u,{method:'delete'})")")"
@@ -233,12 +235,19 @@ eq "XHR open PATCH asks"                  "ask"   "$(guard "$(pjs "x.open('PATCH
 eq "a batch step with DELETE asks"        "ask"   "$(guard "$(jq -cn '{tool_name:"mcp__claude-in-chrome__browser_batch",tool_input:{actions:[{text:"fetch(u,{method:\"DELETE\"})"}]}}')")"
 eq "a plain GET passes"                   "allow" "$(guard "$(pjs "fetch('/api/carts/1?lang=en')")")"
 eq "a helper defaulting to GET passes"    "allow" "$(guard "$(pjs "const bc = async (p, method='GET') => {}")")"
-eq "curl DELETE to production asks"       "ask"   "$(guard "$(psh "curl -X DELETE https://bookcore.backhotelengine.com/x/36")")"
-eq "curl with a body to production asks"  "ask"   "$(guard "$(psh "curl -d '{}' https://bookcore.backhotelengine.com/x")")"
-eq "curl GET to production passes"        "allow" "$(guard "$(psh "curl -s https://bookcore.backhotelengine.com/x")")"
-eq "curl DELETE to a test host passes"    "allow" "$(guard "$(psh "curl -X DELETE https://crs-bc2.roibacktest.com/x")")"
+eq "curl DELETE to a configured prod host asks" "ask" "$(guard "$(psh "curl -X DELETE https://prod.example.com/x/36")")"
+eq "curl with a body to it asks"          "ask"   "$(guard "$(psh "curl -d '{}' https://prod.example.com/x")")"
+eq "curl GET to it passes"                "allow" "$(guard "$(psh "curl -s https://prod.example.com/x")")"
+eq "curl DELETE to another host passes"   "allow" "$(guard "$(psh "curl -X DELETE https://staging.example.com/x")")"
+EMPTYH="$(mktemp -d)"
+eq "no prod_hosts anywhere: curl passes"  "allow" "$(guard "$(psh "curl -X DELETE https://prod.example.com/x")" "$EMPTYH")"
+PROJ="$(mktemp -d)"; git -C "$PROJ" init -q .; mkdir -p "$PROJ/.claude/workflow"
+echo '{"prod_hosts":["api\\.shop\\.test"]}' > "$PROJ/.claude/workflow/config.json"
+eq "the project's prod_hosts count"       "ask"   "$(guard "$(psh "curl -X PUT https://api.shop.test/x" "$PROJ")" "$EMPTYH")"
+eq "WF_PROD_HOSTS counts"                 "ask"   "$(WF_PROD_HOSTS='env\.test' guard "$(psh "curl -X DELETE https://env.test/x")" "$EMPTYH")"
 eq "WF_PROD_GUARD=off stays quiet"        "allow" "$(WF_PROD_GUARD=off guard "$(pjs "fetch(u,{method:'DELETE'})")")"
 eq "garbage input fails open"             "0"     "$(echo 'not json' | bash "$P" >/dev/null 2>&1; echo $?)"
+rm -rf "$PH" "$EMPTYH" "$PROJ"
 
 echo "═══ model selection ═══"
 # The gate section deliberately left a corrupt state behind; restore it so

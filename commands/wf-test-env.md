@@ -5,12 +5,12 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Monitor, mcp__claude-in-chro
 
 Test for real what a change does where it runs: understand it, decide what to test, prepare the
 data it needs, test it in the browser and document what shows up with screenshots. Then, if the
-user asks, fix and verify. It ports the `roi:test-in-env` skill of booking-center-specs
-(`plugins/roi/skills/test-in-env/`) to any project: what is particular to a project's environments
-comes from its **test profile**, never from this file.
+user asks, fix and verify. It works the same in every project: what is particular to a project's
+environments comes from its **test profile**, never from this file. Only the environments the
+profile lists are tested; none is assumed.
 
 `/wf-test` writes the automated tests before the MR; this command exercises the running change,
-before merging (a test environment or the local stack) or after (production).
+before merging (the local stack, or a test environment the profile lists) or after (production).
 
 The flow has two mandatory stops, after the plan and after the report, because what comes next has
 side effects: the preparation writes to databases other people use, and the fixes touch branches
@@ -24,7 +24,7 @@ Talk to the user, and write the plan and the report, in the project's `language`
 | Option | Effect |
 |---|---|
 | `--explain` | Narrate while it runs: a banner on the page and a line in the chat per case and step, as `/wf-demo` Step 3 describes (*The banner*, *The chat*), with the case id and the expected result in each step |
-| `--step` | Wait after each step until the user says to go on, with `/wf-demo`'s *Seguir / Repetir / Saltar / Parar* buttons. It turns `--explain` on |
+| `--step` | Wait after each step until the user says to go on, with `/wf-demo`'s go on / repeat / skip / stop buttons, in the user's language. It turns `--explain` on |
 
 Words count as flags: "explicame qué vas probando" is `--explain`, "paso a paso" is `--step`. Keep
 the choice in `run.json`, so a resumed test goes on the same way.
@@ -55,9 +55,9 @@ says so in one line:
 | High-risk changes | Per repository, what deserves a case of its own |
 
 When the project has no profile, say so. The test can run with the user's answers to those
-sections, but offer to write `test-profile.md` from them so the next test does not ask again. If
-the project uses the `roi` plugin and a `test-profile` skill exists for it, that skill is the
-profile.
+sections, but offer to write `test-profile.md` from them so the next test does not ask again. When
+the profile points to another document or skill that already describes the environments, read
+that one.
 
 **Tools.** A browser you drive (Claude in Chrome) is required; without it, stop. The code host
 (GitLab/GitHub, through a tool of the session or its CLI) resolves the scope; the environment's
@@ -239,7 +239,7 @@ closed. In production, also remind the user of anything an administrator turned 
 
 ## Resuming
 
-"Test BC-1727 again", "fix 3 of the last report": find the most recent run with that key, read its
+"Test PROJ-123 again", "fix 3 of the last report": find the most recent run with that key, read its
 `run.json` and go on from its phase, after checking the deploy matrix has not changed and that no
 run left permissions or data unrestored.
 

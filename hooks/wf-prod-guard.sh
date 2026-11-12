@@ -17,7 +17,8 @@
 #     production from a test environment: every write through page JavaScript
 #     asks. That is rare and worth a confirmation anywhere.
 #   - Bash: curl, wget or httpie against a production host with a method or a
-#     body that writes.
+#     body that writes. Production hosts are per project, never in this file:
+#     see below.
 # What it can not catch: clicks on a screen's own buttons (it sees coordinates,
 # not what the button does). Those stay under the memory rule.
 #
@@ -28,8 +29,13 @@
 #   ask   (default) asks for confirmation
 #   off   does nothing
 #
-# Production hosts, a regex on the URL (WF_PROD_HOSTS), default
-# backhotelengine.com.
+# Production hosts: extended regexes matched against the command, from
+#   - "prod_hosts" in the project's .claude/workflow/config.json (the git root
+#     of the hook's cwd),
+#   - "prod_hosts" in ~/.claude/workflow/config.json, for hosts that must be
+#     guarded from any checkout (worktrees have no project config),
+#   - WF_PROD_HOSTS, one more regex.
+# With none of them the Bash check is skipped; the JavaScript one still runs.
 
 MODE="${WF_PROD_GUARD:-ask}"
 [ "$MODE" = "off" ] && exit 0
@@ -40,7 +46,15 @@ INPUT="$(cat)"; [ -z "$INPUT" ] && exit 0
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)" || exit 0
 [ -z "$TOOL" ] && exit 0
 
-PROD_HOSTS="${WF_PROD_HOSTS:-backhotelengine\.com}"
+CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)"
+ROOT="$( [ -n "$CWD" ] && git -C "$CWD" rev-parse --show-toplevel 2>/dev/null )"
+prod_hosts() {
+  for f in "${ROOT:+$ROOT/.claude/workflow/config.json}" "$HOME/.claude/workflow/config.json"; do
+    [ -n "$f" ] && [ -f "$f" ] && jq -r '(.prod_hosts // [])[]' "$f" 2>/dev/null
+  done
+  [ -n "${WF_PROD_HOSTS:-}" ] && printf '%s\n' "$WF_PROD_HOSTS"
+}
+PROD_HOSTS="$(prod_hosts | grep -v '^$' | paste -sd'|' -)"
 WRITE_METHODS='DELETE|PUT|PATCH|POST'
 
 ask() {
@@ -73,6 +87,7 @@ case "$TOOL" in
     CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
     [ -z "$CMD" ] && exit 0
     printf '%s' "$CMD" | grep -Eiq '(^|[^a-z])(curl|wget|http|https|xh)([[:space:]]|$)' || exit 0
+    [ -z "$PROD_HOSTS" ] && exit 0
     printf '%s' "$CMD" | grep -Eiq "$PROD_HOSTS" || exit 0
     if printf '%s' "$CMD" | grep -Eiq \
         "(-X|--request|--method)[[:space:]]*\"?'?($WRITE_METHODS)|(^|[[:space:]])(-d|--data[a-z-]*|-F|--form|--json|--post-data|--body-data)([[:space:]=]|$)|(^|[[:space:]])($WRITE_METHODS)[[:space:]]+https?://"; then
