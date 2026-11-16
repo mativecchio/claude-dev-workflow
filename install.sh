@@ -369,11 +369,15 @@ The user then pastes with a plain Ctrl+V.
 ### Daily notes
 `wf-daily-hook.sh` notes the session's milestones on its own (at the end, before a compaction,
 and hourly), and `/wf-daily` turns them, Jira, the MRs and the commits into a brief stand-up
-summary. A note the user asks for, or a blocker that must not be missed, is recorded by hand,
-one line in English, ticket key first, without announcing it:
+summary. A note the user asks for, a blocker that must not be missed, or a technical decision
+the team should hear about (ending in `needs the team` when it should weigh in) is recorded by
+hand, one line in English, ticket key first, without announcing it. A screenshot or GIF of a
+visible change, for the team to see at the daily, goes with `show`, its line saying where it is,
+what is on screen and what changed:
 
 ```
-~/.claude/scripts/wf-daily.sh note done|plan|doubt|blocker "BC-1234: what happened"
+~/.claude/scripts/wf-daily.sh note done|plan|doubt|blocker|decision "BC-1234: what happened"
+~/.claude/scripts/wf-daily.sh show <file> "BC-1234: where, what is on screen, what changed"
 ```
 
 ### Improving the system
