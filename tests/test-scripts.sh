@@ -513,6 +513,16 @@ has "notes include the last working day" "MA-100" "$OUT"
 has "notes include today"                "MA-101" "$OUT"
 WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" note maybe "x" >/dev/null 2>&1
 eq  "an unknown kind exits 2" "2" "$?"
+WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" note decision "MA-101: cache in memory over Redis, needs the team" >/dev/null
+has "a decision is a kind" "\[decision\] MA-101: cache in memory" "$(cat "$WF_DAILY_DIR/2026-10-28.md")"
+echo gif > "$SB/flow.gif"
+OUT="$(WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" show "$SB/flow.gif" "MA-101: the new checkout step")"
+eq  "show copies the capture to media/" "gif" "$(cat "$OUT" 2>/dev/null)"
+has "show leaves a note pointing to it" "\[show\] MA-101: the new checkout step -> media/2026-10-28-" "$(cat "$WF_DAILY_DIR/2026-10-28.md")"
+WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" show "$SB/missing.gif" "x" >/dev/null 2>&1
+eq  "show without a file exits 2" "2" "$?"
+WF_DAILY_TODAY=2026-10-28 bash "$S/wf-daily.sh" note show "x" >/dev/null 2>&1
+eq  "show is not a plain note kind" "2" "$?"
 unset WF_DAILY_DIR
 
 echo "═══ wf-daily-hook ═══"

@@ -232,3 +232,6 @@ Say a one-sentence summary of what was shown and of any finding (aloud with `--v
 banner and, if voice or listening ran, `wf-voice.sh stop` and tell the user to pick their usual
 microphone again. In the chat: what was shown, each finding with what to do about it, and anything
 left changed for the demo (data, deploys, logins) with how to undo it.
+
+When the demo was recorded (a GIF of a flow), offer to keep it for the team's daily, so whoever
+was not there can see it: `~/.claude/scripts/wf-daily.sh show <file> "<KEY>: <what it shows>"`.

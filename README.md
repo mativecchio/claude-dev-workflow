@@ -58,7 +58,7 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-mr-review` | To review an MR, code or spec, with the mode detected from the changed files (`--spec` / `--code` force it; `--followup <MR>`: check the answers to your own comments; `--followup --code-review <MR>`: also check the new commits for bugs) |
 | `/wf-retro` | When closing a ticket, to extract lessons learned |
 | `/wf-jira` | To generate or enrich a Jira ticket |
-| `/wf-daily` | To get what to say at the daily, or to record a note for it |
+| `/wf-daily` | To get what to say at the daily (with the technical decisions and captures to show, when there are any), or to record a note or a capture for it |
 | `/wf-ready` | To take a ticket's MRs out of draft and announce them in the team's chat, one short line per MR |
 | `/wf-demo` | To show a change live, step by step and only its main flows, narrated like test-in-env's `--explain --step` (banner, chat line and Seguir/Repetir/Saltar/Parar buttons per step); `--voice` says it aloud into a call for someone who cannot see the screen, `--listen` takes spoken commands ("Cristina, seguí"), `--run` goes straight through |
 

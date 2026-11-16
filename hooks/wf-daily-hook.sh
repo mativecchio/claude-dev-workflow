@@ -68,10 +68,13 @@ TODAY_NOTES="$(cat "$DIR/$(date +%F).md" 2>/dev/null)"
   PROMPT="You extract stand-up notes from a work session between a developer and an AI assistant.
 
 From the excerpt below, list only what the developer would say at tomorrow's daily:
-- done: work finished or delivered (MR opened or merged, spec or plan written, ticket moved, bug fixed, decision taken)
+- done: work finished or delivered (MR opened or merged, spec or plan written, ticket moved, bug fixed)
 - plan: what they said they will do next
 - doubt: a question sent to someone, or left open, still unanswered
 - blocker: something that stops the work, and who or what it waits on
+- decision: a technical decision taken or still open that the team should hear about: what was
+  chosen and over what, and \"needs the team\" when the developer wants the team to weigh in.
+  Only decisions that change how something is built or behaves, never routine choices.
 
 Rules: at most 3 lines, and 0 is the usual answer: only what a teammate would care about. Skip routine steps (reading files, running tests,
 small edits), anything already in the existing notes, and anything about the AI tooling itself unless
@@ -87,7 +90,7 @@ $EXCERPT"
       --no-session-persistence --tools "" "$PROMPT" 2>/dev/null \
     | while IFS=$'\t' read -r kind text; do
         kind="$(printf '%s' "$kind" | tr -d '[:space:]-' | tr '[:upper:]' '[:lower:]')"
-        case "$kind" in done|plan|doubt|blocker) ;; *) continue ;; esac
+        case "$kind" in done|plan|doubt|blocker|decision) ;; *) continue ;; esac
         [ -n "$text" ] && "${WF_DAILY_BIN:-$HOME/.claude/scripts/wf-daily.sh}" note "$kind" "$text" >/dev/null 2>&1
       done
 ) </dev/null >/dev/null 2>&1 &

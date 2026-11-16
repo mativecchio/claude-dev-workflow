@@ -1,17 +1,20 @@
 #!/bin/bash
 #
 # Daily notes: what got done, what comes next, the doubts and the blockers,
-# kept across every project so /wf-daily can say what to tell at the stand-up.
-# One file per day in $WF_DAILY_DIR (~/.claude/workflow/daily by default).
+# the technical decisions and what there is to show, kept across every project
+# so /wf-daily can say what to tell at the stand-up.
+# One file per day in $WF_DAILY_DIR (~/.claude/workflow/daily by default);
+# captures recorded with `show` are copied to its media/ folder.
 #
 # Usage:
-#   wf-daily.sh note <done|plan|doubt|blocker> <text...>   append a note to today
+#   wf-daily.sh note <done|plan|doubt|blocker|decision> <text...>   append a note to today
+#   wf-daily.sh show <file> <text...>  keep a screenshot or GIF of a visible change for the daily
 #   wf-daily.sh since [YYYY-MM-DD]     the last working day before that date (today by default)
 #   wf-daily.sh notes [YYYY-MM-DD]     every note from that date (default: since) up to today
 #   wf-daily.sh path [YYYY-MM-DD]      the file of that day (today by default)
 
 DIR="${WF_DAILY_DIR:-$HOME/.claude/workflow/daily}"
-KINDS="done plan doubt blocker"
+KINDS="done plan doubt blocker decision"
 
 # GNU date first, BSD date (macOS) as the fallback.
 day_shift() {  # <YYYY-MM-DD> <days, may be negative>
@@ -52,6 +55,17 @@ note() {
   echo "$f"
 }
 
+show() {
+  local src="$1"; shift
+  [ -f "$src" ] || { echo "wf-daily: no such file: $src" >&2; return 2; }
+  [ -n "$*" ] || { echo "wf-daily: empty note" >&2; return 2; }
+  mkdir -p "$DIR/media"
+  local name="$(today)-$(date +%H%M%S)-$(basename "$src")"
+  cp "$src" "$DIR/media/$name" || return 1
+  KINDS="show" note show "$* -> media/$name" >/dev/null || return 1
+  echo "$DIR/media/$name"
+}
+
 notes() {
   local from="${1:-$(since)}" d to
   to="$(today)"
@@ -64,10 +78,11 @@ notes() {
 
 case "${1:-}" in
   note)  shift; note "$@" ;;
+  show)  shift; show "$@" ;;
   since) since "${2:-}" ;;
   notes) notes "${2:-}" ;;
   path)  echo "$DIR/${2:-$(today)}.md" ;;
   *)
-    echo "usage: wf-daily.sh {note <$(echo $KINDS | tr ' ' '|')> <text>|since [date]|notes [from]|path [date]}" >&2
+    echo "usage: wf-daily.sh {note <$(echo $KINDS | tr ' ' '|')> <text>|show <file> <text>|since [date]|notes [from]|path [date]}" >&2
     exit 2 ;;
 esac

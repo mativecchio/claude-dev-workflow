@@ -249,5 +249,12 @@ run left permissions or data unrestored.
 ~/.claude/scripts/wf-daily.sh note done "<KEY>: tested <scope> in <environment>, <n> findings"
 ```
 
+When the change is visible and `evidence/` has a GIF or screenshot of its main flow working, offer
+to keep it for the team's daily, so they can see it without a demo:
+
+```bash
+~/.claude/scripts/wf-daily.sh show <evidence file> "<KEY>: <what it shows>"
+```
+
 When a finding reveals a gap in the workflow (a check that should have caught it), record it with
 `/wf-improve`.
