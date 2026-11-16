@@ -1,6 +1,6 @@
 ---
 description: "Stand-up summary. With an argument: records a note (done, plan, doubt, blocker or decision) or a capture of a visible change in today's daily log. Without one: builds what to say at the daily — yesterday, today, doubts and blockers, and, only when there are any, the technical decisions to share and the changes to show — from the notes, Jira, the merge requests and the commits since the last working day."
-allowed-tools: Read, Write, Bash, Glob, Grep, Artifact
+allowed-tools: Read, Write, Bash, Glob, Grep, Artifact, mcp__claude_ai_Atlassian_MCP__*
 ---
 
 What the user says at the daily, ready to read aloud in about a minute: what they did since
@@ -133,20 +133,39 @@ not available. When a visible change went to review in the window with no captur
 Write the summary (without *For you*) to `~/.claude/workflow/daily/<today>-summary.md`, so the
 next daily can compare. Offer to copy it with `~/.claude/scripts/wf-clip.sh` for Slack.
 
-**The page to share**, only when *Technical decisions* or *To show* has something: one page the
-user can put on screen at the daily or share with the team, with the day's decisions (with their
-ticket and MR links, and the context a teammate needs) and every capture of *To show* in full
-size. Every capture says what a teammate needs to read it without the ticket: the ticket's title,
-where in the product it is, what is on screen and what changed from before, from its note and,
-when the note is short, from the ticket and the MR; a capture tied to a decision goes under it. It is one Artifact that changes every day and keeps its address, so the team
-can keep the link: its URL is in `~/.claude/workflow/daily/page-url`. When the file exists, read
-the Artifact first and publish to that URL; otherwise publish a new one and write its URL there.
-Load the `artifact-design` skill before writing it; the captures go as `files` from `media/`. The
-page is private: give the user its link and let them share it.
+**The week's page**, only when *Technical decisions* or *To show* has something. It is what the
+team reads to catch up, so it stays short enough to be read:
+
+- Only decisions and captures. *Yesterday*, *Today* and *Blockers and doubts* are said aloud and
+  never written there.
+- One section per day that had something, the newest on top, with at most three items: a decision
+  in two lines (what was decided and why), a capture with one line (its ticket, where in the
+  product it is, what is on screen and what changed) and the capture itself. A capture tied to a
+  decision of the same ticket goes under it. Days with nothing get no section.
+- At the very top, one line with the decisions that `need the team` and are still open, only when
+  there are any.
+- The earlier days of the week collapsed, one line each.
+- A day already on the page is rewritten with what the notes say now, never added twice.
+
+Where it goes comes from `daily` in `~/.claude/workflow/config.json`:
+
+- `"publish": "confluence"`, with `site`, `space_id` and `parent_id` (the page every week hangs
+  from): one page per week under the parent, titled `Daily · semana del <Monday's date>` in the
+  user's language, created by the week's first daily and updated by the rest; its id is kept in
+  `~/.claude/workflow/daily/confluence.json` by ISO week. Through the Atlassian connector: read
+  the format guide once, upload each capture of `media/` as an attachment of the week's page
+  (`createConfluenceAttachment`, then its upload command), and write the page in HTML with a
+  decision list for the decisions, the media nodes for the captures and `<details>` for the
+  earlier days, re-reading the page and its snapshot token before each update. Give the user the
+  week's link: it is the one to pass on, and it stays the same until Friday.
+- Otherwise, or when the connector is missing: one Artifact with the same content, whose URL is
+  kept in `~/.claude/workflow/daily/page-url` (read it first and publish to that URL when the file
+  exists). Load the `artifact-design` skill before writing it; the captures go as `files` from
+  `media/`. An Artifact is private to the user's account, which may not reach the team: say so.
 
 ## Rules
 
 - Nothing the sources do not show. A guess about the plan is said as a suggestion in *For you*,
   not put in the user's mouth.
-- Never post the summary anywhere: the user says it or pastes it. The page stays private until
-  the user shares it.
+- Never post the summary anywhere: the user says it or pastes it. The week's page is the only
+  thing published, and only where `daily` says.
