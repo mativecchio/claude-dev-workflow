@@ -14,7 +14,7 @@
 # PRINCIPLE: degrade, don't break. A function that can't resolve something
 # returns empty and exits != 0; it never leaves state half-written.
 
-WF_STAGES="refine analyze review-plan implement validate test mr-desc mr-review retro"
+WF_STAGES="quick refine analyze review-plan implement validate test mr-desc mr-review retro"
 
 # ---------------------------------------------------------------------------
 # Project context

@@ -17,7 +17,7 @@ check(){ if eval "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
 echo "═══ CASE 1 — clean install ═══"
 HOME="$SB" "$REPO/install.sh" >/dev/null 2>&1 || echo "  (install returned $?)"
 C="$SB/.claude"
-check "commands installed (19)"          "[ \$(ls $C/commands/wf*.md | wc -l) -eq 19 ]"
+check "commands installed (20)"          "[ \$(ls $C/commands/wf*.md | wc -l) -eq 20 ]"
 check "wf-commit.md installed"           "[ -f $C/commands/wf-commit.md ]"
 check "wf-deploy.md installed"           "[ -f $C/commands/wf-deploy.md ]"
 check "responsibilities guide installed" "[ -s $C/workflow/guides/responsibilities.md ]"

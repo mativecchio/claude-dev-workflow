@@ -234,6 +234,7 @@ same endpoint differently.
 Read:
 - `{workflowDir}/plan.md` → context of what was implemented
 - `{workflowDir}/refinement-summary.md` → acceptance criteria
+- `{workflowDir}/quick.md`, for a `/wf-quick` ticket → its *Root cause*, *Fix* and *Expected behaviour* stand in for the plan and the acceptance criteria
 - `CLAUDE.md` or `README.md` → stack and conventions
 - `.claude/workflow/config.json` → the project's stack
 - `~/.claude/workflow/guides/responsibilities.md` → the design checks `R1`–`R7` the Agent applies to
@@ -355,6 +356,7 @@ logic. Running both on *every* diff is not.
 - **New or changed behaviour** → both. The Agent alone will not find a race in an abort path.
 - **Pure structural change** — verified move, rename, extraction with no behaviour delta and no test
   edits → **Agent only**. There is no new logic for a generic reviewer to find bugs in.
+- **A `/wf-quick` ticket** (`quick.md`, no `plan.md`) → **both**, with the Agent checking the diff against `quick.md`'s *Fix* and *Files* and the responsibilities pass. A diff over the quick limit (`wf-diff.sh --quick` exits 3) or one that touches a risk surface is an Important finding: the change left the quick track without escalating.
 - **No `plan.md` / no `refinement-summary.md`** (a retroactive ticket, an ad-hoc MR, a teammate's
   MR) → **both, with a narrower Agent**. With no plan, the Agent's scope is the responsibilities pass
   (section 2a), the Step 2.1 rules, and design fidelity when Step 2.2 produced a design reference.

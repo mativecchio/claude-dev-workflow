@@ -11,6 +11,7 @@ Try to read (silently, no error if missing):
 - `.claude/workflow/state.json` → `activeTicket`
 - `{workflowDir}/refinement-summary.md` → objective of the change
 - `{workflowDir}/plan.md` → what was implemented
+- `{workflowDir}/quick.md` → problem, root cause and fix of a `/wf-quick` change (instead of the two above)
 
 Where `{workflowDir}` = `.claude/workflow/{activeTicket}`. If there's no active ticket or the files don't exist, continue anyway — the diff is enough.
 

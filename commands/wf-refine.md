@@ -61,6 +61,7 @@ Read quickly so you don't ask what you can already infer:
 - `CLAUDE.md` or `README.md` → stack, conventions
 - `.claude/workflow/config.json` → the project's DoD, stack, related projects
 - If there's a ticket ID in `$ARGUMENTS`, try to infer context from the name
+- `{workflowDir}/quick.md`, if the ticket escalated from `/wf-quick` → its problem, root cause and the reason it escalated are already settled; start from them and ask only what they leave open
 
 ## Step 2 — Understand the initial request
 

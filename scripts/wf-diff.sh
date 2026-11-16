@@ -115,7 +115,7 @@ case "$MODE" in
     if [ -n "$RANGE" ]; then git log --oneline "$RANGE"; else echo "(no commits on top of $BASE)"; fi ;;
   --base)
     printf 'base=%s\nbase_ref=%s\nmerge_base=%s\nrange=%s\n' "$BASE" "$BASE_REF" "${MB:-none}" "${RANGE:-working-tree}" ;;
-  --weight|--size)
+  --weight|--size|--quick)
     # Review weight, not raw lines: renames and whitespace don't count, and
     # tests are counted separately so good coverage isn't penalized. Fixtures
     # and stories go with the tests; translations and generated files are left
@@ -147,10 +147,18 @@ case "$MODE" in
       printf 'weight_prod=%s\nweight_tests=%s\n' "$prod" "$tests"
       exit 0
     fi
-    # The size a reviewer can hold in their head. Over it, the user is asked
-    # whether to split the MR; it is a warning, never a stop (/wf-deploy).
-    max_lines="$(wf_config '.mr_size.max_prod_lines // empty' 2>/dev/null)"; max_lines="${max_lines:-400}"
-    max_files="$(wf_config '.mr_size.max_prod_files // empty' 2>/dev/null)"; max_files="${max_files:-10}"
+    if [ "$MODE" = "--quick" ]; then
+      # What still fits the quick track (/wf-quick): a fix small enough that a
+      # short quick.md documents it fully. Over it, the change escalates to the
+      # full flow instead of growing undocumented decisions.
+      max_lines="$(wf_config '.quick.max_prod_lines // empty' 2>/dev/null)"; max_lines="${max_lines:-100}"
+      max_files="$(wf_config '.quick.max_prod_files // empty' 2>/dev/null)"; max_files="${max_files:-3}"
+    else
+      # The size a reviewer can hold in their head. Over it, the user is asked
+      # whether to split the MR; it is a warning, never a stop (/wf-deploy).
+      max_lines="$(wf_config '.mr_size.max_prod_lines // empty' 2>/dev/null)"; max_lines="${max_lines:-400}"
+      max_files="$(wf_config '.mr_size.max_prod_files // empty' 2>/dev/null)"; max_files="${max_files:-10}"
+    fi
     over=false
     { [ "$prod" -gt "$max_lines" ] || [ "$prod_files" -gt "$max_files" ]; } && over=true
     printf 'weight_prod=%s\nfiles_prod=%s\nweight_tests=%s\nmax_prod_lines=%s\nmax_prod_files=%s\nover=%s\n' \
@@ -158,6 +166,6 @@ case "$MODE" in
     [ "$over" = "true" ] && exit 3
     exit 0 ;;
   *)
-    echo "usage: wf-diff.sh [--full|--stat|--files|--log|--base|--weight|--size] [--branch <branch>] [--fetch]" >&2
+    echo "usage: wf-diff.sh [--full|--stat|--files|--log|--base|--weight|--size|--quick] [--branch <branch>] [--fetch]" >&2
     exit 1 ;;
 esac

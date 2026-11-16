@@ -22,6 +22,7 @@ Read:
 - `{workflowDir}/plan.md` → technical solution and decisions taken
 - `{workflowDir}/refinement-summary.md` → objective and acceptance criteria
 - `{workflowDir}/review-findings.md` → whether there were significant adjustments to the plan
+- `{workflowDir}/quick.md`, when the ticket went through `/wf-quick` → it replaces `plan.md` and `refinement-summary.md`: problem, root cause, fix, tests and verification
 - `{workflowDir}/mr-size.md`, if it exists → the MR is over `mr_size` and the user kept it as
   one. That size, and the reason when the user gave one, go under *Worth knowing*, in one bullet,
   so the reviewer knows before opening the diff
@@ -71,7 +72,7 @@ by pulling the base branch.
 
 Two reasons, and the second matters as much as the first. Writing an MR description from a plan and a diff is bounded work against a fixed template — there is no open-ended judgment, so the strongest model buys nothing. And delegating keeps the plan, the refinement and the full diff out of the session's context window, where they were being loaded for a task that never needed to be there.
 
-Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md`, `review-findings.md`, `mr-size.md` when it exists, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
+Pass the Agent everything it needs, because it starts with no context: the contents of `plan.md`, `refinement-summary.md` (or `quick.md`), `review-findings.md`, `mr-size.md` when it exists, the `--stat` and `--log` output from Step 1, and the structure below. If Step 1 resolved a published MR, pass its current description and its reviewer comments too, with the instruction to preserve what the plan doesn't cover and to answer what the thread keeps asking. Ask it to return the finished markdown and nothing else.
 
 **Principles** (include these in the Agent's prompt):
 - The reader is a reviewer about to open the diff. The description gives them the context and the reason for the change, so the diff makes sense when they get to it. The diff already says how it was done

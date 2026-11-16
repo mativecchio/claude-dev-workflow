@@ -297,6 +297,7 @@ Slash commands are available for the full development cycle. Use them whenever t
 |---|---|
 | `/wf` | Orchestrator — detects the stage and routes |
 | `/wf-init` | Initializes the workflow in a project (once per repo) |
+| `/wf-quick` | Quick track for small changes: triage, short quick.md, fix + regression test, checks; escalates to the full flow when it outgrows it |
 | `/wf-refine` | Clarify scope and DoD |
 | `/wf-analyze` | Technical analysis → generates plan.md |
 | `/wf-review-plan` | Verifies the plan against the real codebase |
@@ -405,7 +406,7 @@ rm -f "$BLOCK"
 echo ""
 echo "✅ claude-workflow installed successfully"
 echo ""
-echo "Available commands: /wf, /wf-init, /wf-refine, /wf-analyze, /wf-review-plan,"
+echo "Available commands: /wf, /wf-init, /wf-quick, /wf-refine, /wf-analyze, /wf-review-plan,"
 echo "  /wf-implement, /wf-validate, /wf-test, /wf-commit, /wf-deploy,"
 echo "  /wf-mr-desc, /wf-mr-review, /wf-retro, /wf-improve, /wf-jira, /wf-daily,"
 echo "  /wf-ready, /wf-demo, /wf-test-env"

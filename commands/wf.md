@@ -34,6 +34,7 @@ Ask: "Should we run `/wf-init` first?"
 Check `$ARGUMENTS`:
 - Empty or "resume" → go to Step 2 (check the active state)
 - "reset" → delete `.claude/workflow/state.json` and confirm to the user
+- "quick" (optionally followed by a ticket and/or description) → read `~/.claude/commands/wf-quick.md` and follow it, passing the rest of the arguments
 - An exact stage name ("refine", "analyze", "review-plan", "implement", "validate", "test", "retro", "mr-review", "mr-desc", "jira", "improve") → force that stage, go to Step 4
 - Free-form text → go to Step 3 (detect from the text)
 
@@ -57,7 +58,7 @@ If `$ARGUMENTS` contains a ticket ID (e.g. "BC-1522"):
 **Retroactive ticket (code already implemented, no plan.md):** if on activating a new ticket there's no `{workflowDir}/plan.md` but the current branch already has commits with code changes (not just a freshly created empty branch), it's a ticket created *after* the implementation — don't force `refine`/`analyze`/`review-plan`. Instead:
 - Ask: "There's no plan.md and there's already code implemented on this branch — should we skip refine/analyze and go straight to implement/validate?"
 - If they confirm, save the initial `stage` as `"implement"` with `"completed": ["implement"]` and add a `"notes"` field in `{workflowDir}/state.json` summarizing in 2-3 lines what was done and why there's no formal plan (this replaces refinement-summary.md/plan.md as the minimum context for the following stages).
-- Commands that depend on `plan.md`/`refinement-summary.md` (`wf-validate`, `wf-mr-desc`, `wf-mr-review`) must fall back to reading that `"notes"` field from `{workflowDir}/state.json` when those files don't exist, instead of blocking or assuming they're missing by mistake.
+- Commands that depend on `plan.md`/`refinement-summary.md` (`wf-validate`, `wf-mr-desc`, `wf-mr-review`) must fall back to reading `{workflowDir}/quick.md` (a ticket done with `/wf-quick`) or that `"notes"` field from `{workflowDir}/state.json` when those files don't exist, instead of blocking or assuming they're missing by mistake.
 
 Check the current branch with `git branch --show-current`. If the branch does NOT contain the activeTicket and isn't the project's base branch (`develop`/`main`/`master`, whichever the repo uses):
 ```
@@ -79,6 +80,7 @@ Look for signals in the text:
 | Signals | Stage |
 |---|---|
 | "ticket", "feature", "new task", "start", "let's" | `refine` |
+| "small fix", "quick fix", "tiny change", "typo", "quick" — a change that looks small and well understood | `quick` (offer it; `/wf-quick` triages and escalates if it is not) |
 | "analyze", "how to implement", "explore", "make a plan", "I need a plan" | `analyze` |
 | "review the plan", "verify the plan", "the plan is ready" | `review-plan` |
 | "implement", "code it", "make the changes", "start coding" | `implement` |
@@ -124,6 +126,7 @@ When starting a stage for a ticket:
 ## Step 6 — Post-stage suggestions
 
 At the end of each stage, suggest the next one:
+- After `quick` → `/wf-commit`, then `/wf-deploy` or `/wf-mr-desc`; if it escalated → `/wf-refine`
 - After `refine` → `/wf-analyze`
 - After `analyze` → `/wf-review-plan`
 - After `review-plan` → `/wf-implement`

@@ -45,6 +45,7 @@ You can also invoke each command directly if you already know what you need:
 
 | Command | When to use it |
 |---|---|
+| `/wf-quick` | A small, well-understood change (a bug with a clear repro, a copy or style fix): triage against three criteria (no risk surface, ≤ 100 production lines / 3 files by default via `quick` in `config.json`, unambiguous behaviour), a short `quick.md` written before the code, the fix with a regression test, and the project's checks. Escalates to `/wf-refine` with `quick.md` as input when it outgrows the track |
 | `/wf-refine` | Starting a new feature or ticket |
 | `/wf-analyze` | When you need the technical plan |
 | `/wf-review-plan` | To verify the plan before writing code |
@@ -61,6 +62,14 @@ You can also invoke each command directly if you already know what you need:
 | `/wf-daily` | To get what to say at the daily (with the technical decisions and captures to show, when there are any), or to record a note or a capture for it |
 | `/wf-ready` | To take a ticket's MRs out of draft and announce them in the team's chat, one short line per MR |
 | `/wf-demo` | To show a change live, step by step and only its main flows, narrated like test-in-env's `--explain --step` (banner, chat line and Seguir/Repetir/Saltar/Parar buttons per step); `--voice` says it aloud into a call for someone who cannot see the screen, `--listen` takes spoken commands ("Cristina, seguí"), `--run` goes straight through |
+
+### Quick flow (small changes)
+
+```
+/wf-quick   → triage (3 criteria) → quick.md → CHECKPOINT → fix + regression test → checks
+     ↓                       ↘ outgrows it (size, risk surface, open question) → /wf-refine
+/wf-commit → /wf-deploy or /wf-mr-desc
+```
 
 ### Typical flow
 

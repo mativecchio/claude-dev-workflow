@@ -112,7 +112,24 @@ eq  "--size over the limit exits 3" "3" "$ZX"
 jq '.mr_size={"max_prod_lines":1000,"max_prod_files":10}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
 bash "$S/wf-diff.sh" --size >/dev/null; eq "the project's mr_size wins" "0" "$?"
 jq 'del(.mr_size)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+
+# --quick: same weight, the quick-track limit (100 lines / 3 files by default)
+Q="$(bash "$S/wf-diff.sh" --quick 2>/dev/null)"; QX=$?
+has "--quick defaults to 100 lines" "max_prod_lines=100" "$Q"
+has "--quick defaults to 3 files"   "max_prod_files=3"   "$Q"
+eq  "--quick over the limit exits 3" "3" "$QX"
+jq '.quick={"max_prod_lines":5000,"max_prod_files":50}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+bash "$S/wf-diff.sh" --quick >/dev/null 2>&1; eq "the project's quick limit wins" "0" "$?"
+bash "$S/wf-diff.sh" --size  >/dev/null 2>&1; eq "quick limit does not leak into --size" "3" "$?"
+jq 'del(.quick)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
 git rm -q -r src/big.js src/locales src/fixtures >/dev/null; git commit -qm "drop size fixtures"
+# the sandbox branch already holds 5 small production files: lift only the
+# file limit, so the default 100-line limit is what decides
+jq '.quick={"max_prod_files":10}' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+Q="$(bash "$S/wf-diff.sh" --quick 2>/dev/null)"; QX=$?
+has "--quick keeps the default line limit" "max_prod_lines=100" "$Q"
+eq  "--quick under the limit exits 0" "0" "$QX"
+jq 'del(.quick)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
 
 echo "═══ wf-checks ═══"
 J="$(bash "$S/wf-checks.sh" --json)"
