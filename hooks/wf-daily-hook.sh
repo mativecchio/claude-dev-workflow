@@ -86,7 +86,11 @@ ${TODAY_NOTES:-(none)}
 
 Excerpt:
 $EXCERPT"
-  WF_DAILY_HOOK=1 timeout 120 claude -p --model "${WF_DAILY_MODEL:-haiku}" \
+  # macOS ships no `timeout`; coreutils installs it as `gtimeout`. Without
+  # either, run unbounded rather than never: the job is detached anyway.
+  TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 120"
+  [ -z "$TO" ] && command -v gtimeout >/dev/null 2>&1 && TO="gtimeout 120"
+  WF_DAILY_HOOK=1 $TO claude -p --model "${WF_DAILY_MODEL:-haiku}" \
       --no-session-persistence --tools "" "$PROMPT" 2>/dev/null \
     | while IFS=$'\t' read -r kind text; do
         kind="$(printf '%s' "$kind" | tr -d '[:space:]-' | tr '[:upper:]' '[:lower:]')"

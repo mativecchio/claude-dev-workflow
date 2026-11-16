@@ -18,7 +18,10 @@ KINDS="done plan doubt blocker decision"
 
 # GNU date first, BSD date (macOS) as the fallback.
 day_shift() {  # <YYYY-MM-DD> <days, may be negative>
-  date -d "$1 $2 day" +%F 2>/dev/null || date -j -v"${2}d" -f %F "$1" +%F
+  # BSD `-v` needs an explicit sign to shift: `-v1d` SETS the day of the month
+  # to 1, so a forward shift without `+` loops `notes` forever on macOS.
+  local n="$2"; case "$n" in -*|+*) ;; *) n="+$n" ;; esac
+  date -d "$1 $2 day" +%F 2>/dev/null || date -j -v"${n}d" -f %F "$1" +%F
 }
 weekday() {    # <YYYY-MM-DD> → 1 (Monday) … 7 (Sunday)
   date -d "$1" +%u 2>/dev/null || date -j -f %F "$1" +%u
