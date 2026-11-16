@@ -147,6 +147,15 @@ Agents are domain experts invoked on demand. They don't load context automatical
 |---|---|
 | `laravel-architect` | Controllers, services, Eloquent, Form Requests |
 
+### ML / CV
+
+| Agent | When to use |
+|---|---|
+| `ml-architect` | Inference pipeline design, component interfaces, model adapters, event-driven ML systems |
+| `ml-evaluator` | Ground truth comparison, detection/tracking metrics, failure cases, threshold tuning |
+| `ml-testing` | Testing ML pipelines without GPU, `MockModelBackend`, event contract tests, fixture-based tests |
+| `cv-engineer` | Video/frame processing, object detection/tracking, trajectory analysis, camera calibration |
+
 **Decision tree for RN:**
 ```
 Is it a crash with a native stack trace (Swift/Kotlin)?  → rn-bridge
@@ -335,7 +344,8 @@ claude-workflow/
 │   ├── react/          ← react-architect
 │   ├── python/         ← python-architect
 │   ├── laravel/        ← laravel-architect
-│   └── shared/         ← typescript-architect, backend-api
+│   ├── shared/         ← typescript-architect, backend-api
+│   └── ml/             ← ml-architect, ml-evaluator, ml-testing, cv-engineer
 ├── scripts/            ← wf-lib, wf-diff, wf-checks, wf-event, wf-stats, wf-resources, wf-clip
 ├── tests/
 │   ├── test-install.sh ← validates install.sh against a sandbox HOME
@@ -347,5 +357,6 @@ claude-workflow/
     ├── architecture.md ← system design
     ├── brainstorm-metrics-and-complexity.md
     ├── plan-harness-migration.md   ← migration to a harness layer (in progress)
+    ├── plan-model-routing.md       ← per-stage/per-agent model routing (done, 0.8.0)
     └── examples/       ← reference per-project overrides
 ```
