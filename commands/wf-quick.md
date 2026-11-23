@@ -34,7 +34,11 @@ Then:
 WF_TICKET=<ticket> ~/.claude/scripts/wf-lib.sh enter-stage quick
 ```
 
-Keep the `WF_TICKET=<ticket>` prefix on `wf-lib.sh` calls until the branch is recorded below. If
+Keep the `WF_TICKET=<ticket>` prefix on `wf-lib.sh` calls until the branch is recorded below.
+When a command prints a `📌 Move <ticket> to "<status>"` line, move the ticket in the tracker at
+that moment (its MCP, else its CLI, else tell the user to do it) and record it with
+`wf-lib.sh tracker-done <event>`; the line repeats until it is recorded. Moving a ticket the user
+is working on needs no extra confirmation. If
 the ticket exists in the tracker and an MCP for it is available, read it; it
 is the source of the expected behaviour, not the summary in `$ARGUMENTS`.
 

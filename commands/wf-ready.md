@@ -135,7 +135,8 @@ not created.
 
 Skipped when `tracker.kind` is `none`. Each MR's ticket is the `key_pattern` match in its
 title (the last one, when a title carries the parent and the child) or its branch. Move it
-to `review_status` unless it is already there or further. Then the parent, as
+to `review_status` unless it is already there or further, and record it from the ticket's checkout
+with `wf-lib.sh tracker-done review` so the workflow does not ask again. Then the parent, as
 `move_parent` says, only when all its children are in review or later.
 
 ## Step 6 — The messages

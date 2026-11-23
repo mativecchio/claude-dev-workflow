@@ -670,6 +670,25 @@ OUT="$(gate_in "$TR/src/a.js" "$TR" | HOME="$TR/home" bash "$G")"
 eq  "a checkout with no ticket is left alone" "" "$OUT"
 cd /; git -C "$TR" worktree remove --force "$TR-wt" 2>/dev/null; rm -rf "$TR/../specs" "$TR" "$TR-wt"
 
+echo "═══ tracker status ═══"
+TK="$(mktemp -d)"; cd "$TK" || exit 1
+git init -q -b develop .; git config user.email t@t.t; git config user.name t
+mkdir -p .claude/workflow; echo x > a; git add a; git commit -qm base
+echo '{ "base_branch": "develop", "tracker": { "transitions": { "start": "In Progress" } } }' > .claude/workflow/config.json
+git checkout -qb MA-900-thing
+OUT="$(bash "$S/wf-lib.sh" enter-stage implement 2>&1 >/dev/null)"
+has "entering implement asks to move the ticket" 'Move MA-900 to "In Progress"' "$OUT"
+eq  "the stage name alone stays on stdout" "implement" "$(bash "$S/wf-lib.sh" enter-stage implement 2>/dev/null)"
+has "an unconfigured event says how to name it" '"tracker": {"transitions": {"review"' "$(bash "$S/wf-lib.sh" tracker-notice review)"
+bash "$S/wf-lib.sh" tracker-done start
+eq  "tracker-done records the status" "In Progress" "$(jq -r .tracker_status .claude/workflow/MA-900/state.json)"
+eq  "a recorded event stops asking" "" "$(bash "$S/wf-lib.sh" enter-stage implement 2>&1 >/dev/null)"
+bash "$S/wf-lib.sh" tracker-notice nonsense >/dev/null 2>&1; eq "an unknown event fails" "1" "$?"
+eq  "a QUICK ticket has no tracker" "" "$(WF_TICKET=QUICK-20261123-x bash "$S/wf-lib.sh" tracker-notice start)"
+jq '.tracker.kind="none"' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+eq  "tracker.kind none silences it" "" "$(bash "$S/wf-lib.sh" tracker-notice review)"
+cd /; rm -rf "$TK"
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json

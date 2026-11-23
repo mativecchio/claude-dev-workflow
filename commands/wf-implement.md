@@ -38,6 +38,11 @@ If the state's `branch` is empty, ask "Which branch are you working on?" and sav
 ~/.claude/scripts/wf-lib.sh set-state branch '"[name]"'
 ```
 
+When a command prints a `📌 Move <ticket> to "<status>"` line, move the ticket in the tracker at
+that moment (its MCP, else its CLI, else tell the user to do it) and record it with
+`wf-lib.sh tracker-done <event>`; the line repeats until it is recorded. Moving a ticket the user
+is working on needs no extra confirmation.
+
 If `context` fails, ask for the ticket and retry with `wf-lib.sh context <ticket>`. If it reports
 `ticket_source=pointer`, confirm the ticket with the user before writing anything. If it warns that
 the ticket's branch is checked out in another worktree, move there before editing.

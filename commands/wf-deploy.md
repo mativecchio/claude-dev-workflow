@@ -108,6 +108,9 @@ git push origin $(git branch --show-current)
 
 If the push fails due to divergence → show the error and ask for instructions. **Never force push.**
 
+Once the MR exists, run `~/.claude/scripts/wf-lib.sh tracker-notice review` and act on its `📌`
+line: move the ticket in the tracker, then `wf-lib.sh tracker-done review`.
+
 **Report and stop:**
 ```
 ✅ Branch ready: [name]
@@ -122,6 +125,9 @@ Do not continue to the deploy.
 ---
 
 ### PHASE 2 — Deploy
+
+**The ticket's MR is merged by now.** Run `~/.claude/scripts/wf-lib.sh tracker-notice merged`
+and act on its `📌` line (move the ticket, then `wf-lib.sh tracker-done merged`) before the deploy.
 
 **Determine TARGET** if it didn't come as an argument: derive it from `branch_model` (integration branch → next environment). If the model doesn't define it, ask.
 
@@ -150,7 +156,8 @@ git push -u origin [resolved pattern]
   Result: [per platform/service]
 ```
 
-If there were errors, help diagnose them.
+If there were errors, help diagnose them. On success, run `wf-lib.sh tracker-notice deployed` and
+act on its `📌` line the same way.
 
 ---
 

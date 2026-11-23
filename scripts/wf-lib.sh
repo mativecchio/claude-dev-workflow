@@ -716,6 +716,58 @@ wf_enter_stage() {
 }
 
 # ---------------------------------------------------------------------------
+# Tracker status
+# ---------------------------------------------------------------------------
+#
+# The ticket's status in the tracker has to follow the work: in progress when
+# the code starts, in review when the MR opens, onward when it merges. The
+# commands said so in prose and it was skipped anyway (PrositeMobile MA-801 and
+# MA-803 stayed in To-DO through merge and deploy). A hook cannot do it: hooks
+# have no MCP, and putting a tracker token in a script is worse than the gap.
+# So the reminder comes out of the very command that marks the moment —
+# enter-stage, and the deploy/merge steps — and stays until it is recorded.
+#
+# Events: start, review, merged, deployed. Their statuses come from
+# "tracker": {"transitions": {"start": "In Progress", ...}} in config.json.
+WF_TRACKER_EVENTS="start review merged deployed"
+
+wf_tracker_status() {
+  wf_config ".tracker.transitions[\"${1:-}\"]"
+}
+
+# Prints what to move and how to record it, once per ticket and event. Silent
+# for an event already recorded, a ticket with no tracker key (QUICK-…), or a
+# project that set "tracker": {"kind": "none"}.
+wf_tracker_notice() {
+  local ev="${1:-}" t st done
+  case " $WF_TRACKER_EVENTS " in *" $ev "*) ;; *) echo "wf-lib: unknown tracker event '$ev' (valid: $WF_TRACKER_EVENTS)" >&2; return 1 ;; esac
+  [ "$(wf_config '.tracker.kind')" = "none" ] && return 0
+  t="$(wf_ticket)" || return 0
+  case "$t" in QUICK-*) return 0 ;; esac
+  done="$(wf_state ".tracker[\"$ev\"]" 2>/dev/null)"
+  [ -n "$done" ] && return 0
+  st="$(wf_tracker_status "$ev")"
+  if [ -n "$st" ]; then
+    printf '\xf0\x9f\x93\x8c Move %s to "%s" in the tracker now (tracker.transitions.%s), then record it:\n   wf-lib.sh tracker-done %s\n' "$t" "$st" "$ev" "$ev"
+  else
+    printf '\xf0\x9f\x93\x8c Move %s to its "%s" status in the tracker now, then record it: wf-lib.sh tracker-done %s\n   Name the status once in config.json: "tracker": {"transitions": {"%s": "<status>"}}\n' "$t" "$ev" "$ev" "$ev"
+  fi
+}
+
+# Records that the ticket was moved for an event, so the notice stops.
+wf_tracker_done() {
+  local ev="${1:-}" d f st ts
+  case " $WF_TRACKER_EVENTS " in *" $ev "*) ;; *) echo "wf-lib: unknown tracker event '$ev' (valid: $WF_TRACKER_EVENTS)" >&2; return 1 ;; esac
+  d="$(wf_dir)" || return 1
+  f="$d/state.json"
+  [ -f "$f" ] || echo '{}' > "$f"
+  st="$(wf_tracker_status "$ev")"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  wf_json_update "$f" --arg e "$ev" --arg ts "$ts" --arg st "$st" \
+    '.tracker = ((.tracker // {}) + {($e): $ts}) | if $st != "" then .tracker_status = $st else . end'
+}
+
+# ---------------------------------------------------------------------------
 # CLI: lets it be used without sourcing — `wf-lib.sh ticket`, `wf-lib.sh base`, etc.
 # ---------------------------------------------------------------------------
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
@@ -737,7 +789,14 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     relocate)    wf_relocate_ticket "${2:-}" ;;
     state)       wf_state "${2:-.}" ;;
     set-state)   wf_set_state "$2" "$3" ;;
-    enter-stage) wf_enter_stage "$2" ;;
+    enter-stage)
+      wf_enter_stage "$2" || exit 1
+      # The code starts here: the tracker should say so. On stderr, so the
+      # stage name stays the only thing on stdout.
+      case "$2" in quick|implement) wf_tracker_notice start >&2 ;; esac
+      ;;
+    tracker-notice) wf_tracker_notice "${2:-}" ;;
+    tracker-done)   wf_tracker_done "${2:-}" ;;
     version-notice) wf_version_notice ;;
     context)
       # Printed before the ticket lookup on purpose: a stale install is worth
@@ -777,7 +836,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       wf_related_projects_check || true
       ;;
     *)
-      echo "usage: wf-lib.sh {ticket|ticket-source|tickets-root|worktree [ticket]|scope-check <files>|dir|base|language|model <stage>|implement-advice|config <path>|commits [ticket]|related-check|repo-check|relocate [ticket]|state <path>|set-state <k> <v>|enter-stage <s>|context [ticket]}" >&2
+      echo "usage: wf-lib.sh {ticket|ticket-source|tickets-root|worktree [ticket]|scope-check <files>|dir|base|language|model <stage>|implement-advice|config <path>|commits [ticket]|related-check|repo-check|relocate [ticket]|state <path>|set-state <k> <v>|enter-stage <s>|tracker-notice <event>|tracker-done <event>|context [ticket]}" >&2
       exit 1 ;;
   esac
 fi
