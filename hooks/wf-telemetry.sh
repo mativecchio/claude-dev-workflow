@@ -55,11 +55,23 @@ repo_root() {
 
 project_name() { basename "$(repo_root)"; }
 
-# The project's active ticket (it may not exist yet).
+# wf-lib resolves the ticket from the branch first and the activeTicket pointer
+# last; counting against the pointer alone credited a stale ticket whenever
+# someone switched branch or worked in another worktree.
+WF_LIB="$(dirname "$0")/../scripts/wf-lib.sh"
+
+# The checkout's ticket (it may not exist yet).
 active_ticket() {
-  local f
-  f="$(repo_root)/.claude/workflow/state.json"
-  [ -f "$f" ] && jq -r '.activeTicket // empty' "$f" 2>/dev/null
+  [ -f "$WF_LIB" ] || return 0
+  ( cd "$CWD" 2>/dev/null && bash "$WF_LIB" ticket 2>/dev/null )
+}
+
+tickets_root() {
+  if [ -f "$WF_LIB" ]; then
+    ( cd "$CWD" 2>/dev/null && bash "$WF_LIB" tickets-root 2>/dev/null )
+  else
+    printf '%s/.claude/workflow' "$(repo_root)"
+  fi
 }
 
 # Increments the entry counter for a stage in the TICKET's state.json, not the
@@ -73,7 +85,7 @@ bump_ticket_stage() {
   ticket="$(active_ticket)"
   [ -z "$ticket" ] && return 0
 
-  dir="$(repo_root)/.claude/workflow/$ticket"
+  dir="$(tickets_root)/$ticket"
   f="$dir/state.json"
   mkdir -p "$dir" 2>/dev/null || return 0
   [ -f "$f" ] || echo '{}' > "$f" 2>/dev/null

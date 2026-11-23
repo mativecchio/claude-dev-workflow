@@ -20,8 +20,8 @@ Ask: "Do you have a Jira issue key, or do you want to create a ticket from a des
 
 ## Step 2 — Enrich with project context
 
-Resolve the active ticket: read `.claude/workflow/state.json` → `activeTicket`.
-`{workflowDir}` = `.claude/workflow/{activeTicket}`. If there's no active ticket, skip this step and generate the ticket from `$ARGUMENTS` alone.
+Resolve the ticket of this checkout: `~/.claude/scripts/wf-lib.sh ticket`.
+`{workflowDir}` = `~/.claude/scripts/wf-lib.sh dir`. If there's no active ticket, skip this step and generate the ticket from `$ARGUMENTS` alone.
 
 Read if they exist:
 - `{workflowDir}/refinement-summary.md` → if refinement was already done, use it

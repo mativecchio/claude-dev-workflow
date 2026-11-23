@@ -19,30 +19,31 @@ with `quick.md` as its starting point, never quietly keeps it here.
 (`en` by default). Everything written to a file — `quick.md`, code, comments, commits — is always
 in English.
 
-Resolve the ticket:
-- `$ARGUMENTS` starts with a ticket key (`MA-123`, `BC-1522`) → that one.
-- Otherwise, the active ticket from `.claude/workflow/state.json`, **only if** its directory has no
-  `plan.md` and no `refinement-summary.md` (a ticket already in the full flow is not hijacked).
+Resolve the ticket (rules in `~/.claude/workflow/guides/ticket-resolution.md`):
+- `$ARGUMENTS` starts with a ticket key (`MA-123`, `BC-1522`) → that one, passed explicitly.
+- Otherwise, the ticket `context` resolves from the branch (`ticket_source` `state` or `branch`),
+  **only if** its directory has no `plan.md` and no `refinement-summary.md` (a ticket already in
+  the full flow is not hijacked). A `pointer` source is confirmed with the user first.
 - Otherwise, ask for the key once. A change with no ticket gets `QUICK-YYYYMMDD-<slug>`, with
   `<slug>` = three or four words of the description in kebab-case.
 
 Then:
 
 ```bash
-mkdir -p .claude/workflow/<ticket>
-# set it active, preserving the rest of the root state
-~/.claude/scripts/wf-lib.sh context
-~/.claude/scripts/wf-lib.sh enter-stage quick
+~/.claude/scripts/wf-lib.sh context <ticket>               # creates the ticket dir
+WF_TICKET=<ticket> ~/.claude/scripts/wf-lib.sh enter-stage quick
 ```
 
-Write `{ "activeTicket": "<ticket>" }` into `.claude/workflow/state.json` before `context` if it
-points elsewhere. If the ticket exists in the tracker and an MCP for it is available, read it; it
+Keep the `WF_TICKET=<ticket>` prefix on `wf-lib.sh` calls until the branch is recorded below. If
+the ticket exists in the tracker and an MCP for it is available, read it; it
 is the source of the expected behaviour, not the summary in `$ARGUMENTS`.
 
 Branch: if the current branch is the base branch (`wf-lib.sh base`) or a protected one, offer
 `git checkout -b <ticket>-<slug> <base>` (or the hotfix base the project's `CLAUDE.md` names for
 deployed-version fixes) and wait for the answer. Save it with
-`wf-lib.sh set-state branch '"<name>"'`.
+`WF_TICKET=<ticket> wf-lib.sh set-state branch '"<name>"'`; from then on any checkout of that
+branch, worktrees included, resolves the ticket on its own. When the code goes in a worktree, run
+the rest of the stage from it (`cd "$(wf-lib.sh worktree <ticket>)"`).
 
 ## Step 1 — Understand before judging
 
@@ -126,6 +127,10 @@ Show the Root cause and Fix sections and ask once: **"Is this right? Shall I imp
 Wait for the answer. This is the only checkpoint before code, and it replaces the plan review.
 
 ## Step 4 — Implement
+
+Before the first edit, say where it goes in one line — `→ <ticket> (branch <branch>)` — and check
+that what is being asked fits `quick.md`; if it belongs to another ticket or to none, ask first
+(`~/.claude/workflow/guides/ticket-resolution.md`).
 
 Follow the project's conventions (`CLAUDE.md`, `AGENTS.md`, the guides they point to) exactly as a
 full-flow implementation would: the quick track shortens the process, not the standards.

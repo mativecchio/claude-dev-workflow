@@ -585,6 +585,91 @@ has "say without text says how" "Usage: wf-voice.sh say" "$(bash "$V" say 2>&1)"
 bash "$V" nonsense >/dev/null; eq "an unknown subcommand fails" "1" "$?"
 unset WF_VOICE_HOME WF_VOICE_CONF
 
+echo "═══ ticket resolution ═══"
+# A fresh repo per section: the earlier sections leave state behind.
+TR="$(mktemp -d)"; cd "$TR" || exit 1; TR="$(pwd -P)"
+git init -q -b develop .; git config user.email t@t.t; git config user.name t
+mkdir -p .claude/workflow src; echo x > src/a.js
+echo '{ "base_branch": "develop" }' > .claude/workflow/config.json
+printf '.claude/\n' > .gitignore
+git add -A >/dev/null; git commit -qm base
+echo '{"activeTicket":"MA-800"}' > .claude/workflow/state.json
+
+git checkout -qb fix/MA-801
+eq  "the branch key wins over the pointer" "MA-801" "$(bash "$S/wf-lib.sh" ticket)"
+eq  "and says where it came from" "branch" "$(bash "$S/wf-lib.sh" ticket-source)"
+
+git checkout -qb release/1.3.1
+eq  "a branch without a key falls back to the pointer" "MA-800" "$(bash "$S/wf-lib.sh" ticket)"
+eq  "flagged as the pointer" "pointer" "$(bash "$S/wf-lib.sh" ticket-source)"
+has "context warns when the ticket is only the pointer" "comes from the activeTicket pointer" "$(bash "$S/wf-lib.sh" context 2>&1)"
+
+mkdir -p .claude/workflow/QUICK-20261123-copy
+echo '{"branch":"release/1.3.1"}' > .claude/workflow/QUICK-20261123-copy/state.json
+eq  "a ticket that records the branch wins" "QUICK-20261123-copy" "$(bash "$S/wf-lib.sh" ticket)"
+eq  "flagged as state" "state" "$(bash "$S/wf-lib.sh" ticket-source)"
+eq  "WF_TICKET wins over everything" "MA-5" "$(WF_TICKET=MA-5 bash "$S/wf-lib.sh" ticket)"
+has "context <ticket> names it explicitly" "ticket_source=arg" "$(bash "$S/wf-lib.sh" context MA-5 2>/dev/null)"
+has "context exposes the worktree" "worktree=$TR" "$(bash "$S/wf-lib.sh" context MA-5 2>/dev/null)"
+
+rm .claude/workflow/state.json
+git checkout -q develop
+OUT="$(bash "$S/wf-lib.sh" context 2>&1)"; RC=$?
+eq  "no branch key, no record, no pointer: context fails" "1" "$RC"
+has "and asks for the ticket" "Ask the user which ticket" "$OUT"
+
+# Worktrees share the main checkout's workflow.
+git branch -q MA-803-tag-guard develop
+git worktree add -q "$TR-wt" MA-803-tag-guard
+mkdir -p .claude/workflow/MA-803
+echo '{"branch":"MA-803-tag-guard","stage":"quick"}' > .claude/workflow/MA-803/state.json
+eq  "a worktree resolves its own ticket" "MA-803" "$(cd "$TR-wt" && bash "$S/wf-lib.sh" ticket)"
+eq  "and the main checkout's ticket dir" "$TR/.claude/workflow/MA-803" "$(cd "$TR-wt" && bash "$S/wf-lib.sh" dir)"
+eq  "the ticket finds its worktree" "$TR-wt" "$(bash "$S/wf-lib.sh" worktree MA-803)"
+bash "$S/wf-lib.sh" worktree MA-999 >/dev/null 2>&1; eq "an unknown ticket has no worktree" "1" "$?"
+git checkout -qb MA-803-other
+has "context warns when the ticket lives on another branch" "Its worktree is $TR-wt" "$(bash "$S/wf-lib.sh" context MA-803 2>&1)"
+git checkout -q develop
+
+# specs_root moves the ticket dirs, keyed by ticket.
+jq '.specs_root="../specs"' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+eq  "specs_root relative to the main checkout" "$TR/../specs" "$(bash "$S/wf-lib.sh" tickets-root)"
+mkdir -p "$TR/../specs/MA-803"; echo '{"branch":"MA-803-tag-guard"}' > "$TR/../specs/MA-803/state.json"
+eq  "the worktree's ticket dir follows specs_root" "$TR/../specs/MA-803" "$(cd "$TR-wt" && bash "$S/wf-lib.sh" dir)"
+jq 'del(.specs_root)' .claude/workflow/config.json > t && mv t .claude/workflow/config.json
+
+echo "═══ scope check ═══"
+cat > .claude/workflow/MA-803/quick.md << 'EOF2'
+# MA-803
+
+## Files
+| File | Change |
+|---|---|
+| `fastlane/Fastfile` | calls |
+| `fastlane/guard/` | new dir |
+
+## Tests
+EOF2
+cd "$TR-wt" || exit 1
+bash "$S/wf-lib.sh" scope-check fastlane/Fastfile >/dev/null; eq "a listed file is in scope" "0" "$?"
+bash "$S/wf-lib.sh" scope-check "$TR-wt/fastlane/guard/check.rb" >/dev/null; eq "a file under a listed dir is in scope" "0" "$?"
+eq  "an unlisted file is reported" "src/App.tsx" "$(bash "$S/wf-lib.sh" scope-check src/App.tsx)"
+bash "$S/wf-lib.sh" scope-check src/__tests__/a.test.ts CLAUDE.md >/dev/null; eq "tests and docs are never out of scope" "0" "$?"
+
+G="$REPO/hooks/wf-gate.sh"
+gate_in() { jq -cn --arg f "$1" --arg c "$2" '{tool_name:"Edit", cwd:$c, tool_input:{file_path:$f}}'; }
+OUT="$(gate_in "$TR-wt/src/App.tsx" "$TR" | HOME="$TR/home" bash "$G")"
+has "the hook asks before an edit outside the spec" '"permissionDecision":"ask"' "$OUT"
+has "naming the ticket of the file's worktree, not the session's" "MA-803" "$OUT"
+OUT="$(gate_in "$TR-wt/fastlane/Fastfile" "$TR" | HOME="$TR/home" bash "$G")"
+eq  "an edit inside the spec passes silently" "" "$OUT"
+OUT="$(gate_in "$TR-wt/src/App.tsx" "$TR" | WF_SCOPE=observe HOME="$TR/home" bash "$G")"
+eq  "observe records without asking" "" "$OUT"
+has "and the event is recorded" "scope_outside" "$(cat "$TR/home/.claude/workflow/events.jsonl")"
+OUT="$(gate_in "$TR/src/a.js" "$TR" | HOME="$TR/home" bash "$G")"
+eq  "a checkout with no ticket is left alone" "" "$OUT"
+cd /; git -C "$TR" worktree remove --force "$TR-wt" 2>/dev/null; rm -rf "$TR/../specs" "$TR" "$TR-wt"
+
 echo "═══════════════════════════"
 echo "  ✅ $PASS   ❌ $FAIL"
 cd /; rm -rf "$SB" "$NOWF" /tmp/wf-good.json

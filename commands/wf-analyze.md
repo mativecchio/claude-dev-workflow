@@ -14,7 +14,7 @@ Your role is to prepare the technical analysis and launch a specialized agent to
 
 `context` creates the ticket's directory and returns `{ticketId}` and `{workflowDir}`. `enter-stage` records the entry while preserving `branch`, `notes`, `iterations` and `subtasks`, and validates the stage name against the system's single vocabulary.
 
-If `context` fails there's no active ticket: ask "What's the ticket number? (e.g. BC-1234)", write `{ "activeTicket": "BC-XXXX" }` to `.claude/workflow/state.json` and retry.
+If `context` fails, neither the branch nor any ticket's state names the ticket: ask "What's the ticket number? (e.g. BC-1234)" and retry with `wf-lib.sh context BC-XXXX` (`~/.claude/workflow/guides/ticket-resolution.md`).
 
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — plan.md, design-decisions.md, code — is always in English.
 

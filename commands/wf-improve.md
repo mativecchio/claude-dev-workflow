@@ -15,8 +15,8 @@ When `$ARGUMENTS` has text, record the observation without interrupting the work
 
 ### Step 1 — Detect the current context
 
-Read `.claude/workflow/state.json` → `activeTicket`.
-Read `.claude/workflow/{activeTicket}/state.json` → current `stage`.
+Resolve the ticket with `~/.claude/scripts/wf-lib.sh ticket`.
+Read `$(wf-lib.sh dir)/state.json` → current `stage`.
 
 ### Step 2 — Classify the observation
 
@@ -59,12 +59,12 @@ Full review of everything accumulated during the session.
 
 ### Step 1 — Gather everything
 
-Read `.claude/workflow/state.json` → `activeTicket`.
+Resolve the ticket with `~/.claude/scripts/wf-lib.sh ticket`.
 
 Read:
 - `.claude/workflow/improvement-log.md` → accumulated observations
-- `.claude/workflow/{activeTicket}/state.json` → stages visited
-- `.claude/workflow/{activeTicket}/plan.md` → to understand what was implemented
+- `$(wf-lib.sh dir)/state.json` → stages visited
+- `$(wf-lib.sh dir)/plan.md` → to understand what was implemented
 - `~/.claude/workflow/flow-history.json` → if there are 3+ entries, cross-reference patterns
 
 ### Step 2 — Show the analysis

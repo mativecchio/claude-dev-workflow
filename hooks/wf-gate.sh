@@ -32,7 +32,7 @@
 #   export WF_GATE=enforce     (or put it in the env of ~/.claude/settings.json)
 
 MODE="${WF_GATE:-observe}"
-[ "$MODE" = "off" ] && exit 0
+[ "$MODE" = "off" ] && [ "${WF_SCOPE:-ask}" = "off" ] && exit 0
 
 command -v jq >/dev/null 2>&1 || exit 0
 INPUT="$(cat)"; [ -z "$INPUT" ] && exit 0
@@ -46,21 +46,77 @@ case "$TOOL" in
 esac
 
 CWD="$(jget '.cwd')"; [ -n "$CWD" ] || CWD="$PWD"
-ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" || ROOT="$CWD"
-[ -n "$ROOT" ] || exit 0
+FILE="$(jget '.tool_input.file_path // .tool_input.notebook_path')"
 
-STATE="$ROOT/.claude/workflow/state.json"
-[ -f "$STATE" ] || exit 0                       # project without a workflow: none of our business
+# Resolve the ticket from the checkout the FILE is in, not the session's: a
+# session can edit another worktree, and that worktree's branch says which
+# ticket the edit belongs to.
+HERE="$CWD"
+if [ -n "$FILE" ]; then
+  d="$(dirname "$FILE")"
+  while [ -n "$d" ] && [ "$d" != "/" ] && [ ! -d "$d" ]; do d="$(dirname "$d")"; done
+  git -C "$d" rev-parse --show-toplevel >/dev/null 2>&1 && HERE="$d"
+fi
+cd "$HERE" 2>/dev/null || exit 0
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 
-TICKET="$(jq -r '.activeTicket // empty' "$STATE" 2>/dev/null)"
+LIB="$(dirname "$0")/../scripts/wf-lib.sh"
+[ -f "$LIB" ] || exit 0
+# shellcheck source=../scripts/wf-lib.sh
+. "$LIB" || exit 0
+
+WROOT="$(wf_workflow_root)"
+[ -f "$WROOT/state.json" ] || [ -f "$WROOT/config.json" ] || exit 0   # project without a workflow
+
+TICKET="$(wf_ticket 2>/dev/null)" || exit 0
 [ -n "$TICKET" ] || exit 0
+SOURCE="$(wf_ticket_source 2>/dev/null)"
+TDIR="$(wf_tickets_root)/$TICKET"
 
-TSTATE="$ROOT/.claude/workflow/$TICKET/state.json"
+TSTATE="$TDIR/state.json"
 [ -f "$TSTATE" ] || exit 0
 jq -e . "$TSTATE" >/dev/null 2>&1 || exit 0     # corrupt state: fail-open
 
 STAGE="$(jq -r '.stage // empty' "$TSTATE" 2>/dev/null)"
-PLAN="$ROOT/.claude/workflow/$TICKET/plan.md"
+PLAN="$TDIR/plan.md"
+REL="${FILE#"$ROOT"/}"
+
+record() {  # record <event> <reason> [extra-json]
+  local events="$HOME/.claude/workflow/events.jsonl"
+  mkdir -p "$(dirname "$events")" 2>/dev/null
+  jq -cn \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg project "$(basename "$(wf_main_root)")" \
+    --arg ticket "$TICKET" --arg file "$REL" --arg tool "$TOOL" \
+    --arg mode "$2" --arg stage "$STAGE" --arg event "$1" --arg reason "$3" \
+    '{ts:$ts, project:$project, ticket:$ticket, subtask:null,
+      stage:$stage, source:"hook", event:$event,
+      data:{file:$file, tool:$tool, mode:$mode, reason:$reason}}' >> "$events" 2>/dev/null
+}
+
+# ── Scope: an edit outside the files the ticket's spec lists ─────────────────
+# Two specs in one session are easy to mix up: the request lands in whatever
+# ticket is open. When the spec has a file table and this file is not in it,
+# ask the user instead of writing (WF_SCOPE=ask, the default), only record it
+# (observe), or do nothing (off). It asks, it never blocks: a spec's file list
+# can be incomplete, and the user's yes is the answer.
+SCOPE_MODE="${WF_SCOPE:-ask}"
+if [ "$SCOPE_MODE" != "off" ] && [ -n "$FILE" ]; then
+  case "$FILE" in
+    */.claude/*) ;;
+    *)
+      if ! wf_scope_check "$FILE" >/dev/null 2>&1; then
+        record "scope_outside" "$SCOPE_MODE" "outside-spec"
+        if [ "$SCOPE_MODE" = "ask" ]; then
+          why="$REL is not in the files of $TICKET's spec ($TDIR)"
+          [ "$SOURCE" = "pointer" ] && why="$why; and $TICKET was taken from the activeTicket pointer, not from the branch"
+          jq -cn --arg r "$why. Is this edit part of $TICKET? If it belongs to another ticket, stop and switch to that ticket's worktree." \
+            '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"ask", permissionDecisionReason:$r}}'
+          exit 0
+        fi
+      fi ;;
+  esac
+fi
 
 # Table rows of a `## <heading>` section of the plan, header row included and
 # separator rows left out: 2 or more means the table has at least one entry.
@@ -86,31 +142,15 @@ case "$STAGE" in
   *) exit 0 ;;                                  # only these two stages block
 esac
 
+[ "$MODE" = "off" ] && exit 0                    # WF_GATE=off silences the stage gate only
+
 # The workflow's own artifacts and documentation: always allowed. Adjusting the
 # plan while reviewing it is part of this stage's work, not a leak.
-FILE="$(jget '.tool_input.file_path')"
 case "$FILE" in
   */.claude/workflow/*|*/.claude/*|*/docs/*|*.md) exit 0 ;;
 esac
 
-REL="${FILE#"$ROOT"/}"
-
-# Record the event in the same telemetry stream as the rest of the system.
-EVENTS="$HOME/.claude/workflow/events.jsonl"
-mkdir -p "$(dirname "$EVENTS")" 2>/dev/null
-jq -cn \
-  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg project "$(basename "$ROOT")" \
-  --arg ticket "$TICKET" \
-  --arg file "$REL" \
-  --arg tool "$TOOL" \
-  --arg mode "$MODE" \
-  --arg stage "$STAGE" \
-  --arg reason "$REASON" \
-  '{ts:$ts, project:$project, ticket:$ticket, subtask:null,
-    stage:$stage, source:"hook",
-    event:(if $mode == "enforce" then "gate_blocked" else "gate_would_block" end),
-    data:{file:$file, tool:$tool, mode:$mode, reason:$reason}}' >> "$EVENTS" 2>/dev/null
+record "$(if [ "$MODE" = "enforce" ]; then echo gate_blocked; else echo gate_would_block; fi)" "$MODE" "$REASON"
 
 [ "$MODE" != "enforce" ] && exit 0
 

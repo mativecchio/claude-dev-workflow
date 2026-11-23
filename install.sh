@@ -327,7 +327,8 @@ API: `backend-api`
 
 ### Workflow state
 Supports multiple tickets. The root state only records which one is active:
-- `.claude/workflow/state.json` — `{ "activeTicket": "BC-XXXX" }`
+The ticket comes from the branch (`fix/BC-1234`, or the ticket whose state records the branch); `wf-lib.sh context` prints it with its source. Worktrees share the main checkout's workflow. See `~/.claude/workflow/guides/ticket-resolution.md`.
+- `.claude/workflow/state.json` — `{ "activeTicket": "BC-XXXX" }`, a fallback for branches that name no ticket
 - `.claude/workflow/{ticketId}/state.json` — stage, progress, branch
 - `.claude/workflow/{ticketId}/` — refinement-summary.md, plan.md, review-findings.md
 - `.claude/workflow/config.json` — stack, DoD, related_projects

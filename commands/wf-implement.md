@@ -38,7 +38,14 @@ If the state's `branch` is empty, ask "Which branch are you working on?" and sav
 ~/.claude/scripts/wf-lib.sh set-state branch '"[name]"'
 ```
 
-If `context` fails, ask for the ticket and write `.claude/workflow/state.json` before retrying.
+If `context` fails, ask for the ticket and retry with `wf-lib.sh context <ticket>`. If it reports
+`ticket_source=pointer`, confirm the ticket with the user before writing anything. If it warns that
+the ticket's branch is checked out in another worktree, move there before editing.
+
+Before the first edit, say where the work goes in one line — `→ <ticket> (branch <branch>)` — and
+check that the request fits the plan; a request outside it may belong to another ticket, so ask
+which before choosing. `hooks/wf-gate.sh` asks too when a file is outside the plan's file table
+(`~/.claude/workflow/guides/ticket-resolution.md`).
 
 **Language:** address the user in the language reported as `lang` by `context` (`en` by default). Everything written to a file — code, comments, plan.md, commits — is always in English.
 

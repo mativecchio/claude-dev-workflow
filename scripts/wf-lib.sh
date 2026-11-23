@@ -24,27 +24,158 @@ wf_repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
-wf_workflow_root() { printf '%s/.claude/workflow' "$(wf_repo_root)"; }
+# The main checkout of the repo, shared by all its worktrees. The workflow lives
+# there: .claude/workflow is gitignored, so a worktree resolved through its own
+# top level had no config and no state, and work done in a worktree had to be
+# recorded in the main checkout by hand.
+wf_main_root() {
+  local common
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || { wf_repo_root; return; }
+  case "$common" in
+    */.git) printf '%s' "${common%/.git}" ;;
+    *)      wf_repo_root ;;
+  esac
+}
 
-# Active ticket. Empty + exit 1 if there is none: the caller decides whether to
-# ask the user or carry on without a ticket.
-wf_ticket() {
-  local f t
+wf_workflow_root() { printf '%s/.claude/workflow' "$(wf_main_root)"; }
+
+# Where the ticket directories live. Defaults to the workflow root; "specs_root"
+# in config.json moves them (absolute, ~/..., or relative to the main checkout),
+# e.g. to a checkout of a central specs repository. Directories are keyed by
+# ticket, never by project, so one ticket that spans repos has one home.
+wf_tickets_root() {
+  local r main
+  r="$(wf_config '.specs_root')"
+  main="$(wf_main_root)"
+  case "$r" in
+    '')   printf '%s' "$(wf_workflow_root)" ;;
+    /*)   printf '%s' "$r" ;;
+    "~"/*) printf '%s/%s' "$HOME" "${r#"~/"}" ;;
+    *)    printf '%s/%s' "$main" "$r" ;;
+  esac
+}
+
+wf_ticket_pattern() {
+  local p
+  p="$(wf_config '.ticket_pattern')"
+  printf '%s' "${p:-[A-Z][A-Z0-9]+-[0-9]+}"
+}
+
+# The ticket this checkout is working on, and how it was found, as
+# "<ticket> <source>". In order:
+#   arg      WF_TICKET (the command was given the ticket)
+#   state    a ticket whose state.json records the current branch
+#   branch   the ticket key in the branch name (fix/MA-801 → MA-801)
+#   pointer  activeTicket in the root state.json — the last resort
+# The branch is read from git, so it is always current; the pointer is a memory
+# written earlier and goes stale the moment someone switches branch or opens a
+# worktree. It used to be the only source, so two tickets in parallel overwrote
+# each other's pointer and a command could write into the wrong ticket silently.
+wf_ticket_resolve() {
+  local t branch root f key
+  if [ -n "${WF_TICKET:-}" ]; then printf '%s arg' "$WF_TICKET"; return 0; fi
+  command -v jq >/dev/null 2>&1 || return 1
+  root="$(wf_tickets_root)"
+  branch="$(git branch --show-current 2>/dev/null)"
+  if [ -n "$branch" ]; then
+    for f in "$root"/*/state.json; do
+      [ -f "$f" ] || continue
+      if [ "$(jq -r '.branch // empty' "$f" 2>/dev/null)" = "$branch" ]; then
+        t="$(basename "$(dirname "$f")")"
+        printf '%s state' "$t"; return 0
+      fi
+    done
+    key="$(printf '%s' "$branch" | grep -oE "$(wf_ticket_pattern)" | head -1)"
+    if [ -n "$key" ]; then printf '%s branch' "$key"; return 0; fi
+  fi
   f="$(wf_workflow_root)/state.json"
   [ -f "$f" ] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
   t="$(jq -r '.activeTicket // empty' "$f" 2>/dev/null)"
   [ -n "$t" ] || return 1
-  printf '%s' "$t"
+  printf '%s pointer' "$t"
+}
+
+# The ticket alone. Empty + exit 1 if there is none: the caller decides whether
+# to ask the user or carry on without a ticket.
+wf_ticket() {
+  local r
+  r="$(wf_ticket_resolve)" || return 1
+  printf '%s' "${r%% *}"
+}
+
+wf_ticket_source() {
+  local r
+  r="$(wf_ticket_resolve)" || return 1
+  printf '%s' "${r##* }"
 }
 
 # The active ticket's directory, created if it doesn't exist.
 wf_dir() {
   local t d
   t="$(wf_ticket)" || return 1
-  d="$(wf_workflow_root)/$t"
+  d="$(wf_tickets_root)/$t"
   mkdir -p "$d" 2>/dev/null || return 1
   printf '%s' "$d"
+}
+
+# The checkout a ticket's code is in: the worktree on the branch its state
+# records, else the one whose branch carries its key. The user remembers the
+# ticket, not the folder. Empty + exit 1 when no worktree matches.
+wf_worktree() {
+  local t branch wt b
+  t="${1:-}"
+  [ -n "$t" ] || t="$(wf_ticket)" || return 1
+  branch="$(jq -r '.branch // empty' "$(wf_tickets_root)/$t/state.json" 2>/dev/null)"
+  git worktree list --porcelain 2>/dev/null | awk '
+    /^worktree / { wt = substr($0, 10) }
+    /^branch /   { sub("^branch refs/heads/", ""); print wt "\t" $0 }' |
+  {
+    fallback=""
+    while IFS="$(printf '\t')" read -r wt b; do
+      if [ -n "$branch" ] && [ "$b" = "$branch" ]; then printf '%s' "$wt"; exit 0; fi
+      if [ -z "$fallback" ] && printf '%s' "$b" | grep -qE "(^|[^A-Za-z0-9])$t([^0-9]|$)"; then fallback="$wt"; fi
+    done
+    [ -n "$fallback" ] && { printf '%s' "$fallback"; exit 0; }
+    exit 1
+  }
+}
+
+# Files outside the ticket's spec. Reads the file table of quick.md (## Files)
+# or plan.md (## Files to modify/create): the first backticked path of each row.
+# Paths are relative to the checkout; an entry ending in / covers a directory.
+# Workflow artifacts, docs and tests are never out of scope. Prints one line per file
+# outside the list and exits 1; exits 0 when all are inside or the spec lists
+# no files (nothing to compare against).
+wf_scope_check() {
+  local t d spec listed="" f rel root out=""
+  t="$(wf_ticket)" || return 0
+  d="$(wf_tickets_root)/$t"
+  for spec in "$d/plan.md" "$d/quick.md"; do
+    [ -f "$spec" ] || continue
+    listed="$(awk '
+      /^## Files( to modify\/create)?[[:space:]]*$/ { s = 1; next }
+      /^## / { s = 0 }
+      s && /^\|/ { if (match($0, /`[^`]+`/)) print substr($0, RSTART + 1, RLENGTH - 2) }' "$spec")"
+    [ -n "$listed" ] && break
+  done
+  [ -n "$listed" ] || return 0
+  root="$(wf_repo_root)"
+  for f in "$@"; do
+    rel="${f#"$root"/}"
+    case "$rel" in
+      .claude/*|*.md|docs/*|*/__tests__/*|__tests__/*|*/tests/*|tests/*|*/test/*|test/*|*.test.*|*.spec.*|*_test.*) continue ;;
+    esac
+    if ! printf '%s\n' "$listed" | awk -v f="$rel" '
+        $0 == f { found = 1 }
+        /\/$/ && index(f, $0) == 1 { found = 1 }
+        END { exit !found }'; then
+      out="$out$rel
+"
+    fi
+  done
+  [ -n "$out" ] || return 0
+  printf '%s' "$out"
+  return 1
 }
 
 # Reads a key from the project config. Usage: wf_config '.base_branch'
@@ -590,6 +721,10 @@ wf_enter_stage() {
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   case "${1:-}" in
     ticket)      wf_ticket ;;
+    ticket-source) wf_ticket_source ;;
+    tickets-root) wf_tickets_root ;;
+    worktree)    wf_worktree "${2:-}" ;;
+    scope-check) shift; wf_scope_check "$@" ;;
     dir)         wf_dir ;;
     base)        wf_base ;;
     language)    wf_language ;;
@@ -609,11 +744,31 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       # knowing about even in a project with no active ticket, where the lookup
       # below exits 1.
       wf_version_notice
+      # `context <ticket>` names the ticket explicitly; it wins over the branch.
+      [ -n "${2:-}" ] && export WF_TICKET="$2"
       # Everything a command needs at startup, in one call.
-      t="$(wf_ticket)" || { echo "❌ No active ticket in $(wf_workflow_root)/state.json" >&2; exit 1; }
+      r="$(wf_ticket_resolve)" || {
+        echo "❌ No ticket: branch '$(git branch --show-current 2>/dev/null)' names none and no ticket records it. Ask the user which ticket, then run: wf-lib.sh context <TICKET>" >&2
+        exit 1; }
+      t="${r%% *}"; src="${r##* }"
+      export WF_TICKET="$t"
       st="$(wf_state '.stage')"
-      printf 'ticket=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nlang=%s\nmodel=%s\n' \
-        "$t" "$(wf_dir)" "$(wf_base)" "$st" "$(git branch --show-current 2>/dev/null)" "$(wf_language)" "$(wf_model "$st" 2>/dev/null)"
+      cur="$(git branch --show-current 2>/dev/null)"
+      printf 'ticket=%s\nticket_source=%s\ndir=%s\nbase=%s\nstage=%s\nbranch=%s\nworktree=%s\nlang=%s\nmodel=%s\n' \
+        "$t" "$src" "$(wf_dir)" "$(wf_base)" "$st" "$cur" "$(wf_repo_root)" "$(wf_language)" "$(wf_model "$st" 2>/dev/null)"
+      # The pointer is a memory, not a fact about this checkout: say so, so the
+      # ticket is confirmed instead of assumed.
+      if [ "$src" = "pointer" ]; then
+        printf '\xe2\x9a\xa0 ticket %s comes from the activeTicket pointer: branch %s names no ticket and no ticket records it.\n   Confirm with the user that the work is for %s before writing anything.\n' \
+          "$t" "'$cur'" "$t" >&2
+      fi
+      # A ticket recorded on another branch: this checkout is not where its code is.
+      tb="$(wf_state '.branch' 2>/dev/null)"
+      if [ -n "$tb" ] && [ -n "$cur" ] && [ "$tb" != "$cur" ]; then
+        wt="$(wf_worktree "$t" 2>/dev/null)"
+        printf '\xe2\x9a\xa0 ticket %s records branch %s, but this checkout is on %s.%s\n' \
+          "$t" "'$tb'" "'$cur'" "${wt:+ Its worktree is $wt — run the workflow from there.}" >&2
+      fi
       wf_ticket_repo_check || true
       wf_is_stage "$st" || printf '\xe2\x9a\xa0 stage %s is not a pipeline stage, so no model can be resolved for it and any Agent would inherit the session model. Fix it with: wf-lib.sh set-state stage %s\n' \
         "'$st'" "'<one of: $WF_STAGES>'" >&2
@@ -622,7 +777,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
       wf_related_projects_check || true
       ;;
     *)
-      echo "usage: wf-lib.sh {ticket|dir|base|language|model <stage>|implement-advice|config <path>|commits [ticket]|related-check|repo-check|relocate [ticket]|state <path>|set-state <k> <v>|enter-stage <s>|context}" >&2
+      echo "usage: wf-lib.sh {ticket|ticket-source|tickets-root|worktree [ticket]|scope-check <files>|dir|base|language|model <stage>|implement-advice|config <path>|commits [ticket]|related-check|repo-check|relocate [ticket]|state <path>|set-state <k> <v>|enter-stage <s>|context [ticket]}" >&2
       exit 1 ;;
   esac
 fi

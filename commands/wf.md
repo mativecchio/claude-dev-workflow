@@ -40,8 +40,9 @@ Check `$ARGUMENTS`:
 
 ## Step 2 — Ticket dashboard
 
-Read `.claude/workflow/state.json` → `activeTicket` field.
-Scan every `.claude/workflow/*/state.json` file to list the tickets.
+Resolve this checkout's ticket with `~/.claude/scripts/wf-lib.sh context` (`ticket`, `ticket_source`)
+and list the tickets from every `$(wf-lib.sh tickets-root)/*/state.json`, with each one's worktree
+from `wf-lib.sh worktree <ticket>` when it has one (`~/.claude/workflow/guides/ticket-resolution.md`).
 
 Show the dashboard:
 ```
@@ -51,7 +52,10 @@ Show the dashboard:
 ```
 
 If `$ARGUMENTS` contains a ticket ID (e.g. "BC-1522"):
-1. Change activeTicket: save `{ "activeTicket": "BC-1522" }` to `.claude/workflow/state.json`
+1. If its worktree is another checkout (`wf-lib.sh worktree BC-1522`), say so and continue from
+   there. Otherwise save `{ "activeTicket": "BC-1522" }` to `.claude/workflow/state.json` — the
+   pointer only matters on branches that name no ticket — and use `WF_TICKET=BC-1522` until its
+   branch is recorded.
 2. Confirm: "🎯 Now active: BC-1522"
 3. Read `{workflowDir}/state.json` and show the current stage
 
@@ -60,7 +64,7 @@ If `$ARGUMENTS` contains a ticket ID (e.g. "BC-1522"):
 - If they confirm, save the initial `stage` as `"implement"` with `"completed": ["implement"]` and add a `"notes"` field in `{workflowDir}/state.json` summarizing in 2-3 lines what was done and why there's no formal plan (this replaces refinement-summary.md/plan.md as the minimum context for the following stages).
 - Commands that depend on `plan.md`/`refinement-summary.md` (`wf-validate`, `wf-mr-desc`, `wf-mr-review`) must fall back to reading `{workflowDir}/quick.md` (a ticket done with `/wf-quick`) or that `"notes"` field from `{workflowDir}/state.json` when those files don't exist, instead of blocking or assuming they're missing by mistake.
 
-Check the current branch with `git branch --show-current`. If the branch does NOT contain the activeTicket and isn't the project's base branch (`develop`/`main`/`master`, whichever the repo uses):
+`context` already warns when the ticket records another branch. If the current branch does NOT contain the ticket and isn't the project's base branch (`develop`/`main`/`master`, whichever the repo uses):
 ```
 ⚠️  Current branch: [branch] — doesn't look like the branch for [ticket]
 ```

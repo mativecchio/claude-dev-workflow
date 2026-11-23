@@ -8,12 +8,12 @@ Your role is to generate a precise commit message using the workflow's context a
 ## Step 1 — Read the workflow context
 
 Try to read (silently, no error if missing):
-- `.claude/workflow/state.json` → `activeTicket`
+- `~/.claude/scripts/wf-lib.sh ticket` → the ticket of this checkout
 - `{workflowDir}/refinement-summary.md` → objective of the change
 - `{workflowDir}/plan.md` → what was implemented
 - `{workflowDir}/quick.md` → problem, root cause and fix of a `/wf-quick` change (instead of the two above)
 
-Where `{workflowDir}` = `.claude/workflow/{activeTicket}`. If there's no active ticket or the files don't exist, continue anyway — the diff is enough.
+Where `{workflowDir}` = `~/.claude/scripts/wf-lib.sh dir`. If there's no active ticket or the files don't exist, continue anyway — the diff is enough.
 
 `/wf-commit` is not a stage of the cycle: it records no `stage` and emits no telemetry.
 

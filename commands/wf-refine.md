@@ -15,10 +15,14 @@ Print whatever it outputs verbatim before anything else. This stage runs before 
 so `context` — which is where every later stage gets the same notice — is not available here.
 Silence means the installation is current.
 
-Detect the ticket ID in this order:
+Detect the ticket ID in this order (`~/.claude/workflow/guides/ticket-resolution.md`):
 1. `$ARGUMENTS` — if it contains a pattern like `BC-1234`, `PROJ-99`, use it
-2. `.claude/workflow/state.json` → `activeTicket` field
+2. `~/.claude/scripts/wf-lib.sh ticket` — from the branch, or the ticket that records it; when
+   `wf-lib.sh ticket-source` says `pointer`, confirm it with the user
 3. If it's found in neither → **ask before continuing**: "What's the ticket number? (e.g. BC-1234)"
+
+Until the ticket's branch exists and is recorded (Step 5), prefix `wf-lib.sh` calls with
+`WF_TICKET=BC-XXXX`.
 
 Create the `.claude/workflow/BC-XXXX/` folder if it doesn't exist.
 All of this ticket's artifacts are saved there.

@@ -38,7 +38,10 @@ FILE="$(jget '.tool_input.file_path')"
 CWD="$(jget '.cwd')"; [ -n "$CWD" ] || CWD="$PWD"
 ROOT="$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null)" ||
   ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" || exit 0
-[ -f "$ROOT/.claude/workflow/state.json" ] || exit 0
+# The workflow lives in the main checkout, shared by all worktrees.
+MAIN="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+case "$MAIN" in */.git) MAIN="${MAIN%/.git}" ;; *) MAIN="$ROOT" ;; esac
+[ -f "$MAIN/.claude/workflow/state.json" ] || [ -f "$MAIN/.claude/workflow/config.json" ] || exit 0
 
 REL="${FILE#"$ROOT"/}"
 
@@ -55,7 +58,7 @@ case "$REL" in
   *.d.ts|*.min.js|*.generated.*) exit 0 ;;
 esac
 
-LIMIT="$(jq -r '.max_file_lines // empty' "$ROOT/.claude/workflow/config.json" 2>/dev/null)"
+LIMIT="$(jq -r '.max_file_lines // empty' "$MAIN/.claude/workflow/config.json" 2>/dev/null)"
 [ -n "$LIMIT" ] || LIMIT="${WF_SHAPE_MAX_LINES:-300}"
 STEP="${WF_SHAPE_STEP:-50}"
 case "$LIMIT$STEP" in *[!0-9]*) exit 0 ;; esac
@@ -84,7 +87,7 @@ fi
 
 printf '%s\t%s\n' "$FILE" "$NOW" >> "$SEEN" 2>/dev/null
 
-TICKET="$(jq -r '.activeTicket // empty' "$ROOT/.claude/workflow/state.json" 2>/dev/null)"
+TICKET="$( cd "$ROOT" 2>/dev/null && bash "$(dirname "$0")/../scripts/wf-lib.sh" ticket 2>/dev/null )"
 EVENTS="$HOME/.claude/workflow/events.jsonl"
 jq -cn \
   --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
